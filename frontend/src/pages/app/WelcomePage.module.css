@@ -1,0 +1,92 @@
+.shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--gray-10);
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  padding: 56px 32px 80px;
+}
+
+.welcome {
+  max-width: 720px;
+  width: 100%;
+  text-align: center;
+  padding-top: 48px;
+}
+
+.mark {
+  width: 96px;
+  height: 96px;
+  margin: 0 auto 32px;
+  display: block;
+}
+
+.title {
+  font-size: 44px;
+  line-height: 1.25;
+  font-weight: 300;
+  letter-spacing: -1.2px;
+  color: var(--text-primary);
+  margin-bottom: 20px;
+  text-wrap: balance;
+}
+.title strong {
+  font-weight: 600;
+  color: var(--blue-60);
+}
+
+.sub {
+  font-size: 17px;
+  line-height: 28px;
+  color: var(--text-secondary);
+  max-width: 540px;
+  margin: 0 auto 40px;
+  text-wrap: balance;
+}
+
+.ctaWrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.note {
+  font-size: 14px;
+  color: var(--text-helper);
+}
+
+.trust {
+  margin-top: 80px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  text-align: left;
+}
+@media (max-width: 720px) {
+  .trust { grid-template-columns: 1fr; }
+}
+
+.trustNum {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--blue-60);
+  margin-bottom: 12px;
+  letter-spacing: 0.3px;
+}
+.trustTitle {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  letter-spacing: -0.2px;
+}
+.trustDesc {
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--text-secondary);
+}

@@ -1,0 +1,54 @@
+.cbx {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-04);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  letter-spacing: 0.16px;
+  color: var(--text-primary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.cbx input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cbx__box {
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--icon-primary);
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color var(--dur-fast-02) var(--ease-productive-standard);
+  flex-shrink: 0;
+}
+.cbx__box::after {
+  content: '';
+  width: 8px;
+  height: 4px;
+  border-left: 2px solid var(--text-on-color);
+  border-bottom: 2px solid var(--text-on-color);
+  transform: rotate(-45deg) translate(1px, -1px);
+  opacity: 0;
+}
+
+.cbx input:checked ~ .cbx__box {
+  background: var(--icon-primary);
+  border-color: var(--icon-primary);
+}
+.cbx input:checked ~ .cbx__box::after { opacity: 1; }
+.cbx input:focus-visible ~ .cbx__box {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.cbx input:disabled ~ .cbx__box {
+  border-color: var(--text-disabled);
+  background: transparent;
+}
+.cbx input:disabled:checked ~ .cbx__box { background: var(--text-disabled); }
+.cbx input:disabled ~ * { color: var(--text-disabled); cursor: not-allowed; }

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" aria-label="보험길잡이">
+  
+  <path d="M50 8&#xA;       C29.5 8 19 18.5 19 39&#xA;       L19 64&#xA;       C19 80 27 89 41 89&#xA;       C45 89 47.5 90 49.5 92.5&#xA;       L52 95.5&#xA;       C54.5 98.5 58.5 98 60.5 95&#xA;       L67 86&#xA;       C69 83 71.5 81 75 80&#xA;       C81 78 81 70 81 64&#xA;       L81 39&#xA;       C81 18.5 70.5 8 50 8 Z" fill="#0f62fe"></path>
+  
+  <rect x="30" y="22" width="40" height="40" rx="9" ry="9" fill="#ffffff"></rect>
+  
+  <circle cx="41" cy="38" r="3.2" fill="#0f62fe"></circle>
+  <circle cx="59" cy="38" r="3.2" fill="#0f62fe"></circle>
+  
+  <path d="M39 46 Q50 56 61 46" stroke="#0f62fe" stroke-width="3.2" stroke-linecap="round" fill="none"></path>
+</svg>

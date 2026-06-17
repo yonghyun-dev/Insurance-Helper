@@ -1,0 +1,134 @@
+
+
+<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden">
+  <symbol id="chevron-down" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M8 11L3 6l.7-.7L8 9.6l4.3-4.3.7.7z"></path>
+    </symbol>
+
+    <symbol id="chevron-up" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M8 5l5 5-.7.7L8 6.4 3.7 10.7 3 10z"></path>
+    </symbol>
+
+    <symbol id="chevron-right" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M11 8L6 13l-.7-.7L9.6 8 5.3 3.7 6 3z"></path>
+    </symbol>
+
+    <symbol id="chevron-left" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M5 8l5-5 .7.7L6.4 8l4.3 4.3-.7.7z"></path>
+    </symbol>
+
+    <symbol id="close" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M12 4.7L11.3 4 8 7.3 4.7 4 4 4.7 7.3 8 4 11.3l.7.7L8 8.7 11.3 12l.7-.7L8.7 8z"></path>
+    </symbol>
+
+    <symbol id="add" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M8.5 7.5V3h-1v4.5H3v1h4.5V13h1V8.5H13v-1z"></path>
+    </symbol>
+
+    <symbol id="checkmark" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M6.5 11.5L3 8l.7-.7 2.8 2.8 5.8-5.8.7.7z"></path>
+    </symbol>
+
+    <symbol id="arrow-up" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M8 2l4.3 4.3-.7.7L8.5 3.9V14h-1V3.9L4.4 7 3.7 6.3z"></path>
+    </symbol>
+
+    <symbol id="arrow-right" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M11 4l4.3 4-4.3 4-.7-.7L13.4 8.5H2v-1h11.4L10.3 4.7z"></path>
+    </symbol>
+
+    <symbol id="arrow-left" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M5 4L.7 8 5 12l.7-.7L2.6 8.5H14v-1H2.6L5.7 4.7z"></path>
+    </symbol>
+
+    <symbol id="send" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M14.4 1.6L1 6.2v.9l5.6 1.8 1.7 5.5h.9L14.4 1.6zM8 13.1L6.7 8.5l4-4-.7-.7-4 4L1.5 6.6 13.5 2.4 8 13.1z"></path>
+    </symbol>
+
+    <symbol id="search" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M11.4 10.7l-2.7-2.7c.6-.8 1-1.7 1-2.8 0-2.5-2-4.5-4.5-4.5S.7 2.7.7 5.2 2.7 9.7 5.2 9.7c1.1 0 2-.4 2.8-1l2.7 2.7zM5.2 8.7c-1.9 0-3.5-1.6-3.5-3.5s1.6-3.5 3.5-3.5 3.5 1.6 3.5 3.5-1.6 3.5-3.5 3.5z" transform="translate(1.8 1.8)"></path>
+    </symbol>
+
+    <symbol id="warning-filled" viewBox="0 0 16 16">
+      <path fill="currentColor" d="M8 1C4.1 1 1 4.1 1 8s3.1 7 7 7 7-3.1 7-7-3.1-7-7-7zm-.5 3h1v5h-1V4zm.5 8.2c-.4 0-.7-.3-.7-.7s.3-.7.7-.7.7.3.7.7-.3.7-.7.7z"></path>
+      <path fill="#000" d="M7.5 4h1v5h-1zM8 12.2c-.4 0-.7-.3-.7-.7s.3-.7.7-.7.7.3.7.7-.3.7-.7.7z" opacity="0"></path>
+    </symbol>
+
+    <symbol id="error-filled" viewBox="0 0 16 16">
+      <path fill="currentColor" d="M8 1C4.1 1 1 4.1 1 8s3.1 7 7 7 7-3.1 7-7-3.1-7-7-7zm3.4 9.7L10.7 11.4 8 8.7 5.3 11.4 4.6 10.7 7.3 8 4.6 5.3l.7-.7L8 7.3l2.7-2.7.7.7L8.7 8z"></path>
+    </symbol>
+
+    <symbol id="checkmark-filled" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M8 1C4.1 1 1 4.1 1 8s3.1 7 7 7 7-3.1 7-7-3.1-7-7-7zM6.7 11.5L3.2 8l.7-.7L6.7 10l5.4-5.4.7.7L6.7 11.5z"></path>
+    </symbol>
+
+    <symbol id="information" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M8 1C4.1 1 1 4.1 1 8s3.1 7 7 7 7-3.1 7-7-3.1-7-7-7zm0 13c-3.3 0-6-2.7-6-6s2.7-6 6-6 6 2.7 6 6-2.7 6-6 6z"></path>
+      <path d="M7.5 7h1v4.5h-1zM8 4.5c-.4 0-.7.3-.7.7s.3.7.7.7.7-.3.7-.7-.3-.7-.7-.7z"></path>
+    </symbol>
+
+    <symbol id="user" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M8 8.5c-2.2 0-4 1.8-4 4v.5h1v-.5c0-1.7 1.3-3 3-3s3 1.3 3 3v.5h1v-.5c0-2.2-1.8-4-4-4zM8 8c1.7 0 3-1.3 3-3S9.7 2 8 2 5 3.3 5 5s1.3 3 3 3zm0-5c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2z"></path>
+    </symbol>
+
+    <symbol id="bot" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M14 6h-1V4c0-.6-.4-1-1-1H8.5V1.5C8.5 1.2 8.3 1 8 1s-.5.2-.5.5V3H4c-.6 0-1 .4-1 1v2H2v3h1v3c0 .6.4 1 1 1h8c.6 0 1-.4 1-1V9h1V6zM4 4h8v8H4V4zm2 2.5C6 6.2 6.2 6 6.5 6s.5.2.5.5v1c0 .3-.2.5-.5.5S6 7.8 6 7.5v-1zm3 0c0-.3.2-.5.5-.5s.5.2.5.5v1c0 .3-.2.5-.5.5s-.5-.2-.5-.5v-1zM5.5 9.5h5L9 11H7L5.5 9.5z"></path>
+    </symbol>
+
+    <symbol id="settings" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M14 9V7l-1.6-.3a4.7 4.7 0 00-.4-1L13 4.4l-1.4-1.4-1.3.9a4.7 4.7 0 00-1-.4L9 2H7l-.3 1.6a4.7 4.7 0 00-1 .4L4.4 3 3 4.4l.9 1.3a4.7 4.7 0 00-.4 1L2 7v2l1.6.3a4.7 4.7 0 00.4 1L3 11.6 4.4 13l1.3-.9a4.7 4.7 0 001 .4L7 14h2l.3-1.6a4.7 4.7 0 001-.4l1.3.9 1.4-1.4-.9-1.3a4.7 4.7 0 00.4-1L14 9zM8 10.5A2.5 2.5 0 1110.5 8 2.5 2.5 0 018 10.5z"></path>
+    </symbol>
+
+    <symbol id="menu" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M2 11.5h12v1H2zM2 7.5h12v1H2zM2 3.5h12v1H2z"></path>
+    </symbol>
+
+    <symbol id="overflow-menu-horizontal" viewBox="0 0 16 16" fill="currentColor">
+      <circle cx="3" cy="8" r="1"></circle>
+      <circle cx="8" cy="8" r="1"></circle>
+      <circle cx="13" cy="8" r="1"></circle>
+    </symbol>
+
+    <symbol id="overflow-menu-vertical" viewBox="0 0 16 16" fill="currentColor">
+      <circle cx="8" cy="3" r="1"></circle>
+      <circle cx="8" cy="8" r="1"></circle>
+      <circle cx="8" cy="13" r="1"></circle>
+    </symbol>
+
+    <symbol id="attachment" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M14 5.5L8.4 11A2.7 2.7 0 014.6 7.2L9.7 2a1.7 1.7 0 012.3 2.4L7 9.4l-.7-.7 5-5a.6.6 0 00-.9-.9l-5.1 5a1.7 1.7 0 002.3 2.4L13.3 4.8a2.7 2.7 0 11-3.7 3.7z"></path>
+    </symbol>
+
+    <symbol id="copy" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M11 1H3a1 1 0 00-1 1v9h1V2h8V1z"></path>
+      <path d="M14 4H6a1 1 0 00-1 1v9a1 1 0 001 1h8a1 1 0 001-1V5a1 1 0 00-1-1zm0 10H6V5h8v9z"></path>
+    </symbol>
+
+    <symbol id="thumbs-up" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M14 7h-3V3a1 1 0 00-1-1H8.5L6 6V5H2v8h4v-1h4l2-1V8l2-1zM5 12H3V6h2v6zm8.3-4.8L12 8v3l-1 .5H6V6.3L9 2h1v5h4l-.7.2z"></path>
+    </symbol>
+
+    <symbol id="thumbs-down" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M14 9h-3v4a1 1 0 01-1 1H8.5L6 10v1H2V3h4v1h4l2 1v3l2 1zM5 4H3v6h2V4zm8.3 4.8L12 8V5l-1-.5H6v5.7L9 14h1V9h4l-.7-.2z"></path>
+    </symbol>
+
+    <symbol id="document" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M9 1H4a1 1 0 00-1 1v12a1 1 0 001 1h8a1 1 0 001-1V5L9 1zm3 13H4V2h4v4h4v8z"></path>
+    </symbol>
+
+    <symbol id="edit" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M2 13.5V11l8-8 2.5 2.5-8 8H2zm9.5-8.5L10 6.5l1 1L12.5 6 11.5 5zM3 13h1.8l5.5-5.5L8.5 5.7 3 11.2V13z"></path>
+      <path d="M2 14h12v1H2z"></path>
+    </symbol>
+
+    <symbol id="trash" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M11 13V6h-1v7H6V6H5v7a1 1 0 001 1h4a1 1 0 001-1z"></path>
+      <path d="M13 3H10V2a1 1 0 00-1-1H7a1 1 0 00-1 1v1H3v1h1v10a1 1 0 001 1h6a1 1 0 001-1V4h1V3zM7 2h2v1H7V2zm4 12H5V4h6v10z"></path>
+    </symbol>
+
+    <symbol id="logo" viewBox="0 0 32 32" fill="none">
+      <rect x="2" y="2" width="28" height="28" fill="#0f62fe"></rect>
+      <path d="M8 11h16v2H8z M8 15h16v2H8z M8 19h11v2H8z" fill="#ffffff"></path>
+    </symbol>
+
+</svg>

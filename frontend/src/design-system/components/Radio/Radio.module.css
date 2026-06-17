@@ -1,0 +1,46 @@
+.rbx {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-04);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  letter-spacing: 0.16px;
+  color: var(--text-primary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.rbx input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.rbx__dot {
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--icon-primary);
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.rbx__dot::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--icon-primary);
+  transform: scale(0);
+  transition: transform var(--dur-fast-02) var(--ease-productive-standard);
+}
+
+.rbx input:checked ~ .rbx__dot::after { transform: scale(1); }
+.rbx input:focus-visible ~ .rbx__dot {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.rbx input:disabled ~ .rbx__dot { border-color: var(--text-disabled); }
+.rbx input:disabled:checked ~ .rbx__dot::after { background: var(--text-disabled); }
+.rbx input:disabled ~ * { color: var(--text-disabled); cursor: not-allowed; }

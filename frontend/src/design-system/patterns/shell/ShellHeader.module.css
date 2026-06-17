@@ -1,0 +1,68 @@
+.head {
+  background: var(--background);
+  border-bottom: 1px solid var(--border-subtle-01);
+  padding: 16px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-shrink: 0;
+}
+
+.brand {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: inherit;
+}
+.brand img { width: 36px; height: 36px; display: block; }
+
+.brandWord {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  color: var(--text-primary);
+}
+.brandAccent { color: var(--blue-60); }
+
+.brandTag {
+  font-size: 11px;
+  color: var(--text-helper);
+  border-left: 1px solid var(--border-subtle-01);
+  padding-left: 12px;
+  margin-left: 4px;
+  font-weight: 500;
+}
+
+.right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.link {
+  color: var(--text-secondary);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  transition: background-color var(--dur-fast-02) var(--ease-productive-standard),
+              color var(--dur-fast-02) var(--ease-productive-standard);
+}
+.link:hover {
+  background: var(--gray-10);
+  color: var(--text-primary);
+}

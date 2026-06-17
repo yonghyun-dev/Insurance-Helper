@@ -1,0 +1,31 @@
+.wrap {
+  height: 100vh;
+  min-height: 720px;
+}
+
+.sideStatus {
+  padding: 16px 24px 0;
+}
+
+.sideStatusLabel {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.sideStatusHead {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.sideStatusSub {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text-secondary);
+}

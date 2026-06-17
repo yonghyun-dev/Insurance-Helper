@@ -1,0 +1,83 @@
+/* ──────────────────────────────────────────────────────────────────
+   base.css — Carbon Productive reset, Korean-friendly
+   ──────────────────────────────────────────────────────────────── */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  background: var(--background);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Korean: keep words together, break at spaces only */
+body { word-break: keep-all; }
+
+h1, h2, h3, h4, h5, h6, p { margin: 0; }
+
+h1 {
+  font-size: var(--type-heading-06-size);
+  line-height: var(--type-heading-06-line);
+  font-weight: var(--type-heading-06-weight);
+  letter-spacing: 0;
+}
+h2 {
+  font-size: var(--type-heading-05-size);
+  line-height: var(--type-heading-05-line);
+  font-weight: var(--type-heading-05-weight);
+}
+h3 {
+  font-size: var(--type-heading-04-size);
+  line-height: var(--type-heading-04-line);
+  font-weight: var(--type-heading-04-weight);
+}
+h4 {
+  font-size: var(--type-heading-03-size);
+  line-height: var(--type-heading-03-line);
+  font-weight: var(--type-heading-03-weight);
+}
+h5 {
+  font-size: var(--type-heading-02-size);
+  line-height: var(--type-heading-02-line);
+  font-weight: var(--type-heading-02-weight);
+}
+h6 {
+  font-size: var(--type-heading-01-size);
+  line-height: var(--type-heading-01-line);
+  font-weight: var(--type-heading-01-weight);
+  letter-spacing: var(--type-heading-01-tracking);
+}
+
+p {
+  font-size: var(--type-body-02-size);
+  line-height: var(--type-body-02-line);
+}
+
+small {
+  font-size: var(--type-helper-01-size);
+  line-height: var(--type-helper-01-line);
+  letter-spacing: var(--type-helper-01-tracking);
+  color: var(--text-helper);
+}
+
+code {
+  font-family: var(--font-mono);
+  font-size: var(--type-code-02-size);
+  line-height: var(--type-code-02-line);
+}
+
+a {
+  color: var(--link-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color var(--dur-fast-02) var(--ease-productive-standard);
+}
+a:hover { color: var(--link-primary-hover); }
+
+button { font-family: inherit; }

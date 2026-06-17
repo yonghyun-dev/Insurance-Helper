@@ -1,0 +1,284 @@
+/* ────────────────────────────────────────────────────────────────
+   보험길잡이 디자인 시스템 — tokens.css
+   Carbon Design System v11 White theme + Korean typography
+   원본: colors_and_type.css (:root) — 한 글자도 바꾸지 않고 그대로
+   ──────────────────────────────────────────────────────────────── */
+
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* ──────────────────────────────────────────────────────────────
+     CARBON CORE GRAY SCALE (raw)
+     ──────────────────────────────────────────────────────────── */
+  --gray-10: #f4f4f4;
+  --gray-10-hover: #e8e8e8;
+  --gray-20: #e0e0e0;
+  --gray-20-hover: #cacaca;
+  --gray-30: #c6c6c6;
+  --gray-30-hover: #b5b5b5;
+  --gray-40: #a8a8a8;
+  --gray-50: #8d8d8d;
+  --gray-60: #6f6f6f;
+  --gray-70: #525252;
+  --gray-70-hover: #636363;
+  --gray-80: #393939;
+  --gray-80-hover: #4c4c4c;
+  --gray-90: #262626;
+  --gray-100: #161616;
+
+  /* ──────────────────────────────────────────────────────────────
+     CARBON BLUE (브랜드)
+     ──────────────────────────────────────────────────────────── */
+  --blue-10: #edf5ff;
+  --blue-20: #d0e2ff;
+  --blue-30: #a6c8ff;
+  --blue-40: #78a9ff;
+  --blue-50: #4589ff;
+  --blue-60: #0f62fe;   /* primary brand */
+  --blue-60-hover: #0050e6;
+  --blue-70: #0043ce;
+  --blue-70-hover: #0039a7;
+  --blue-80: #002d9c;
+  --blue-90: #001d6c;
+  --blue-100: #001141;
+
+  /* Semantic raw */
+  --red-50: #fa4d56;
+  --red-60: #da1e28;     /* error */
+  --red-60-hover: #ba1b23;
+  --red-70: #a2191f;
+  --green-40: #42be65;
+  --green-50: #24a148;   /* success */
+  --green-60: #198038;
+  --yellow-30: #f1c21b;  /* warning */
+  --yellow-20: #fdd13a;
+  --purple-60: #8a3ffc;
+  --teal-50: #009d9a;
+
+  /* ──────────────────────────────────────────────────────────────
+     SEMANTIC TOKENS — Carbon White theme
+     ──────────────────────────────────────────────────────────── */
+  /* Background */
+  --background: #ffffff;
+  --background-hover: rgba(141,141,141,0.12);
+  --background-active: rgba(141,141,141,0.5);
+  --background-selected: rgba(141,141,141,0.2);
+  --background-selected-hover: rgba(141,141,141,0.32);
+  --background-inverse: var(--gray-80);
+  --background-inverse-hover: var(--gray-80-hover);
+  --background-brand: var(--blue-60);
+
+  /* Layer */
+  --layer-01: var(--gray-10);
+  --layer-02: #ffffff;
+  --layer-03: var(--gray-10);
+  --layer-hover-01: var(--gray-10-hover);
+  --layer-hover-02: var(--gray-10-hover);
+  --layer-hover-03: var(--gray-10-hover);
+  --layer-active-01: var(--gray-30);
+  --layer-active-02: var(--gray-30);
+  --layer-active-03: var(--gray-30);
+  --layer-accent-01: var(--gray-20);
+  --layer-accent-02: var(--gray-20);
+  --layer-selected-01: var(--gray-20);
+  --layer-selected-inverse: var(--gray-100);
+
+  /* Field */
+  --field-01: var(--gray-10);
+  --field-02: #ffffff;
+  --field-hover-01: var(--gray-10-hover);
+  --field-hover-02: var(--gray-10-hover);
+
+  /* Text */
+  --text-primary: var(--gray-100);
+  --text-secondary: var(--gray-70);
+  --text-placeholder: var(--gray-40);
+  --text-helper: var(--gray-60);
+  --text-on-color: #ffffff;
+  --text-on-color-disabled: var(--gray-30);
+  --text-disabled: var(--gray-30);
+  --text-error: var(--red-60);
+  --text-inverse: #ffffff;
+
+  /* Link */
+  --link-primary: var(--blue-60);
+  --link-primary-hover: var(--blue-70);
+  --link-secondary: var(--blue-70);
+  --link-visited: #8a3ffc;
+
+  /* Icon */
+  --icon-primary: var(--gray-100);
+  --icon-secondary: var(--gray-70);
+  --icon-on-color: #ffffff;
+  --icon-disabled: var(--gray-30);
+  --icon-interactive: var(--blue-60);
+  --icon-inverse: #ffffff;
+
+  /* Border */
+  --border-subtle-00: var(--gray-20);
+  --border-subtle-01: var(--gray-20);
+  --border-subtle-02: var(--gray-30);
+  --border-subtle-selected-01: var(--gray-30);
+  --border-strong-01: var(--gray-50);
+  --border-strong-02: var(--gray-50);
+  --border-inverse: var(--gray-100);
+  --border-interactive: var(--blue-60);
+  --border-disabled: var(--gray-20);
+
+  /* Support / Semantic */
+  --support-error: var(--red-60);
+  --support-error-inverse: var(--red-50);
+  --support-success: var(--green-50);
+  --support-warning: var(--yellow-30);
+  --support-info: var(--blue-70);
+  --support-caution-major: #ff832b;
+
+  /* Highlight backgrounds (notification surfaces) */
+  --notification-error-bg: #fff1f1;
+  --notification-error-border: var(--red-60);
+  --notification-success-bg: #defbe6;
+  --notification-success-border: var(--green-60);
+  --notification-warning-bg: #fcf4d6;
+  --notification-warning-border: var(--yellow-30);
+  --notification-info-bg: var(--blue-10);
+  --notification-info-border: var(--blue-70);
+
+  /* Focus */
+  --focus: var(--blue-60);
+  --focus-inset: #ffffff;
+  --focus-inverse: #ffffff;
+
+  /* Button */
+  --button-primary: var(--blue-60);
+  --button-primary-hover: var(--blue-60-hover);
+  --button-primary-active: var(--blue-80);
+  --button-secondary: var(--gray-80);
+  --button-secondary-hover: var(--gray-80-hover);
+  --button-secondary-active: var(--gray-60);
+  --button-tertiary: var(--blue-60);
+  --button-tertiary-hover: var(--blue-70);
+  --button-tertiary-active: var(--blue-80);
+  --button-danger: var(--red-60);
+  --button-danger-hover: var(--red-60-hover);
+  --button-danger-active: var(--red-70);
+  --button-disabled: var(--gray-20);
+
+  /* Overlay */
+  --overlay: rgba(22, 22, 22, 0.5);
+
+  /* Shadow (Carbon uses shadows sparingly) */
+  --shadow-popover: 0 2px 6px rgba(0, 0, 0, 0.20);
+  --shadow-overlay: 0 4px 12px rgba(0, 0, 0, 0.25);
+
+  /* ──────────────────────────────────────────────────────────────
+     TYPOGRAPHY — Carbon type tokens (Productive theme)
+     ──────────────────────────────────────────────────────────── */
+  --font-sans: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont,
+               'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'D2Coding', 'Menlo', 'Consolas', monospace;
+
+  /* Code */
+  --type-code-01-size: 0.75rem;
+  --type-code-01-line: 1rem;
+  --type-code-01-tracking: 0.32px;
+  --type-code-02-size: 0.875rem;
+  --type-code-02-line: 1.25rem;
+  --type-code-02-tracking: 0;
+
+  /* Label */
+  --type-label-01-size: 0.75rem;
+  --type-label-01-line: 1rem;
+  --type-label-01-tracking: 0.32px;
+  --type-label-02-size: 0.875rem;
+  --type-label-02-line: 1.125rem;
+  --type-label-02-tracking: 0.16px;
+
+  /* Helper */
+  --type-helper-01-size: 0.75rem;
+  --type-helper-01-line: 1rem;
+  --type-helper-01-tracking: 0.32px;
+
+  /* Body */
+  --type-body-01-size: 0.875rem;
+  --type-body-01-line: 1.25rem;
+  --type-body-01-tracking: 0.16px;
+  --type-body-02-size: 1rem;
+  --type-body-02-line: 1.5rem;
+  --type-body-02-tracking: 0;
+
+  /* Heading (Productive) */
+  --type-heading-01-size: 0.875rem;
+  --type-heading-01-line: 1.125rem;
+  --type-heading-01-tracking: 0.16px;
+  --type-heading-01-weight: 600;
+  --type-heading-02-size: 1rem;
+  --type-heading-02-line: 1.5rem;
+  --type-heading-02-tracking: 0;
+  --type-heading-02-weight: 600;
+  --type-heading-03-size: 1.25rem;
+  --type-heading-03-line: 1.75rem;
+  --type-heading-03-weight: 400;
+  --type-heading-04-size: 1.75rem;
+  --type-heading-04-line: 2.25rem;
+  --type-heading-04-weight: 400;
+  --type-heading-05-size: 2rem;
+  --type-heading-05-line: 2.5rem;
+  --type-heading-05-weight: 400;
+  --type-heading-06-size: 2.625rem;
+  --type-heading-06-line: 3.125rem;
+  --type-heading-06-weight: 300;
+  --type-heading-07-size: 3.375rem;
+  --type-heading-07-line: 4rem;
+  --type-heading-07-weight: 300;
+
+  /* ──────────────────────────────────────────────────────────────
+     SPACING — 4px base
+     ──────────────────────────────────────────────────────────── */
+  --space-01: 2px;
+  --space-02: 4px;
+  --space-03: 8px;
+  --space-04: 12px;
+  --space-05: 16px;
+  --space-06: 24px;
+  --space-07: 32px;
+  --space-08: 40px;
+  --space-09: 48px;
+  --space-10: 64px;
+  --space-11: 80px;
+  --space-12: 96px;
+  --space-13: 160px;
+
+  /* ──────────────────────────────────────────────────────────────
+     SIZES — input/button heights
+     ──────────────────────────────────────────────────────────── */
+  --size-xs: 24px;
+  --size-sm: 32px;
+  --size-md: 40px;
+  --size-lg: 48px;
+  --size-xl: 64px;
+  --size-2xl: 80px;
+
+  /* Radius — Carbon = 0 by default. Buttons get a soft radius per brand preference. */
+  --radius-0: 0;
+  --radius-sm: 2px;
+  --radius-button: 8px;
+  --radius-pill: 999px;
+
+  /* ──────────────────────────────────────────────────────────────
+     MOTION
+     ──────────────────────────────────────────────────────────── */
+  --dur-fast-01: 70ms;
+  --dur-fast-02: 110ms;
+  --dur-moderate-01: 150ms;
+  --dur-moderate-02: 240ms;
+  --dur-slow-01: 400ms;
+  --dur-slow-02: 700ms;
+
+  --ease-productive-standard: cubic-bezier(0.2, 0, 0.38, 0.9);
+  --ease-productive-entrance: cubic-bezier(0, 0, 0.38, 0.9);
+  --ease-productive-exit:     cubic-bezier(0.2, 0, 1, 0.9);
+  --ease-expressive-standard: cubic-bezier(0.4, 0.14, 0.3, 1);
+  --ease-expressive-entrance: cubic-bezier(0, 0, 0.3, 1);
+  --ease-expressive-exit:     cubic-bezier(0.4, 0.14, 1, 1);
+}

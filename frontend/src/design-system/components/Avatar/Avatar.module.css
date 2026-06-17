@@ -1,0 +1,20 @@
+.avatar {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  flex-shrink: 0;
+  border-radius: 999px;
+  color: var(--text-on-color);
+}
+
+.avatar--bot  { background: var(--blue-60); }
+.avatar--user { background: var(--gray-80); }
+
+.avatar--lg {
+  width: 40px;
+  height: 40px;
+  font-size: 0.875rem;
+}
