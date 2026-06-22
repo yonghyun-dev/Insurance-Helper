@@ -1,0 +1,6 @@
+fastapi
+httpx
+openai==1.52.2
+pydantic-settings
+python-dotenv
+uvicorn[standard]
