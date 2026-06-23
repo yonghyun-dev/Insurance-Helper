@@ -312,6 +312,8 @@ def post_message(
         assessment = llm.generate_assessment(session.slots, chunks)
         # audit 에 인용한 chunk_id + confidence 기록 (분쟁 시 재현)
         audit_ctx.retrieved_chunk_ids = [c.chunk_id for c in assessment.citations]
+        # Sprint 22 — 청구 요약/체크리스트 집계용으로 전체 assessment 보관
+        session.last_assessment = assessment
         _append_assistant(session, assessment.summary, response_type="assessment")
         store.touch(session, status="answered")
         audit.complete(

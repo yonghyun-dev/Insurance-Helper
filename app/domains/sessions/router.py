@@ -22,6 +22,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.domains.auth.deps import get_current_user_optional
+from app.domains.claims import service as claims_service
+from app.domains.claims.schemas import ClaimChecklist, ClaimReceipt, ClaimSummary
 from app.domains.sessions import service
 from app.domains.sessions.schemas import (
     Message,
@@ -172,6 +174,39 @@ def get_session_state(session_id: str) -> SessionStateResponse:
         slots=session.slots,
         history=session.history,
     )
+
+
+@router.get("/{session_id}/checklist", response_model=ClaimChecklist)
+def get_checklist(session_id: str) -> ClaimChecklist:
+    """Sprint 22 — 필요 서류 체크리스트 (area + 슬롯 기반 규칙)."""
+    try:
+        session = service.get_session(session_id)
+    except SessionNotFoundError as exc:
+        logger.info("get_checklist: 세션 미존재/만료 id=%s", session_id)
+        raise _error("SESSION_NOT_FOUND", _MSG_SESSION_NOT_FOUND, http=404) from exc
+    return claims_service.build_checklist(session.slots)
+
+
+@router.get("/{session_id}/summary", response_model=ClaimSummary)
+def get_summary(session_id: str) -> ClaimSummary:
+    """Sprint 22 — 청구 준비 요약 (슬롯 + 마지막 assessment + 체크리스트)."""
+    try:
+        session = service.get_session(session_id)
+    except SessionNotFoundError as exc:
+        logger.info("get_summary: 세션 미존재/만료 id=%s", session_id)
+        raise _error("SESSION_NOT_FOUND", _MSG_SESSION_NOT_FOUND, http=404) from exc
+    return claims_service.build_summary(session)
+
+
+@router.post("/{session_id}/submit", response_model=ClaimReceipt)
+def submit_claim(session_id: str) -> ClaimReceipt:
+    """Sprint 22 — 청구 접수(가정). 실제 전송 없이 더미 접수 결과 반환."""
+    try:
+        session = service.get_session(session_id)
+    except SessionNotFoundError as exc:
+        logger.info("submit_claim: 세션 미존재/만료 id=%s", session_id)
+        raise _error("SESSION_NOT_FOUND", _MSG_SESSION_NOT_FOUND, http=404) from exc
+    return claims_service.submit_claim(session)
 
 
 @router.delete("/{session_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=JSONResponse)

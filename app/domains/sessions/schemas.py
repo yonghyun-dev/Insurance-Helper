@@ -149,6 +149,8 @@ class Session(BaseModel):
     status: SessionStatus = "gathering"
     slots: SlotState = Field(default_factory=SlotState)
     history: list[Message] = Field(default_factory=list)
+    # Sprint 22 — 마지막 assessment 보관 (청구 요약·체크리스트 집계용). P-3 보정.
+    last_assessment: AssistantAssessment | None = None
 
     def is_expired(self, now: datetime, ttl_seconds: int) -> bool:
         """`last_activity_at + ttl` 경과 시 만료.
@@ -265,3 +267,7 @@ class SessionResponse(BaseModel):
     )
     slots: SlotState
     status: SessionStatus
+
+
+# Sprint 22 — Session 이 뒤에 정의된 AssistantAssessment 를 참조(forward ref) → 재빌드.
+Session.model_rebuild()

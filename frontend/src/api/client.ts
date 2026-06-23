@@ -226,3 +226,40 @@ export async function fetchInsurances(): Promise<EnrolledInsurance[]> {
   });
   return r.insurances ?? [];
 }
+
+// === Sprint 22 — 청구 준비(체크리스트 / 요약 / 접수) ===
+export interface ChecklistItem {
+  id: string;
+  label: string;
+  required: boolean;
+  reason: string;
+}
+
+export interface ClaimSummary {
+  insurer: string | null;
+  product: string | null;
+  area: string | null;
+  likelihood: string | null;
+  summary: string | null;
+  satisfied: string[];
+  unsatisfied: string[];
+  next_steps: string[];
+  checklist: ChecklistItem[];
+}
+
+export interface ClaimReceipt {
+  receipt_no: string;
+  submitted_at: string;
+  status: string;
+  insurer: string | null;
+  estimated_days: number;
+  message: string;
+}
+
+export async function fetchClaimSummary(sessionId: string): Promise<ClaimSummary> {
+  return api<ClaimSummary>(`/sessions/${sessionId}/summary`, { method: 'GET' });
+}
+
+export async function submitClaim(sessionId: string): Promise<ClaimReceipt> {
+  return api<ClaimReceipt>(`/sessions/${sessionId}/submit`, { method: 'POST' });
+}

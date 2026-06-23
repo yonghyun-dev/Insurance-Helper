@@ -34,6 +34,8 @@ export interface ChatPageProps {
   // Sprint 21 — 세션은 AppFlow 에서 생성해 주입(Situation/Loading 과 공유).
   session: ReturnType<typeof useSession>;
   onReset: () => void;
+  // Sprint 22 — 평가 후 청구 준비 화면 진입.
+  onOpenReview: () => void;
 }
 
 // 청구 가능성 3색 — 구프론트 의미(높음=녹색/중간=앰버/낮음=회색)를 StateCard kind 로 매핑.
@@ -139,7 +141,7 @@ function renderAssessment(a: AssistantAssessment): ReactNode {
   );
 }
 
-export default function ChatPage({ user, session, onReset }: ChatPageProps) {
+export default function ChatPage({ user, session, onReset, onOpenReview }: ChatPageProps) {
   const {
     messages,
     isSending,
@@ -258,6 +260,13 @@ export default function ChatPage({ user, session, onReset }: ChatPageProps) {
         />
 
         <ChatStream ref={streamRef}>{messages.map(renderMessage)}</ChatStream>
+
+        {hasAssessment ? (
+          <button type="button" className={s.reviewCta} onClick={onOpenReview}>
+            청구 준비 화면으로 보기
+            <Icon name="arrow-right" size={16} />
+          </button>
+        ) : null}
 
         <HealthHistoryPanel onSelect={handleSelectTreatment} pushToast={pushToast} />
 

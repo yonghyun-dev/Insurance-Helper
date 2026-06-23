@@ -86,16 +86,16 @@ export default function AppFlow() {
     case 'loading':
       return <LoadingPage ready={firstResponseReady} onDone={() => setStage('chat')} />;
     case 'chat':
-      return <ChatPage user={user} session={session} onReset={reset} />;
-    case 'review':
-      // Sprint 22 — 실데이터 Review 배선 예정. 현재는 진입 경로 없음(목업 보존).
       return (
-        <ReviewPage
-          onBack={() => setStage('chat')}
-          onSubmit={() => {
-            window.alert('데모: 청구서 자동 작성 화면으로 이동합니다.');
-          }}
+        <ChatPage
+          user={user}
+          session={session}
+          onReset={reset}
+          onOpenReview={() => setStage('review')}
         />
       );
+    case 'review':
+      // Sprint 22 — 실데이터 Review (세션 요약/체크리스트 + 더미 접수).
+      return <ReviewPage session={session} onBack={() => setStage('chat')} />;
   }
 }
