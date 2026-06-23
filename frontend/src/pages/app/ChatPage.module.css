@@ -1,0 +1,133 @@
+.wrap {
+  height: 100vh;
+  min-height: 720px;
+}
+
+.sideStatus {
+  padding: 16px 24px 0;
+}
+
+.sideStatusLabel {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.sideStatusHead {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.sideStatusSub {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text-secondary);
+}
+
+/* Sprint 20 — ask / assessment 본문 렌더 */
+.askMsg {
+  margin: 0 0 10px;
+}
+
+.assessment {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.checkTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 6px;
+}
+
+.checkList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.checkList li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--text-primary);
+}
+
+.iconOk {
+  color: var(--green-50);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.iconWarn {
+  color: var(--yellow-30);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.steps {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.disclaimer {
+  margin: 4px 0 0;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--text-secondary);
+}
+
+.attachThumb {
+  display: block;
+  max-width: 200px;
+  border-radius: 8px;
+  margin-bottom: 6px;
+}
+
+.toasts {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 50;
+}
+
+.toast {
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #fff;
+  background: var(--gray-100, #161616);
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.toast[data-kind='error'] {
+  background: var(--red-60, #da1e28);
+}
+
+.toast[data-kind='warn'] {
+  background: var(--yellow-30, #f1c21b);
+  color: #161616;
+}

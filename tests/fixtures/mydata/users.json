@@ -1,0 +1,58 @@
+{
+  "1": [
+    {
+      "insurer_id": "hanwha",
+      "insurer_name": "한화손해보험",
+      "product_id": "auto_personal",
+      "product_name": "개인용 자동차보험",
+      "policy_no": "AUTO-2026-0001",
+      "area": "auto",
+      "valid_from": "2026-01-01",
+      "valid_to": null
+    }
+  ],
+  "2": [
+    {
+      "insurer_id": "hanwha",
+      "insurer_name": "한화손해보험",
+      "product_id": "auto_personal",
+      "product_name": "개인용 자동차보험",
+      "policy_no": "AUTO-2026-0002",
+      "area": "auto",
+      "valid_from": "2026-02-01",
+      "valid_to": null
+    },
+    {
+      "insurer_id": "hanwha",
+      "insurer_name": "한화손해보험",
+      "product_id": "fire_residential",
+      "product_name": "주택화재보험",
+      "policy_no": "FIRE-2026-0002",
+      "area": "fire",
+      "valid_from": "2026-03-01",
+      "valid_to": null
+    }
+  ],
+  "3": [
+    {
+      "insurer_id": "hanwha",
+      "insurer_name": "한화손해보험",
+      "product_id": "fire_residential",
+      "product_name": "주택화재보험",
+      "policy_no": "FIRE-2025-0003",
+      "area": "fire",
+      "valid_from": "2025-01-01",
+      "valid_to": "2025-12-31"
+    },
+    {
+      "insurer_id": "hanwha",
+      "insurer_name": "한화손해보험",
+      "product_id": "auto_personal",
+      "product_name": "개인용 자동차보험",
+      "policy_no": "AUTO-2026-0003",
+      "area": "auto",
+      "valid_from": "2026-01-01",
+      "valid_to": null
+    }
+  ]
+}

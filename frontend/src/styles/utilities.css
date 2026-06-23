@@ -1,0 +1,82 @@
+/* ──────────────────────────────────────────────────────────────────
+   utilities.css — Carbon type utility classes + focus ring
+   ──────────────────────────────────────────────────────────────── */
+
+.ty-code-01 {
+  font-family: var(--font-mono);
+  font-size: var(--type-code-01-size);
+  line-height: var(--type-code-01-line);
+  letter-spacing: var(--type-code-01-tracking);
+}
+.ty-code-02 {
+  font-family: var(--font-mono);
+  font-size: var(--type-code-02-size);
+  line-height: var(--type-code-02-line);
+}
+.ty-label-01 {
+  font-size: var(--type-label-01-size);
+  line-height: var(--type-label-01-line);
+  letter-spacing: var(--type-label-01-tracking);
+}
+.ty-label-02 {
+  font-size: var(--type-label-02-size);
+  line-height: var(--type-label-02-line);
+  letter-spacing: var(--type-label-02-tracking);
+}
+.ty-helper-01 {
+  font-size: var(--type-helper-01-size);
+  line-height: var(--type-helper-01-line);
+  letter-spacing: var(--type-helper-01-tracking);
+  color: var(--text-helper);
+}
+.ty-body-01 {
+  font-size: var(--type-body-01-size);
+  line-height: var(--type-body-01-line);
+  letter-spacing: var(--type-body-01-tracking);
+}
+.ty-body-02 {
+  font-size: var(--type-body-02-size);
+  line-height: var(--type-body-02-line);
+}
+.ty-heading-01 {
+  font-size: var(--type-heading-01-size);
+  line-height: var(--type-heading-01-line);
+  font-weight: 600;
+  letter-spacing: var(--type-heading-01-tracking);
+}
+.ty-heading-02 {
+  font-size: var(--type-heading-02-size);
+  line-height: var(--type-heading-02-line);
+  font-weight: 600;
+}
+.ty-heading-03 {
+  font-size: var(--type-heading-03-size);
+  line-height: var(--type-heading-03-line);
+  font-weight: 400;
+}
+.ty-heading-04 {
+  font-size: var(--type-heading-04-size);
+  line-height: var(--type-heading-04-line);
+  font-weight: 400;
+}
+.ty-heading-05 {
+  font-size: var(--type-heading-05-size);
+  line-height: var(--type-heading-05-line);
+  font-weight: 400;
+}
+.ty-heading-06 {
+  font-size: var(--type-heading-06-size);
+  line-height: var(--type-heading-06-line);
+  font-weight: 300;
+}
+.ty-heading-07 {
+  font-size: var(--type-heading-07-size);
+  line-height: var(--type-heading-07-line);
+  font-weight: 300;
+}
+
+.focus-ring:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+  box-shadow: inset 0 0 0 1px var(--focus-inset);
+}

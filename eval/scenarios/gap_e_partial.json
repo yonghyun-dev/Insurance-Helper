@@ -1,0 +1,16 @@
+{
+  "id": "gap_e_partial",
+  "description": "데모 갭 #E — '그냥' 키워드로 partial assessment 진입 (Sprint 6)",
+  "turns": [
+    {
+      "user": "한화 자동차 사고났는데 그냥 청구 가능한지 알려줘",
+      "expected_slots_partial": {
+        "area": "auto",
+        "insurer": "한화"
+      },
+      "expected_response_type": "assessment",
+      "expected_confidence": "partial",
+      "min_citations": 1
+    }
+  ]
+}

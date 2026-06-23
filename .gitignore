@@ -1,0 +1,72 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# 환경 변수 / 시크릿
+.env
+.env.local
+.env.*.local
+
+# 데이터 / 벡터 DB (런타임 산출물)
+data/raw/
+data/page_images/
+data/uploads/
+data/chroma/
+data/app.db
+data/app.db-journal
+chroma_db/
+app.db
+app.db-journal
+문서/
+
+# 빌드 / 패키지 매니저
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vite/
+
+# 테스트 커버리지
+.coverage
+htmlcov/
+coverage.xml
+
+# IDE / 에디터
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+*:Zone.Identifier
+
+# 로컬 개발 도구 설정 (저장소 외 — 로컬 전용)
+.claude/
+.claude-plugin/
+.worktrees/
+.playwright-mcp/
+pm[0-9][0-9]-*.png
+
+# 내부 문서 / 인프라 접속 정보 (비공개)
+CLAUDE.md
+docs/infra/llm-access.md
+docs/context/session_handoff.md
+docs/pm/
+docs/agents/
+
+# 백업 / 산출물 (저장소 외)
+frontend_legacy/
+frontend/2*/
+*.docx
+*.zip

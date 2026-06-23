@@ -1,0 +1,18 @@
+{
+  "id": "gap_c_unknown",
+  "description": "데모 갭 #C — '모름' 응답 처리 (Sprint 6 unknown_slots)",
+  "turns": [
+    {
+      "user": "자동차 사고가 났는데 보험사는 몰라요",
+      "expected_response_type": "ask"
+    },
+    {
+      "user": "상품도 모르겠어요",
+      "expected_slots_partial": {
+        "area": "auto"
+      },
+      "expected_unknown_slots_min": 1,
+      "expected_response_type": "ask"
+    }
+  ]
+}

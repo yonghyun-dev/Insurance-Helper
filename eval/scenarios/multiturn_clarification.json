@@ -1,0 +1,25 @@
+{
+  "id": "multiturn_clarification",
+  "description": "멀티턴 — 사용자가 점진적으로 정보 추가. 매 턴 응답 종류 정확성 검증",
+  "turns": [
+    {
+      "user": "보험 청구 가능한지 궁금해요",
+      "expected_response_type": "ask"
+    },
+    {
+      "user": "자동차 사고예요",
+      "expected_slots_partial": {"area": "auto"},
+      "expected_response_type": "ask"
+    },
+    {
+      "user": "한화손해보험 자동차보험이에요. 추돌 사고고 과실 0:100 입니다.",
+      "expected_slots_partial": {
+        "area": "auto",
+        "insurer": "한화",
+        "fault_ratio": 0
+      },
+      "expected_response_type": "assessment",
+      "min_citations": 1
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+.tile {
+  background: var(--layer-02);
+  border: 1px solid var(--border-subtle-01);
+  padding: var(--space-06);
+  border-radius: 14px;
+  transition: border-color var(--dur-fast-02) var(--ease-productive-standard),
+              box-shadow var(--dur-fast-02) var(--ease-productive-standard);
+}
+
+.tile--clickable { cursor: pointer; }
+.tile--clickable:hover {
+  border-color: var(--border-strong-01);
+  box-shadow: 0 8px 20px -10px rgba(22, 22, 22, 0.12);
+}
+
+.tile--selected {
+  border: 1px solid var(--border-interactive);
+  box-shadow: 0 0 0 3px rgba(15, 98, 254, 0.10);
+}
+
+.tile--accent {
+  border-top: 3px solid var(--blue-60);
+  border-top-left-radius: 14px;
+  border-top-right-radius: 14px;
+}

@@ -1,0 +1,135 @@
+.shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--gray-10);
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 48px 32px 80px;
+}
+
+.body {
+  max-width: 520px;
+  width: 100%;
+  text-align: center;
+}
+
+.pulse {
+  width: 120px;
+  height: 120px;
+  margin: 48px auto 32px;
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+.pulse::before,
+.pulse::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--blue-60);
+  opacity: 0.15;
+  animation: pulseRing 2.4s ease-out infinite;
+}
+.pulse::after { animation-delay: 1.2s; }
+
+.pulseCore {
+  width: 64px;
+  height: 64px;
+  border-radius: 999px;
+  background: var(--blue-60);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 8px 24px -8px rgba(15, 98, 254, 0.5);
+}
+.pulseCore svg { color: #fff; }
+
+@keyframes pulseRing {
+  0%   { transform: scale(0.4); opacity: 0.5; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+.title {
+  font-size: 28px;
+  line-height: 38px;
+  font-weight: 300;
+  letter-spacing: -0.6px;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.sub {
+  font-size: 15px;
+  color: var(--text-secondary);
+  margin-bottom: 40px;
+}
+
+.steps {
+  text-align: left;
+  background: var(--background);
+  border: 1px solid var(--border-subtle-01);
+  border-radius: 14px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: var(--text-helper);
+  transition: color var(--dur-fast-02) var(--ease-productive-standard);
+}
+
+.stepIcon {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--gray-20);
+  color: transparent;
+  flex-shrink: 0;
+  transition: all var(--dur-fast-02) var(--ease-productive-standard);
+}
+
+.step--done {
+  color: var(--text-primary);
+}
+.step--done .stepIcon {
+  background: var(--blue-60);
+  color: #fff;
+}
+
+.step--active {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.step--active .stepIcon {
+  background: var(--background);
+  border: 2px solid var(--blue-60);
+  animation: spin 1.4s linear infinite;
+}
+.step--active .stepIcon::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--blue-60);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

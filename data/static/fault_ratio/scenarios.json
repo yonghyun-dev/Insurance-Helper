@@ -1,0 +1,67 @@
+[
+  {
+    "chart_no": "차101",
+    "scenario_keyword": ["신호대기", "추돌", "후방추돌"],
+    "scenario_description": "신호대기 중 정차 차량 뒤에서 추돌 (정차 후 추돌)",
+    "base_ratio": {"A": 0, "B": 100},
+    "modifier_factors": [
+      {"condition": "야간", "delta_a": 0, "delta_b": 0},
+      {"condition": "급정거 비상등 미점등 (A)", "delta_a": 10, "delta_b": -10}
+    ],
+    "source_clause": "교통사고 과실비율 인정기준 (2024) — 차101 (정차 후 추돌)"
+  },
+  {
+    "chart_no": "차202",
+    "scenario_keyword": ["교차로", "직진", "동시진입", "신호없는"],
+    "scenario_description": "신호 없는 교차로 직진 차량 동시 진입",
+    "base_ratio": {"A": 40, "B": 60},
+    "modifier_factors": [
+      {"condition": "B 가 좌측 방향 (대로)", "delta_a": 10, "delta_b": -10},
+      {"condition": "B 의 명백한 과속 (20km/h+)", "delta_a": -20, "delta_b": 20}
+    ],
+    "source_clause": "교통사고 과실비율 인정기준 (2024) — 차202 (교차로 직진 동시 진입)"
+  },
+  {
+    "chart_no": "차305",
+    "scenario_keyword": ["주차장", "후진", "추돌"],
+    "scenario_description": "주차장 후진 중 다른 차량 추돌",
+    "base_ratio": {"A": 70, "B": 30},
+    "modifier_factors": [
+      {"condition": "B 차량 통행로 진행 (직진)", "delta_a": 10, "delta_b": -10},
+      {"condition": "야간 + B 라이트 미점등", "delta_a": -10, "delta_b": 10}
+    ],
+    "source_clause": "교통사고 과실비율 인정기준 (2024) — 차305 (주차장 후진 추돌)"
+  },
+  {
+    "chart_no": "차411",
+    "scenario_keyword": ["차로변경", "측면추돌", "후방차"],
+    "scenario_description": "차로 변경 중 후방 직진 차량 측면 추돌",
+    "base_ratio": {"A": 70, "B": 30},
+    "modifier_factors": [
+      {"condition": "A 의 진로변경 신호 미작동", "delta_a": 20, "delta_b": -20},
+      {"condition": "B 의 과속", "delta_a": -10, "delta_b": 10}
+    ],
+    "source_clause": "교통사고 과실비율 인정기준 (2024) — 차411 (차로변경 측면추돌)"
+  },
+  {
+    "chart_no": "보03",
+    "scenario_keyword": ["보행자", "횡단보도", "녹색신호"],
+    "scenario_description": "보행자 녹색신호 횡단보도 횡단 중 차량 충돌",
+    "base_ratio": {"A": 0, "B": 100, "_note": "A=보행자, B=차량"},
+    "modifier_factors": [
+      {"condition": "보행자 야간 어두운 옷", "delta_a": 5, "delta_b": -5},
+      {"condition": "차량 음주·과속", "delta_a": -10, "delta_b": 10}
+    ],
+    "source_clause": "교통사고 과실비율 인정기준 (2024) — 보03 (횡단보도 녹색신호 보행자)"
+  },
+  {
+    "chart_no": "이15",
+    "scenario_keyword": ["이륜차", "오토바이", "교차로", "직진"],
+    "scenario_description": "교차로 직진 이륜차 vs 좌회전 차량",
+    "base_ratio": {"A": 30, "B": 70, "_note": "A=이륜차, B=좌회전차"},
+    "modifier_factors": [
+      {"condition": "A 의 과속", "delta_a": 10, "delta_b": -10}
+    ],
+    "source_clause": "교통사고 과실비율 인정기준 (2024) — 이15 (교차로 좌회전 vs 직진 이륜차)"
+  }
+]

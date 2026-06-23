@@ -1,0 +1,26 @@
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-02);
+  height: 24px;
+  padding: 0 var(--space-03);
+  background: var(--gray-20);
+  color: var(--text-primary);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  letter-spacing: 0.32px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.tag--blue  { background: var(--blue-20);  color: var(--blue-80); }
+.tag--green { background: #a7f0ba; color: #044317; }
+.tag--red   { background: #ffd7d9; color: #750e13; }
+.tag--gray  { background: var(--gray-20); color: var(--gray-100); }
+
+.tag--filter { background: var(--gray-20); padding-right: var(--space-02); }
+.tag--filter svg {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}

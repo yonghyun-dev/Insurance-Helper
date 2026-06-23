@@ -1,0 +1,45 @@
+# Sprint 8 — 대국민 서비스 전환용 PostgreSQL (옵션)
+# Sprint 12 — pgvector 확장 통합 (REQ-13). 이미지를 pgvector/pgvector:pg16 으로 교체.
+#
+# 실행 전 필수:
+#   .env 파일에 POSTGRES_PASSWORD 설정 (compose 파일에 평문 비밀번호 금지 — Sprint 8 reviewer W-5).
+#   예: echo "POSTGRES_PASSWORD=$(openssl rand -base64 24)" >> .env
+#
+# 실행:
+#   docker compose -f docker-compose.postgres.yml up -d
+#
+# 활성화:
+#   .env 에 DATABASE_URL=postgresql+psycopg://ica:<PASSWORD>@localhost:5433/ica_db 추가
+#   .env 에 VECTOR_STORE=pgvector 추가 (또는 미설정 시 DATABASE_URL postgresql:// 감지 자동 선택)
+#   alembic upgrade head  # Sprint 12 의 embedding vector(1536) + HNSW 인덱스 생성
+#   ica reindex --vector-store=pgvector  # 기존 청크 재임베딩 + pgvector 적재
+#
+# SQLite 기본 유지 (DATABASE_URL 빈 값이면 SQLite + Chroma). 회귀 위험 0.
+#
+# 포트 5433 — 기존 PostgreSQL 사용 가능성 회피 (5432 충돌 회피).
+# pgvector 이미지는 postgres 16 + vector 확장 사전 설치 (CREATE EXTENSION vector 만 실행).
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: ica-postgres
+    environment:
+      POSTGRES_DB: ica_db
+      POSTGRES_USER: ica
+      # Sprint 8 reviewer W-5: 환경 변수 강제. .env 미설정 시 compose 자체가 실패하여
+      # 평문 비밀번호로 운영 환경 진입을 차단.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      TZ: Asia/Seoul
+    ports:
+      - "5433:5432"
+    volumes:
+      - ica-postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ica -d ica_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  ica-postgres-data:

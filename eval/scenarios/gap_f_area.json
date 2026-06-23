@@ -1,0 +1,13 @@
+{
+  "id": "gap_f_area",
+  "description": "데모 갭 #F — area 추론 (Sprint 6 — '넘어졌어/다쳤어/병원' → accident_disease)",
+  "turns": [
+    {
+      "user": "어제 빙판에 미끄러져 발목 골절로 입원했어요. 청구 가능한가요?",
+      "expected_slots_partial": {
+        "area": "accident_disease"
+      },
+      "expected_response_type_in": ["ask", "assessment"]
+    }
+  ]
+}

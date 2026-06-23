@@ -1,0 +1,16 @@
+{
+  "id": "gap_d_negative",
+  "description": "데모 갭 #D — 'X번 안 했어' 같은 negative 표현이 정수 0 으로 추출되는지 (Sprint 6)",
+  "turns": [
+    {
+      "user": "한화 보장보험인데 입원은 안 했고 외래도 안 갔어요. 그냥 통원 진료만 받았어요",
+      "expected_slots_partial": {
+        "area": "accident_disease",
+        "insurer": "한화",
+        "hospitalization_days": 0,
+        "outpatient_visits": 0
+      },
+      "expected_response_type_in": ["ask", "assessment"]
+    }
+  ]
+}

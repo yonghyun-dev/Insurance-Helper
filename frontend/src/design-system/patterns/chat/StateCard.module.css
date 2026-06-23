@@ -1,0 +1,67 @@
+.card {
+  margin-top: 12px;
+  background: var(--background);
+  border: 1px solid var(--border-subtle-01);
+  border-radius: 16px;
+  padding: 20px;
+}
+
+.head {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.ico {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.ico--info {
+  background: var(--blue-10);
+  color: var(--blue-70);
+}
+.ico--warning {
+  background: #fcf4d6;
+  color: #b28600;
+}
+.ico--success {
+  background: #defbe6;
+  color: #198038;
+}
+.ico--error {
+  background: var(--notification-error-bg);
+  color: var(--red-60);
+}
+
+.body {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  color: var(--text-primary);
+}
+
+.desc {
+  font-size: 13.5px;
+  line-height: 22px;
+  color: var(--text-secondary);
+}
+.desc strong { color: var(--text-primary); font-weight: 600; }
+
+.actions {
+  margin-top: 14px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}

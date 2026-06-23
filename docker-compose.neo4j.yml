@@ -1,0 +1,33 @@
+# Sprint 4 GraphRAG — Neo4j 로컬 인스턴스
+#
+# 사용법:
+#   docker compose -f docker-compose.neo4j.yml up -d
+#   ica graph-build         # SQLite → Neo4j v0 적재 (멱등)
+#   RAG_MODE=hybrid uvicorn app.main:app --reload --port 8000
+#
+# Browser UI: http://localhost:7474  (user/pass = .env 의 NEO4J_USERNAME/NEO4J_PASSWORD)
+# Bolt:       bolt://localhost:7687  (애플리케이션이 사용)
+
+services:
+  neo4j:
+    image: neo4j:5-community
+    container_name: ica-neo4j
+    ports:
+      - "7687:7687"
+      - "7474:7474"
+    environment:
+      NEO4J_AUTH: "${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:-changeme-please}"
+      NEO4J_dbms_memory_heap_max__size: "1G"
+      NEO4J_dbms_memory_pagecache_size: "512M"
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  neo4j_data:
+  neo4j_logs:

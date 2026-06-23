@@ -1,0 +1,10 @@
+{
+  "id": "no_match_fallback",
+  "description": "RAG 0건 폴백 — 인덱스에 없는 보험사·상품 입력 시 _build_no_match_ask 톤 검증 (Sprint 7)",
+  "turns": [
+    {
+      "user": "어디서 듣도 보도 못한 가상보험사 신비보험 들었는데 청구 가능한가요? 어제 사고났어요.",
+      "expected_response_type": "ask"
+    }
+  ]
+}

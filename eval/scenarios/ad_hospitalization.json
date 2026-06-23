@@ -1,0 +1,24 @@
+{
+  "id": "ad_hospitalization",
+  "description": "사고질병 — 입원 일수 + 진단명 명시. 다턴 ask 후 assessment",
+  "turns": [
+    {
+      "user": "발목 골절로 입원했어요",
+      "expected_slots_partial": {
+        "area": "accident_disease",
+        "diagnosis": "발목 골절"
+      },
+      "expected_response_type": "ask"
+    },
+    {
+      "user": "한화손해보험 보장보험 들었어요. 10일 입원 했고 외래 2번 갔어요.",
+      "expected_slots_partial": {
+        "area": "accident_disease",
+        "insurer": "한화",
+        "hospitalization_days": 10
+      },
+      "expected_response_type": "assessment",
+      "min_citations": 1
+    }
+  ]
+}
