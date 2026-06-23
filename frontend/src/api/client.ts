@@ -188,23 +188,24 @@ export async function uploadDocument(
   return body as UploadResponse;
 }
 
-// === Sprint 21 — 데모 배경 로그인 (HttpOnly JWT 쿠키) ===
-const DEMO_EMAIL = 'demo@example.com';
-const DEMO_PASSWORD = 'demo-insurance-1234';
+// === Sprint 26 — 데모 페르소나 로그인 (이름+전화 매핑, HttpOnly JWT 쿠키) ===
+export interface DemoPersona {
+  name: string;
+  phone: string;
+  dob: string;
+  label: string;
+}
 
-/** 데모 계정을 보장(signup)한 뒤 로그인 → JWT 쿠키 설정. 건강보험 등 인증 필요 API 용. */
-export async function demoLogin(): Promise<void> {
-  try {
-    await api<unknown>('/auth/signup', {
-      method: 'POST',
-      body: JSON.stringify({ email: DEMO_EMAIL, password: DEMO_PASSWORD }),
-    });
-  } catch (e) {
-    if (!(e instanceof IcaApiError && e.status === 409)) throw e; // 이미 존재 → 무시
-  }
-  await api<unknown>('/auth/login', {
+/** 데모 페르소나 목록(picker 용). */
+export async function fetchDemoPersonas(): Promise<DemoPersona[]> {
+  return api<DemoPersona[]>('/auth/demo-personas', { method: 'GET' });
+}
+
+/** 이름+전화로 데모 페르소나 로그인 → JWT 쿠키. 미매칭 시 IcaApiError(404). */
+export async function demoLogin(name: string, phone: string): Promise<void> {
+  await api<unknown>('/auth/demo-login', {
     method: 'POST',
-    body: JSON.stringify({ email: DEMO_EMAIL, password: DEMO_PASSWORD }),
+    body: JSON.stringify({ name, phone }),
   });
 }
 

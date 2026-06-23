@@ -24,32 +24,29 @@ from app.infrastructure.external.health_data.mapper import treatment_to_card, tr
 
 
 class TestDummyAdapter:
-    def test_user1_single_treatment(self):
-        a = DummyAdapter()
-        ts = a.fetch_treatments("1")
-        assert len(ts) == 1
-        assert ts[0]["treatment_id"] == "T-2024-001"
-        assert ts[0]["hospital_name"] == "서울대학교병원"
-        assert ts[0]["diagnosis_names"] == ["발목 골절"]
-        assert ts[0]["patient_paid"] == 200000
+    """data/demo/health.json (10 페르소나) 검증."""
 
-    def test_user2_multiple_treatments(self):
+    def test_p01_single_treatment(self):
         a = DummyAdapter()
-        ts = a.fetch_treatments("2")
+        ts = a.fetch_treatments("p01")
+        assert len(ts) == 1
+        assert ts[0]["treatment_id"] == "T-2026-0101"
+        assert ts[0]["hospital_name"] == "서울정형외과의원"
+        assert ts[0]["diagnosis_names"] == ["발목 골절"]
+        assert ts[0]["patient_paid"] == 820000
+
+    def test_p02_multiple_treatments(self):
+        a = DummyAdapter()
+        ts = a.fetch_treatments("p02")
         assert len(ts) == 3
-        # 입원/외래 혼합
+        # 입원/외래 혼합 — 입원 1건(경추 염좌)
         in_hospital = [t for t in ts if t["is_hospitalization"]]
         assert len(in_hospital) == 1
-        assert in_hospital[0]["diagnosis_names"] == ["급성 충수염"]
+        assert in_hospital[0]["diagnosis_names"] == ["경추 염좌"]
 
-    def test_user3_chronic_multiple_diagnosis(self):
+    def test_p07_no_treatments(self):
         a = DummyAdapter()
-        ts = a.fetch_treatments("3")
-        assert len(ts) == 2
-        # 다중 진단 케이스
-        last = ts[-1]
-        assert last["diagnosis_codes"] == ["E11.9", "I10"]
-        assert last["diagnosis_names"] == ["당뇨병", "본태성 고혈압"]
+        assert a.fetch_treatments("p07") == []
 
     def test_unknown_user_returns_empty(self):
         a = DummyAdapter()

@@ -22,3 +22,19 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     expires_in: int = Field(..., description="유효기간 초")
     user: UserRead
+
+
+class DemoLoginRequest(BaseModel):
+    """데모 페르소나 로그인 — 이름+전화로 매핑."""
+
+    name: str = Field(..., min_length=1)
+    phone: str = Field(..., min_length=1)
+
+
+class DemoPersona(BaseModel):
+    """데모 페르소나 picker 항목 (시크릿 없음)."""
+
+    name: str
+    phone: str
+    dob: str
+    label: str

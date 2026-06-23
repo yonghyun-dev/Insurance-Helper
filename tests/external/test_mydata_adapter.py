@@ -105,26 +105,35 @@ class TestGetMydataAdapterFactory:
 
 
 class TestProductionFixture:
-    """실제 tests/fixtures/mydata/users.json 검증 — 3 시나리오."""
+    """실제 data/demo/mydata.json (10 페르소나) 검증. 전부 인덱싱된 한화 자동차/화재."""
 
-    def test_user_1_single_auto(self):
+    def test_p01_single_auto(self):
         adapter = DummyAdapter()
-        result = adapter.fetch_insurances("1")
+        result = adapter.fetch_insurances("p01")
         assert len(result) == 1
         assert result[0]["area"] == "auto"
+        assert result[0]["insurer_id"] == "hanwha"
+        assert result[0]["product_id"] == "personal_auto_joint"
 
-    def test_user_2_multiple_auto_fire(self):
+    def test_p02_multiple_auto_fire(self):
         adapter = DummyAdapter()
-        result = adapter.fetch_insurances("2")
+        result = adapter.fetch_insurances("p02")
         assert len(result) == 2
         areas = {r["area"] for r in result}
         assert areas == {"auto", "fire"}
 
-    def test_user_3_mixed_expired_active(self):
+    def test_p03_single_fire(self):
         adapter = DummyAdapter()
-        result = adapter.fetch_insurances("3")
-        assert len(result) == 2
-        # 만료 1 + 활성 1
-        has_expired = any(r["valid_to"] is not None for r in result)
-        has_active = any(r["valid_to"] is None for r in result)
-        assert has_expired and has_active
+        result = adapter.fetch_insurances("p03")
+        assert len(result) == 1
+        assert result[0]["area"] == "fire"
+        assert result[0]["product_id"] == "housefire"
+
+    def test_all_personas_use_indexed_hanwha_products(self):
+        """모든 페르소나 가입보험이 인덱싱된 한화 자동차/화재와 일치 (agent 인용 정합)."""
+        adapter = DummyAdapter()
+        valid_products = {"personal_auto_joint", "housefire"}
+        for pid in (f"p{n:02d}" for n in range(1, 11)):
+            for ins in adapter.fetch_insurances(pid):
+                assert ins["insurer_id"] == "hanwha"
+                assert ins["product_id"] in valid_products

@@ -336,6 +336,29 @@ def verify() -> None:
 
 
 # ---------------------------------------------------------------------------
+# seed-demo — 데모 페르소나 계정 시드 (이름+전화 매핑)
+# ---------------------------------------------------------------------------
+
+
+@app.command(name="seed-demo")
+def seed_demo() -> None:
+    """data/demo/personas.json 의 데모 계정을 DB에 시드(멱등).
+
+    Sprint 26 — 테스터가 이름+전화로 로그인할 10개 페르소나 계정 확보.
+    """
+    from app.domains.auth.personas import list_personas, seed_demo_users
+    from app.infrastructure.core.database import session_scope
+
+    with session_scope() as session:
+        created = seed_demo_users(session)
+    total = len(list_personas())
+    typer.secho(
+        f"데모 페르소나 시드 완료: 전체 {total}명 / 신규 {created}명",
+        fg=typer.colors.GREEN,
+    )
+
+
+# ---------------------------------------------------------------------------
 # inspect
 # ---------------------------------------------------------------------------
 

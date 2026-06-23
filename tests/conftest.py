@@ -41,6 +41,8 @@ def _disable_audit_in_tests(monkeypatch):
     # 약관 파서 기본은 upstage(네트워크) — 단위 테스트는 오프라인 PyMuPDF 경로로 고정.
     # Upstage Document Parse 경로는 라이브 스모크로 검증한다.
     monkeypatch.setenv("TERMS_PARSER", "pymupdf")
+    # 데모 페르소나 자동 시드 off — 테스트 DB 격리(앱 lifespan seed 차단).
+    monkeypatch.setenv("DEMO_SEED_ON_STARTUP", "false")
     import app.infrastructure.core.config as _cfg
     import app.infrastructure.llm.client as _llm
 

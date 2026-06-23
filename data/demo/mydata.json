@@ -1,0 +1,35 @@
+{
+  "p01": [
+    { "insurer_id": "hanwha", "insurer_name": "한화손해보험", "product_id": "personal_auto_joint", "product_name": "개인용자동차보험(공동물건)", "policy_no": "AUTO-2026-0001", "area": "auto", "valid_from": "2026-01-01", "valid_to": null }
+  ],
+  "p02": [
+    { "insurer_id": "hanwha", "insurer_name": "한화손해보험", "product_id": "personal_auto_joint", "product_name": "개인용자동차보험(공동물건)", "policy_no": "AUTO-2026-0002", "area": "auto", "valid_from": "2026-02-01", "valid_to": null },
+    { "insurer_id": "hanwha", "insurer_name": "한화손해보험", "product_id": "housefire", "product_name": "주택화재보험", "policy_no": "FIRE-2026-0002", "area": "fire", "valid_from": "2026-02-01", "valid_to": null }
+  ],
+  "p03": [
+    { "insurer_id": "hanwha", "insurer_name": "한화손해보험", "product_id": "housefire", "product_name": "주택화재보험", "policy_no": "FIRE-2026-0003", "area": "fire", "valid_from": "2026-01-15", "valid_to": null }
+  ],
+  "p04": [
+    { "insurer_id": "hanwha", "insurer_name": "한화손해보험", "product_id": "personal_auto_joint", "product_name": "개인용자동차보험(공동물건)", "policy_no": "AUTO-2026-0004", "area": "auto", "valid_from": "2026-03-01", "valid_to": null }
+  ],
+  "p05": [
+    { "insurer_id": "hanwha", "insurer_name": "한화손해보험", "product_id": "housefire", "product_name": "주택화재보험", "policy_no": "FIRE-2026-0005", "area": "fire", "valid_from": "2026-01-01", "valid_to": null }
+  ],
+  "p06": [
+    { "insurer_id": "hanwha", "insurer_name": "한화손해보험", "product_id": "personal_auto_joint", "product_name": "개인용자동차보험(공동물건)", "policy_no": "AUTO-2026-0006", "area": "auto", "valid_from": "2026-01-01", "valid_to": null },
+    { "insurer_id": "hanwha", "insurer_name": "한화손해보험", "product_id": "housefire", "product_name": "주택화재보험", "policy_no": "FIRE-2026-0006", "area": "fire", "valid_from": "2026-01-01", "valid_to": null }
+  ],
+  "p07": [
+    { "insurer_id": "hanwha", "insurer_name": "한화손해보험", "product_id": "personal_auto_joint", "product_name": "개인용자동차보험(공동물건)", "policy_no": "AUTO-2026-0007", "area": "auto", "valid_from": "2026-04-01", "valid_to": null }
+  ],
+  "p08": [
+    { "insurer_id": "hanwha", "insurer_name": "한화손해보험", "product_id": "housefire", "product_name": "주택화재보험", "policy_no": "FIRE-2026-0008", "area": "fire", "valid_from": "2026-02-10", "valid_to": null }
+  ],
+  "p09": [
+    { "insurer_id": "hanwha", "insurer_name": "한화손해보험", "product_id": "personal_auto_joint", "product_name": "개인용자동차보험(공동물건)", "policy_no": "AUTO-2026-0009", "area": "auto", "valid_from": "2026-01-01", "valid_to": null },
+    { "insurer_id": "hanwha", "insurer_name": "한화손해보험", "product_id": "housefire", "product_name": "주택화재보험", "policy_no": "FIRE-2026-0009", "area": "fire", "valid_from": "2026-03-01", "valid_to": null }
+  ],
+  "p10": [
+    { "insurer_id": "hanwha", "insurer_name": "한화손해보험", "product_id": "personal_auto_joint", "product_name": "개인용자동차보험(공동물건)", "policy_no": "AUTO-2026-0010", "area": "auto", "valid_from": "2026-02-01", "valid_to": null }
+  ]
+}

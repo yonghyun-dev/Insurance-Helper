@@ -195,6 +195,11 @@ class Settings(BaseSettings):
         default="upstage",
         description="약관 PDF 파싱 백엔드 — upstage(Document Parse) 기본, pymupdf 는 폴백",
     )
+    # 데모 페르소나(이름+전화 매핑) 계정을 앱 시작 시 자동 시드. 테스트는 false.
+    demo_seed_on_startup: bool = Field(
+        default=True,
+        description="앱 시작 시 data/demo/personas.json 의 데모 계정 자동 시드(멱등)",
+    )
     attachment_storage_path: Path = Field(
         default=Path("./data/uploads"),
         description="첨부 파일 저장 디렉토리 (24h TTL 자동 정리)",

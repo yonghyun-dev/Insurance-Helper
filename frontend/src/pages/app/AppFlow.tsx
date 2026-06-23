@@ -23,19 +23,16 @@ export default function AppFlow() {
   // 세션을 흐름 최상위에서 단일 인스턴스로 보유(Situation/Loading/Chat 공유).
   const session = useSession();
 
-  // 데모 게이트: 배경 자동 로그인(JWT 쿠키) → 가입 보험/건강보험 등 인증 API 사용 가능.
-  useEffect(() => {
-    void demoLogin().catch(() => undefined);
-  }, []);
-
-  // 로딩 화면("가입 보험 확인 중") 동안 마이데이터에서 가입 보험을 자동 조회 →
-  // 상황 입력 앞에 보험 컨텍스트를 붙여 첫 메시지 전송(보험사/상품 자동 prefill).
+  // 로딩 화면("가입 보험 확인 중") 동안:
+  //  1) 선택한 페르소나(이름+전화)로 데모 로그인(JWT 쿠키) → 인증 API 사용 가능
+  //  2) 마이데이터에서 그 사용자의 가입 보험 자동 조회 → 첫 메시지에 보험 컨텍스트 prefill
   useEffect(() => {
     if (stage !== 'loading' || sentRef.current || !situation.trim()) return;
     sentRef.current = true;
     void (async () => {
       let prefix = '';
       try {
+        await demoLogin(user.name, user.phone);
         const ins = await fetchInsurances();
         if (ins.length > 0) {
           const names = ins.map((i) => `${i.insurer_name} ${i.product_name}`).join(', ');
@@ -43,11 +40,11 @@ export default function AppFlow() {
           session.pushToast('info', `마이데이터에서 가입 보험 ${ins.length}건을 불러왔어요.`);
         }
       } catch {
-        // 비로그인/조회 실패 — 보험 컨텍스트 없이 진행(익명 흐름 정상).
+        // 로그인/조회 실패 — 보험 컨텍스트 없이 진행(익명 흐름 정상).
       }
       void session.sendMessage(prefix + situation.trim());
     })();
-  }, [stage, situation, session]);
+  }, [stage, situation, session, user]);
 
   // Loading → Chat: 실제 첫 응답(ask/assessment)이 도착하면 전환.
   const firstResponseReady = session.messages.some(

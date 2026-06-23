@@ -1,0 +1,32 @@
+{
+  "p01": { "user_external_id": "p01", "fetched_at": "2026-06-01T09:00:00Z", "treatments": [
+    { "treatment_id": "T-2026-0101", "treatment_date": "2026-03-15", "treatment_period": "2026-03-15 ~ 2026-03-19", "hospital_name": "서울정형외과의원", "hospital_code": "11110001", "department": "정형외과", "diagnosis_codes": ["S82.5"], "diagnosis_names": ["발목 골절"], "is_hospitalization": true, "hospitalization_days": 5, "outpatient_visits": 2, "total_cost": 2400000, "patient_paid": 820000 }
+  ]},
+  "p02": { "user_external_id": "p02", "fetched_at": "2026-06-01T09:00:00Z", "treatments": [
+    { "treatment_id": "T-2026-0201", "treatment_date": "2026-04-02", "treatment_period": "2026-04-02 ~ 2026-04-08", "hospital_name": "한빛종합병원", "hospital_code": "11120002", "department": "정형외과", "diagnosis_codes": ["S13.4"], "diagnosis_names": ["경추 염좌"], "is_hospitalization": true, "hospitalization_days": 7, "outpatient_visits": 3, "total_cost": 3100000, "patient_paid": 1150000 },
+    { "treatment_id": "T-2026-0202", "treatment_date": "2026-04-25", "treatment_period": "2026-04-25 ~ 2026-04-25", "hospital_name": "한빛종합병원", "hospital_code": "11120002", "department": "재활의학과", "diagnosis_codes": ["S13.4"], "diagnosis_names": ["경추 염좌"], "is_hospitalization": false, "hospitalization_days": 0, "outpatient_visits": 6, "total_cost": 480000, "patient_paid": 144000 },
+    { "treatment_id": "T-2026-0203", "treatment_date": "2026-05-30", "treatment_period": "2026-05-30 ~ 2026-05-30", "hospital_name": "맑은눈안과의원", "hospital_code": "11120010", "department": "안과", "diagnosis_codes": ["H10.1"], "diagnosis_names": ["급성 결막염"], "is_hospitalization": false, "hospitalization_days": 0, "outpatient_visits": 2, "total_cost": 90000, "patient_paid": 27000 }
+  ]},
+  "p03": { "user_external_id": "p03", "fetched_at": "2026-06-01T09:00:00Z", "treatments": [
+    { "treatment_id": "T-2026-0301", "treatment_date": "2026-05-10", "treatment_period": "2026-05-10 ~ 2026-05-10", "hospital_name": "연세365의원", "hospital_code": "11130003", "department": "정형외과", "diagnosis_codes": ["M25.5"], "diagnosis_names": ["손목 통증"], "is_hospitalization": false, "hospitalization_days": 0, "outpatient_visits": 4, "total_cost": 320000, "patient_paid": 96000 }
+  ]},
+  "p04": { "user_external_id": "p04", "fetched_at": "2026-06-01T09:00:00Z", "treatments": [
+    { "treatment_id": "T-2026-0401", "treatment_date": "2026-04-20", "treatment_period": "2026-04-20 ~ 2026-05-30", "hospital_name": "바른척추의원", "hospital_code": "11140004", "department": "신경외과", "diagnosis_codes": ["M51.2"], "diagnosis_names": ["요추 추간판 탈출증"], "is_hospitalization": false, "hospitalization_days": 0, "outpatient_visits": 8, "total_cost": 640000, "patient_paid": 210000 }
+  ]},
+  "p05": { "user_external_id": "p05", "fetched_at": "2026-06-01T09:00:00Z", "treatments": [
+    { "treatment_id": "T-2026-0501", "treatment_date": "2026-05-03", "treatment_period": "2026-05-03 ~ 2026-05-12", "hospital_name": "한강화상전문병원", "hospital_code": "11150005", "department": "성형외과", "diagnosis_codes": ["T23.2"], "diagnosis_names": ["손 2도 화상"], "is_hospitalization": true, "hospitalization_days": 9, "outpatient_visits": 5, "total_cost": 4200000, "patient_paid": 1480000 }
+  ]},
+  "p06": { "user_external_id": "p06", "fetched_at": "2026-06-01T09:00:00Z", "treatments": [
+    { "treatment_id": "T-2026-0601", "treatment_date": "2026-02-28", "treatment_period": "2026-02-28 ~ 2026-03-20", "hospital_name": "튼튼정형외과병원", "hospital_code": "11160006", "department": "정형외과", "diagnosis_codes": ["S72.0"], "diagnosis_names": ["대퇴골 경부 골절"], "is_hospitalization": true, "hospitalization_days": 21, "outpatient_visits": 6, "total_cost": 8600000, "patient_paid": 2950000 }
+  ]},
+  "p07": { "user_external_id": "p07", "fetched_at": "2026-06-01T09:00:00Z", "treatments": [] },
+  "p08": { "user_external_id": "p08", "fetched_at": "2026-06-01T09:00:00Z", "treatments": [
+    { "treatment_id": "T-2026-0801", "treatment_date": "2026-03-05", "treatment_period": "2026-03-05 ~ 2026-03-12", "hospital_name": "성모내과병원", "hospital_code": "11170007", "department": "호흡기내과", "diagnosis_codes": ["J18.9"], "diagnosis_names": ["폐렴"], "is_hospitalization": true, "hospitalization_days": 8, "outpatient_visits": 2, "total_cost": 2800000, "patient_paid": 760000 }
+  ]},
+  "p09": { "user_external_id": "p09", "fetched_at": "2026-06-01T09:00:00Z", "treatments": [
+    { "treatment_id": "T-2026-0901", "treatment_date": "2026-05-22", "treatment_period": "2026-05-22 ~ 2026-05-22", "hospital_name": "행복가정의학과의원", "hospital_code": "11180008", "department": "가정의학과", "diagnosis_codes": ["S60.0"], "diagnosis_names": ["손가락 타박상"], "is_hospitalization": false, "hospitalization_days": 0, "outpatient_visits": 3, "total_cost": 180000, "patient_paid": 54000 }
+  ]},
+  "p10": { "user_external_id": "p10", "fetched_at": "2026-06-01T09:00:00Z", "treatments": [
+    { "treatment_id": "T-2026-1001", "treatment_date": "2026-04-11", "treatment_period": "2026-04-11 ~ 2026-04-17", "hospital_name": "새빛신경외과병원", "hospital_code": "11190009", "department": "신경외과", "diagnosis_codes": ["S06.0"], "diagnosis_names": ["뇌진탕"], "is_hospitalization": true, "hospitalization_days": 6, "outpatient_visits": 4, "total_cost": 2950000, "patient_paid": 990000 }
+  ]}
+}

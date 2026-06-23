@@ -7,7 +7,8 @@
 - 완료: **Sprint 20 — 프론트 골격 이식 + 채팅 실동작** (PM-26) · **Sprint 21 — 진입흐름+OCR/건강보험** · **Sprint 22 — 서류체크리스트/요약/Review 백엔드+배선** (claims 도메인)
 - 완료: **Sprint 23 ✅ — 법적 4페이지 + 접근성 + legacy 제거** (2026-06-23, PM-27. `/legal/*` 이식 + useFontSize 전역. main 머지 78c62a6)
 - 완료: **Sprint 24 ✅ — 에이전트 LangGraph 일원화 + 관측성·견고성** (PM-28. 3갈래→단일 LangGraph, react.py 제거, 토큰·latency 계측 + audit.llm_calls/external 기록 + PII 마스킹 + LLM timeout/retry + 부분진행분 보존)
-- **현재: Sprint 25 ✅ — 약관 Upstage Document Parse 전환 + 적재 검증** (2026-06-23, PM-29. PyMuPDF→Upstage Document Parse(구조/표 보존) + terms_parser 토글, 4문서 재파싱. `ica verify` 신설: 744=744·차원 4096·조항 99%·빈텍스트 0. search/inspect 한글+별표 표 보존. **약관 풀스택 국내화 완성**. pytest 1128 passed. 커밋 대기: S24+S25 합본)
+- 완료: **Sprint 25 ✅ — 약관 Upstage Document Parse 전환 + 적재 검증** (PM-29. ica verify 744=744·차원4096·조항99%. 약관 풀스택 국내화. main 머지 a564fcc)
+- **현재: Sprint 26 ✅ — 데모 페르소나(이름+전화 매핑) + 마이데이터/건강보험 가정 연동** (2026-06-23, PM-30. 10 사전시드 데모계정, 이름+전화 demo-login→그 사람의 가입보험/진료내역 조회. users.mydata_external_id + auth/personas + ica seed-demo + IdentityPage picker. 가입보험 전부 인덱싱 한화에 정합. pytest 1139 passed, npm build green, 라이브 라운드트립 OK. 커밋 대기)
 
 ---
 

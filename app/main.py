@@ -69,6 +69,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     else:
         logger.info("attachment cleanup scheduler skip (TTL=0)")
 
+    # 데모 페르소나 계정 자동 시드(멱등) — 이름+전화 매핑 데모용.
+    # 스냅샷 _settings 대신 fresh get_settings() — 테스트의 DEMO_SEED_ON_STARTUP=false 반영.
+    if get_settings().demo_seed_on_startup:
+        try:
+            from app.domains.auth.personas import seed_demo_users
+            from app.infrastructure.core.database import session_scope
+
+            with session_scope() as session:
+                created = seed_demo_users(session)
+            logger.info("데모 페르소나 시드 완료(신규 %d명)", created)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("데모 페르소나 시드 실패(무시): %s", exc)
+
     yield
 
     if _scheduler is not None:

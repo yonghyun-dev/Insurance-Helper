@@ -66,10 +66,9 @@ class HealthDataNotConfiguredError(ConfigurationError):
 _DEFAULT_FIXTURE = (
     # app/infrastructure/external/health_data/adapter.py → 5x parent = repo 루트
     Path(__file__).resolve().parent.parent.parent.parent.parent
-    / "tests"
-    / "fixtures"
-    / "health_data"
-    / "users.json"
+    / "data"
+    / "demo"
+    / "health.json"
 )
 
 

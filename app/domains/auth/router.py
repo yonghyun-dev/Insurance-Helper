@@ -18,9 +18,15 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
+from app.domains.auth import personas as personas_registry
 from app.domains.auth.deps import COOKIE_NAME, get_current_user_optional
 from app.domains.auth.jwt import create_access_token
-from app.domains.auth.schemas import LoginRequest, TokenResponse
+from app.domains.auth.schemas import (
+    DemoLoginRequest,
+    DemoPersona,
+    LoginRequest,
+    TokenResponse,
+)
 from app.domains.users import service as users_service
 from app.domains.users.models import User
 from app.domains.users.schemas import UserCreate, UserRead
@@ -77,6 +83,41 @@ def login(payload: LoginRequest, response: Response) -> TokenResponse:
         )
 
 
+@router.get("/demo-personas", response_model=list[DemoPersona])
+def demo_personas() -> list[DemoPersona]:
+    """데모 페르소나 목록(이름·전화·생년·라벨) — 프론트 picker 용. 시크릿 없음."""
+    return [
+        DemoPersona(name=p["name"], phone=p["phone"], dob=p["dob"], label=p["label"])
+        for p in personas_registry.list_personas()
+    ]
+
+
+@router.post("/demo-login", response_model=TokenResponse)
+def demo_login(payload: DemoLoginRequest, response: Response) -> TokenResponse:
+    """이름+전화로 데모 페르소나 매핑 → 해당 시드 계정 로그인(JWT 쿠키).
+
+    실 마이데이터/건강보험 미발급 기간의 PoC 진입점. 미매칭 시 404.
+    """
+    settings = get_settings()
+    with session_scope() as session:
+        user = personas_registry.find_demo_user(session, payload.name, payload.phone)
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "code": "DEMO_PERSONA_NOT_FOUND",
+                    "message": "등록된 데모 사용자가 아닙니다. 제공된 페르소나로 시도해주세요.",
+                },
+            )
+        token = create_access_token(user.id)
+        _set_token_cookie(response, token, settings.jwt_exp_minutes)
+        return TokenResponse(
+            access_token=token,
+            expires_in=settings.jwt_exp_minutes * 60,
+            user=UserRead.model_validate(user),
+        )
+
+
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
 def logout() -> Response:
     """cookie 폐기 — 토큰 자체는 만료될 때까지 유효 (refresh 없음)."""
@@ -116,5 +157,6 @@ def me_insurances(
     from app.infrastructure.external.mydata.adapter import get_mydata_adapter
 
     adapter = get_mydata_adapter()
-    insurances = adapter.fetch_insurances(str(current_user.id))
+    # 데모 페르소나 연결(이름+전화 매핑 결과). 비데모 사용자는 external_id 없음 → 빈 목록.
+    insurances = adapter.fetch_insurances(current_user.mydata_external_id or "")
     return {"insurances": insurances}

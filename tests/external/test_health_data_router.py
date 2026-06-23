@@ -44,10 +44,11 @@ class TestHealthHistoryEndpoint:
     ):
         from app.domains.users import service as users_service
 
-        # 가짜 User row — id=1 (fixture key 와 매칭)
+        # 가짜 User row — 데모 페르소나 p01 연결
         class _U:
             id = 1
             email = "u1@test.local"
+            mydata_external_id = "p01"
 
         monkeypatch.setattr(users_service, "get_by_id", lambda _s, _i: _U())
 
@@ -60,8 +61,8 @@ class TestHealthHistoryEndpoint:
         assert "treatments" in body
         assert len(body["treatments"]) == 1
         t = body["treatments"][0]
-        assert t["hospital_name"] == "서울대학교병원"
-        assert t["claim_amount"] == 200000
+        assert t["hospital_name"] == "서울정형외과의원"
+        assert t["claim_amount"] == 820000
         assert t["slot_mapping"]["diagnosis"] == "발목 골절"
         assert t["slot_mapping"]["area"] == "accident_disease"
 
@@ -73,6 +74,7 @@ class TestHealthHistoryEndpoint:
         class _U:
             id = 2
             email = "u2@test.local"
+            mydata_external_id = "p02"
 
         monkeypatch.setattr(users_service, "get_by_id", lambda _s, _i: _U())
         token = _login_token(2)
@@ -93,6 +95,7 @@ class TestHealthHistoryEndpoint:
         class _U:
             id = 9999
             email = "noone@test.local"
+            mydata_external_id = "no-such-persona"
 
         monkeypatch.setattr(users_service, "get_by_id", lambda _s, _i: _U())
         token = _login_token(9999)
@@ -112,6 +115,7 @@ class TestHealthHistoryEndpoint:
         class _U:
             id = 1
             email = "u1@test.local"
+            mydata_external_id = "p01"
 
         monkeypatch.setattr(users_service, "get_by_id", lambda _s, _i: _U())
         monkeypatch.setenv("HEALTH_DATA_BACKEND", "real")

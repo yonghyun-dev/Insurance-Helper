@@ -54,10 +54,9 @@ class MydataNotConfiguredError(ConfigurationError):
 _DEFAULT_FIXTURE = (
     # app/infrastructure/external/mydata/adapter.py → 5x parent = repo 루트
     Path(__file__).resolve().parent.parent.parent.parent.parent
-    / "tests"
-    / "fixtures"
-    / "mydata"
-    / "users.json"
+    / "data"
+    / "demo"
+    / "mydata.json"
 )
 
 

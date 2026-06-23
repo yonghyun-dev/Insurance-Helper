@@ -49,7 +49,8 @@ def get_health_history(
 
     adapter = get_health_data_adapter()
     try:
-        treatments = adapter.fetch_treatments(str(current_user.id))
+        # 데모 페르소나 external_id(이름+전화 매핑). 비데모 사용자는 빈 목록.
+        treatments = adapter.fetch_treatments(current_user.mydata_external_id or "")
     except HealthDataNotConfiguredError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
