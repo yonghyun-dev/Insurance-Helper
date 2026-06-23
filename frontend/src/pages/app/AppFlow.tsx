@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { demoLogin } from '../../api/client';
+import { useEffect, useRef, useState } from 'react';
+import { demoLogin, fetchInsurances } from '../../api/client';
 import WelcomePage from './WelcomePage';
 import IdentityPage, { type UserInput } from './IdentityPage';
 import SituationPage from './SituationPage';
@@ -17,14 +17,37 @@ export default function AppFlow() {
     dob: '1985.04.12',
     phone: '010-1234-5678',
   });
+  const [situation, setSituation] = useState('');
+  const sentRef = useRef(false);
 
-  // Sprint 21 — 세션을 흐름 최상위에서 단일 인스턴스로 보유(Situation/Loading/Chat 공유).
+  // 세션을 흐름 최상위에서 단일 인스턴스로 보유(Situation/Loading/Chat 공유).
   const session = useSession();
 
-  // Sprint 21 — 데모 게이트: 배경에서 데모 계정 자동 로그인(JWT 쿠키) → 건강보험 등 인증 API 사용 가능.
+  // 데모 게이트: 배경 자동 로그인(JWT 쿠키) → 가입 보험/건강보험 등 인증 API 사용 가능.
   useEffect(() => {
-    void demoLogin().catch(() => undefined); // 실패해도 익명 흐름은 정상 동작
+    void demoLogin().catch(() => undefined);
   }, []);
+
+  // 로딩 화면("가입 보험 확인 중") 동안 마이데이터에서 가입 보험을 자동 조회 →
+  // 상황 입력 앞에 보험 컨텍스트를 붙여 첫 메시지 전송(보험사/상품 자동 prefill).
+  useEffect(() => {
+    if (stage !== 'loading' || sentRef.current || !situation.trim()) return;
+    sentRef.current = true;
+    void (async () => {
+      let prefix = '';
+      try {
+        const ins = await fetchInsurances();
+        if (ins.length > 0) {
+          const names = ins.map((i) => `${i.insurer_name} ${i.product_name}`).join(', ');
+          prefix = `${names}에 가입되어 있어요. `;
+          session.pushToast('info', `마이데이터에서 가입 보험 ${ins.length}건을 불러왔어요.`);
+        }
+      } catch {
+        // 비로그인/조회 실패 — 보험 컨텍스트 없이 진행(익명 흐름 정상).
+      }
+      void session.sendMessage(prefix + situation.trim());
+    })();
+  }, [stage, situation, session]);
 
   // Loading → Chat: 실제 첫 응답(ask/assessment)이 도착하면 전환.
   const firstResponseReady = session.messages.some(
@@ -33,6 +56,8 @@ export default function AppFlow() {
 
   function reset() {
     void session.startNewSession();
+    setSituation('');
+    sentRef.current = false;
     setStage('welcome');
   }
 
@@ -53,9 +78,8 @@ export default function AppFlow() {
       return (
         <SituationPage
           onSubmit={(text) => {
-            // 상황 입력 = 실제 첫 메시지. Loading 으로 전환 후 응답 대기.
+            setSituation(text);
             setStage('loading');
-            void session.sendMessage(text);
           }}
         />
       );

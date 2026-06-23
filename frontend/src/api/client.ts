@@ -207,3 +207,22 @@ export async function demoLogin(): Promise<void> {
     body: JSON.stringify({ email: DEMO_EMAIL, password: DEMO_PASSWORD }),
   });
 }
+
+// === 가입 보험 자동 조회 (마이데이터 더미) — 로딩 화면에서 "가입 보험 확인" ===
+export interface EnrolledInsurance {
+  insurer_id: string;
+  insurer_name: string;
+  product_id: string;
+  product_name: string;
+  policy_no: string;
+  area: string;
+  valid_from: string;
+  valid_to: string | null;
+}
+
+export async function fetchInsurances(): Promise<EnrolledInsurance[]> {
+  const r = await api<{ insurances: EnrolledInsurance[] }>('/auth/me/insurances', {
+    method: 'GET',
+  });
+  return r.insurances ?? [];
+}
