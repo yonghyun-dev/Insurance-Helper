@@ -118,13 +118,14 @@ class Settings(BaseSettings):
     )
     rag_react: bool = Field(
         default=False,
-        description="ReAct loop 적용 (assessment 모드만, 비용 ~2.5배)",
+        description="ReAct agent(tool 자가 라우팅, 단일 LangGraph 경로) 적용 — false 면 단순 RAG",
     )
-    # Sprint 13 — Agent backend 토글 (REQ-12)
-    # rag_react=true 시 사용할 agent 구현체. agentrunner (Sprint 11 자체) / langgraph (Sprint 13 표준).
-    rag_backend: Literal["agentrunner", "langgraph"] = Field(
-        default="agentrunner",
-        description="rag_react=true 시 사용할 agent backend (점진 마이그레이션)",
+    # 추론 LLM 호출 견고성 — 행(hang)/단발 실패 방어. OpenAI SDK 에 그대로 전달.
+    llm_timeout_s: float = Field(
+        default=60.0, description="추론 LLM 호출 타임아웃(초). OpenAI SDK timeout 으로 전달."
+    )
+    llm_max_retries: int = Field(
+        default=2, description="추론 LLM 호출 SDK 재시도 횟수. OpenAI SDK max_retries 로 전달."
     )
 
     # Sprint 8 — 대국민 서비스 운영 기반
@@ -188,6 +189,11 @@ class Settings(BaseSettings):
     ocr_backend: Literal["openai", "upstage"] = Field(
         default="openai",
         description="OCR 어댑터 — openai (gpt-4o-mini Vision) 또는 upstage (Sprint 16 이후)",
+    )
+    # 약관 PDF 인덱싱 파서 — upstage(Document Parse, 국내 풀스택·구조 보존) 또는 pymupdf(텍스트 추출 폴백).
+    terms_parser: Literal["upstage", "pymupdf"] = Field(
+        default="upstage",
+        description="약관 PDF 파싱 백엔드 — upstage(Document Parse) 기본, pymupdf 는 폴백",
     )
     attachment_storage_path: Path = Field(
         default=Path("./data/uploads"),

@@ -190,6 +190,15 @@ def count() -> int:
     return get_collection().count()
 
 
+def sample_dim() -> int | None:
+    """적재된 임베딩 1개의 실제 차원. 비어 있으면 None (검증용)."""
+    res = get_collection().get(include=["embeddings"], limit=1)
+    embeddings = res.get("embeddings") if isinstance(res, dict) else None
+    if embeddings is not None and len(embeddings) > 0 and embeddings[0] is not None:
+        return len(embeddings[0])
+    return None
+
+
 def _build_metadata(chunk: Chunk, document_meta: dict[str, Any]) -> dict[str, Any]:
     """청크 1개의 Chroma 메타데이터를 구성한다.
 

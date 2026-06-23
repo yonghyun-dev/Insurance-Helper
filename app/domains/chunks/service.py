@@ -147,3 +147,35 @@ def get_chunk_with_relations(
 def count_chunks(session: Session) -> int:
     """SQLite 에 적재된 청크 총 개수."""
     return session.scalar(select(func.count()).select_from(ClauseChunk)) or 0
+
+
+@dataclass
+class ChunkQuality:
+    """적재 품질 점검 결과 (ica verify 용)."""
+
+    total: int
+    with_clause_no: int
+    empty_text: int
+    by_type: dict[str, int]
+
+
+def chunk_quality_stats(session: Session) -> ChunkQuality:
+    """청크 메타 완전성/텍스트 품질 집계 — 인덱싱 검증용.
+
+    - with_clause_no: clause_no 가 채워진 청크 수(조항 인식률)
+    - empty_text: 본문이 비었거나 공백뿐인 청크 수(파싱 품질)
+    - by_type: chunk_type 분포
+    """
+    rows = session.scalars(select(ClauseChunk)).all()
+    total = len(rows)
+    with_clause_no = sum(1 for r in rows if r.clause_no)
+    empty_text = sum(1 for r in rows if not (r.text or "").strip())
+    by_type: dict[str, int] = {}
+    for r in rows:
+        by_type[r.chunk_type] = by_type.get(r.chunk_type, 0) + 1
+    return ChunkQuality(
+        total=total,
+        with_clause_no=with_clause_no,
+        empty_text=empty_text,
+        by_type=by_type,
+    )

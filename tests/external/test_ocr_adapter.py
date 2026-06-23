@@ -186,3 +186,63 @@ class TestGetOcrAdapterFactory:
 class TestOcrNotConfiguredErrorInheritsConfigurationError:
     def test_is_configuration_error(self):
         assert issubclass(OcrNotConfiguredError, ConfigurationError)
+
+
+class TestUpstageParseDocument:
+    """UpstageAdapter.parse_document — document-parse 응답 매핑 (Sprint 25)."""
+
+    def _client(self, payload):
+        class _Resp:
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return payload
+
+        class _Client:
+            def post(self, *a, **kw):  # timeout kwarg 포함 허용
+                return _Resp()
+
+        return _Client()
+
+    def test_maps_elements_and_page_count(self, monkeypatch):
+        monkeypatch.setenv("UPSTAGE_API_KEY", "test-key")
+        from app.infrastructure.core.config import get_settings
+
+        get_settings.cache_clear()
+        payload = {
+            "elements": [
+                {"category": "heading1", "page": 1, "content": {"text": "제1조", "html": "<h1>제1조</h1>"}},
+                {"category": "table", "page": 2, "content": {"text": "", "html": "<table><tr><td>a</td></tr></table>"}},
+            ],
+            "usage": {"pages": 2},
+        }
+        adapter = UpstageAdapter(client=self._client(payload))
+        parsed = adapter.parse_document(b"%PDF-1.4", "application/pdf")
+
+        assert parsed["page_count"] == 2
+        assert len(parsed["elements"]) == 2
+        assert parsed["elements"][0]["category"] == "heading1"
+        assert parsed["elements"][0]["text"] == "제1조"
+        assert parsed["elements"][1]["category"] == "table"
+        assert "<table>" in parsed["elements"][1]["html"]
+
+    def test_page_count_falls_back_to_max_page(self, monkeypatch):
+        monkeypatch.setenv("UPSTAGE_API_KEY", "test-key")
+        from app.infrastructure.core.config import get_settings
+
+        get_settings.cache_clear()
+        payload = {
+            "elements": [{"category": "paragraph", "page": 3, "content": {"text": "x", "html": ""}}],
+        }
+        adapter = UpstageAdapter(client=self._client(payload))
+        parsed = adapter.parse_document(b"%PDF", "application/pdf")
+        assert parsed["page_count"] == 3
+
+    def test_missing_key_raises(self, monkeypatch):
+        monkeypatch.setenv("UPSTAGE_API_KEY", "")
+        from app.infrastructure.core.config import get_settings
+
+        get_settings.cache_clear()
+        with pytest.raises(OcrNotConfiguredError, match="UPSTAGE_API_KEY"):
+            UpstageAdapter().parse_document(b"x", "application/pdf")

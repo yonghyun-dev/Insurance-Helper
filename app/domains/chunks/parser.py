@@ -20,19 +20,23 @@
 from __future__ import annotations
 
 import re
-from collections import Counter
+from collections import Counter, defaultdict
+from html.parser import HTMLParser
 from pathlib import Path
 
 import fitz  # PyMuPDF
 import pdfplumber
 
 from app.domains.chunks.schemas import RawDocument, RawPage, RawTable
+from app.infrastructure.core.config import get_settings
 from app.infrastructure.core.exceptions import IngestionError
 from app.infrastructure.core.logging import get_logger
 
 logger = get_logger(__name__)
 
 PARSER_VERSION = "0.1.0"
+# Upstage Document Parse 경로는 별도 버전 — 파서 교체 시 재처리(parser_version 불일치) 유도.
+UPSTAGE_PARSER_VERSION = "upstage-docparse-0.1.0"
 
 # 헤더/푸터 탐지에 사용할 페이지 상/하단 비율
 HEADER_RATIO = 0.08
@@ -60,11 +64,19 @@ def parse_pdf(file_path: Path | str) -> RawDocument:
     if not path.is_file():
         raise IngestionError(f"경로가 파일이 아닙니다: {path}")
 
-    logger.info("PDF 파싱 시작: %s", path)
+    backend = get_settings().terms_parser
+    logger.info("PDF 파싱 시작: %s (backend=%s)", path, backend)
 
     try:
-        pages = _extract_pages(path)
-    except Exception as exc:  # PyMuPDF/pdfplumber 모두 PDFSyntaxError 등 다양한 예외
+        if backend == "upstage":
+            pages = _extract_pages_upstage(path)
+            parser_version = UPSTAGE_PARSER_VERSION
+        else:
+            pages = _extract_pages(path)
+            parser_version = PARSER_VERSION
+    except IngestionError:
+        raise
+    except Exception as exc:  # PyMuPDF/pdfplumber/Upstage 등 다양한 예외
         raise IngestionError(f"PDF 파싱 실패: {path} ({exc})") from exc
 
     if not pages:
@@ -72,8 +84,9 @@ def parse_pdf(file_path: Path | str) -> RawDocument:
 
     metadata = _extract_metadata(path)
     logger.info(
-        "PDF 파싱 완료: %s (페이지 %d, 표 %d)",
+        "PDF 파싱 완료: %s (backend=%s, 페이지 %d, 표 %d)",
         path,
+        backend,
         len(pages),
         sum(len(p.tables) for p in pages),
     )
@@ -82,7 +95,7 @@ def parse_pdf(file_path: Path | str) -> RawDocument:
         file_path=str(path),
         page_count=len(pages),
         pages=pages,
-        parser_version=PARSER_VERSION,
+        parser_version=parser_version,
         metadata=metadata,
     )
 
@@ -238,3 +251,83 @@ def _infer_table_caption(page_text_lines: list[str]) -> str | None:
         if _TABLE_CAPTION_RE.match(stripped):
             return stripped
     return None
+
+
+# ---------------------------------------------------------------------------
+# Upstage Document Parse 경로 (terms_parser=upstage) — 국내 풀스택 + 구조 보존
+# ---------------------------------------------------------------------------
+
+
+class _TableHTMLParser(HTMLParser):
+    """Upstage 표 element 의 html 을 행×열 텍스트로 변환 (stdlib, 외부 의존 없음)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.rows: list[list[str]] = []
+        self._row: list[str] | None = None
+        self._cell: list[str] | None = None
+
+    def handle_starttag(self, tag: str, attrs: list) -> None:  # noqa: ARG002
+        if tag == "tr":
+            self._row = []
+        elif tag in ("td", "th"):
+            self._cell = []
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in ("td", "th") and self._cell is not None and self._row is not None:
+            self._row.append("".join(self._cell).strip())
+            self._cell = None
+        elif tag == "tr" and self._row is not None:
+            self.rows.append(self._row)
+            self._row = None
+
+    def handle_data(self, data: str) -> None:
+        if self._cell is not None:
+            self._cell.append(data)
+
+
+def _html_table_to_rows(html: str) -> list[list[str]]:
+    """Upstage 표 html → 행 리스트. 모든 셀이 빈 행은 제거."""
+    if not html:
+        return []
+    try:
+        parser = _TableHTMLParser()
+        parser.feed(html)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Upstage 표 html 파싱 실패: %s", exc)
+        return []
+    return [row for row in parser.rows if any(cell for cell in row)]
+
+
+def _extract_pages_upstage(path: Path) -> list[RawPage]:
+    """Upstage Document Parse 로 페이지별 본문 텍스트 + 표를 추출해 RawPage 리스트 생성.
+
+    구조 인식(structure.py)은 page.text 의 라인 시작(제N조/①/1./가.)을 본다. document-parse 의
+    element `text`(평문, 마커 보존)를 읽기 순서대로 newline 결합하면 기존 PyMuPDF 출력과 호환된다.
+    표는 html → RawTable 로 분리(structure.py 가 page.tables 로 부착).
+    """
+    from app.infrastructure.external.ocr.adapter import UpstageAdapter
+
+    parsed = UpstageAdapter().parse_document(path.read_bytes(), "application/pdf")
+
+    by_page: dict[int, list] = defaultdict(list)
+    for el in parsed["elements"]:
+        by_page[el["page"]].append(el)
+
+    pages: list[RawPage] = []
+    for pageno in sorted(by_page):
+        text_parts: list[str] = []
+        tables: list[RawTable] = []
+        for el in by_page[pageno]:
+            if el["category"] == "table":
+                rows = _html_table_to_rows(el["html"])
+                if rows:
+                    tables.append(RawTable(page=pageno, rows=rows, caption=None))
+            stripped = el["text"].strip()
+            if stripped:
+                text_parts.append(stripped)
+        text = "\n".join(text_parts)
+        pages.append(
+            RawPage(page=pageno, text=text, raw_text=text, tables=tables, width=0.0, height=0.0)
+        )
+    return pages

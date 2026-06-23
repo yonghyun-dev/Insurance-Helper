@@ -1,26 +1,24 @@
 """app.domains.rag.langgraph_agent
 
-파일 경로: app/rag/langgraph_agent.py
-목적: Sprint 13 (REQ-12) — LangGraph StateGraph 로 ReAct loop 재구성.
+파일 경로: app/domains/rag/langgraph_agent.py
+목적: ReAct 에이전트의 **단일 정본 구현** — LangGraph StateGraph.
 
-설계 (tech-decisions § Sprint 13):
-    - 기존 `app.domains.rag.agent.AgentRunner` 와 **동등한 외부 시그니처** 유지
-      → `run_agent_langgraph(slots, user_message) -> AgentResult`
-    - 내부는 LangGraph StateGraph 4 노드 + 조건 엣지로 표준화
+Sprint 24 그래프 일원화로 구 `AgentRunner`(수기 ReAct loop)는 제거되고 본 모듈이
+유일한 에이전트 경로가 되었다. `rag.service.run_agent` 가 본 모듈의
+`run_agent_langgraph` 로 위임한다.
+
+구조:
+    - LangGraph StateGraph 3 노드 + 조건 엣지
     - 노드: prepare → call_llm → execute_tools → (should_continue 분기)
-    - 종료 4 우선순위: finish / no_tool_call / max_iter / 외부 예외
+    - 종료 우선순위: finish / no_tool_call / max_iter / llm_error
 
-Sprint 13 점진 마이그레이션:
-    - env 토글 `RAG_BACKEND=agentrunner|langgraph` 로 분기
-    - 기본 agentrunner — Sprint 14~15 안정화 후 chore commit 으로 폐기
-
-호환성:
-    - `AgentResult` (`app.domains.rag.agent`) 그대로 재사용 — 호출자 변경 0
-    - chunks dedupe + tool_results 형식 동일
+호환:
+    - `AgentResult` (`app.domains.rag.agent`) 재사용 — 호출자 변경 0
+    - chunks dedupe + tool_results 형식 유지
 
 시각화:
     - `build_agent_graph().get_graph().draw_mermaid()` 로 mermaid 출력
-    - `ica agent-graph` CLI 명령 (Sprint 13 T7)
+    - `ica agent-graph` CLI 명령
 """
 
 from __future__ import annotations
@@ -28,6 +26,7 @@ from __future__ import annotations
 import json
 import logging
 from functools import lru_cache
+from time import perf_counter
 from typing import Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -48,16 +47,32 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_ITER = 5
 
-# AgentRunner._SYSTEM_PROMPT 재사용을 위한 import
-_SYSTEM_PROMPT = (
-    "당신은 보험 청구 가능성 분석 어시스턴트의 ReAct agent 다.\n"
-    "현재 슬롯 요약: {slots_summary}\n\n"
-    "필수 호출 tool: {mandatory}\n"
-    "권장 호출 tool: {recommended}\n\n"
-    "위 tool 들을 자유롭게 호출하여 정보를 수집한 뒤 충분하다고 판단되면 "
-    "`finish` tool 을 호출하여 종료한다. 최대 5 turn 이내에 종료해야 한다.\n"
-    "동일한 tool 을 동일한 인자로 두 번 이상 호출하지 말 것."
-)
+# 강제 원칙 system prompt — 의무/권장 tool·영역별 가이드. (구 AgentRunner 에서 이전)
+# 약한 프롬프트는 실 LLM tool 선택 행동을 약화시키므로 강한 버전을 단일 경로의 정본으로 사용.
+_SYSTEM_PROMPT = """\
+당신은 한국 보험청구심사 어시스턴트의 ReAct agent다.
+사용자 슬롯과 대화 컨텍스트가 주어지면, 정확한 청구 가능성 답변을 위해
+아래 tool 다발 중 필요한 것을 자가 판단해 호출한다.
+
+**원칙 (강제)**:
+1. 모든 영역에서 `search_terms` 를 최소 1회 호출 (약관 인용 의무)
+2. 모든 영역에서 `validate_coverage_period` 호출 (사고일 ∈ 보장기간 검증, 의무)
+3. 청구 금액 추정 시 `calc_claim_amount` 호출 (deterministic — LLM 산수 환각 회피)
+4. 영역별 권장:
+   - auto: `get_fault_ratio_standard` (표준 과실비율) + `lookup_law_clause` (자배법)
+   - fire: `lookup_law_clause` (상법)
+   - accident_disease: `get_disease_code` (KCD 코드) + `lookup_law_clause` (보험업법)
+5. 같은 tool 을 동일 인자로 2회 호출 금지 (이미 결과를 받았다)
+6. 정보 충분하면 `finish` tool 호출하여 종료 (즉시 generate_assessment 단계로 진입)
+7. 최대 5회 iter — 도달 시 강제 종료
+
+**현재 슬롯**:
+{slots_summary}
+
+**영역별 의무·권장**:
+- 의무: {mandatory}
+- 권장: {recommended}
+"""
 
 
 # ---------------------------------------------------------------------------
@@ -76,11 +91,12 @@ class AgentState(TypedDict, total=False):
     messages: list[dict[str, Any]]            # OpenAI 대화 이력
     tool_results: list[dict[str, Any]]        # 호출 기록 (audit + assessment 용)
     chunks: list[dict[str, Any]]              # search_terms 결과 누적
+    llm_calls: list[dict[str, Any]]           # LLM 호출별 관측치 (토큰/latency)
     # Sprint 13 W-2 보정: set → list — JSON 직렬화 가능, 체크포인터 도입 시 호환 보장
     visited_tools: list[str]                  # (tool_name + args_json) 중복 차단 키 목록
     iter_count: int                           # max_iter 가드
     max_iter: int                             # 설정값
-    finish_reason: str                        # "" | "finish" | "no_tool_call" | "max_iter"
+    finish_reason: str                        # "" | "finish" | "no_tool_call" | "max_iter" | "llm_error"
 
 
 # ---------------------------------------------------------------------------
@@ -147,6 +163,7 @@ def prepare_messages(state: AgentState) -> AgentState:
         ],
         "tool_results": [],
         "chunks": [],
+        "llm_calls": [],
         "visited_tools": [],
         "iter_count": 0,
         "finish_reason": "",
@@ -159,26 +176,53 @@ def call_llm(state: AgentState) -> AgentState:
     no_tool_call 시 finish_reason="no_tool_call" 설정 (should_continue 가 종료 분기).
     """
     client = _get_openai_client()
+    model = get_chat_model()
+    iter_count = state.get("iter_count", 0) + 1
+    llm_calls = list(state.get("llm_calls", []))
 
-    response = client.chat.completions.create(
-        model=get_chat_model(),
-        messages=state["messages"],
-        tools=ALL_TOOLS,
-        tool_choice="auto",
-        temperature=0.0,
-    )
+    # B5 견고성 — LLM 호출 실패 시 부분 진행분(chunks/tool_results) 보존하고 graph 정상 종료.
+    t0 = perf_counter()
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=state["messages"],
+            tools=ALL_TOOLS,
+            tool_choice="auto",
+            temperature=0.0,
+        )
+    except Exception as exc:  # noqa: BLE001
+        latency_ms = round((perf_counter() - t0) * 1000, 1)
+        logger.error(
+            "langgraph_agent: LLM 호출 실패 iter=%d %.1fms — llm_error 종료(부분 진행분 보존): %s",
+            iter_count, latency_ms, exc,
+        )
+        llm_calls.append({"model": model, "latency_ms": latency_ms, "error": str(exc)})
+        return {**state, "iter_count": iter_count, "llm_calls": llm_calls, "finish_reason": "llm_error"}
+
+    latency_ms = round((perf_counter() - t0) * 1000, 1)
     msg = response.choices[0].message
     tool_calls = getattr(msg, "tool_calls", None) or []
 
-    iter_count = state.get("iter_count", 0) + 1
+    # B1 관측성 — 토큰 사용량 + latency 수집(usage 미제공 시 None).
+    usage = getattr(response, "usage", None)
+    llm_calls.append({
+        "model": model,
+        "prompt_tokens": getattr(usage, "prompt_tokens", None),
+        "completion_tokens": getattr(usage, "completion_tokens", None),
+        "total_tokens": getattr(usage, "total_tokens", None),
+        "latency_ms": latency_ms,
+        "tool_calls": len(tool_calls),
+    })
+
     new_messages = list(state["messages"])
 
     if not tool_calls:
         # LLM 텍스트 답변만 — 종료 신호
-        logger.info("langgraph_agent: no_tool_call iter=%d", iter_count)
+        logger.info("langgraph_agent: no_tool_call iter=%d %.1fms", iter_count, latency_ms)
         return {
             **state,
             "iter_count": iter_count,
+            "llm_calls": llm_calls,
             "finish_reason": "no_tool_call",
         }
 
@@ -206,6 +250,7 @@ def call_llm(state: AgentState) -> AgentState:
         **state,
         "messages": new_messages,
         "iter_count": iter_count,
+        "llm_calls": llm_calls,
     }
 
 
@@ -237,11 +282,21 @@ def execute_tools(state: AgentState) -> AgentState:
         if key in visited_tools:
             logger.info("langgraph_agent: 중복 tool skip (%s)", tool_name)
             tool_result: dict[str, Any] = {"skipped": "duplicate"}
+            latency_ms = 0.0
         else:
             visited_tools.append(key)
+            t0 = perf_counter()
             tool_result = _safe_invoke(tool_name, args)
+            latency_ms = round((perf_counter() - t0) * 1000, 1)
 
-        tool_results.append({"tool": tool_name, "args": args, "result": tool_result})
+        # B1 관측성 — tool 별 latency + 성공여부(error 키 부재) 기록.
+        tool_results.append({
+            "tool": tool_name,
+            "args": args,
+            "result": tool_result,
+            "latency_ms": latency_ms,
+            "ok": "error" not in tool_result,
+        })
 
         # search_terms 결과 → chunks 누적
         if tool_name == "search_terms" and "chunks" in tool_result:
@@ -308,9 +363,9 @@ def _build_agent_graph_uncached() -> CompiledStateGraph:
     graph.add_edge(START, "prepare")
     graph.add_edge("prepare", "call_llm")
 
-    # call_llm 후 no_tool_call 이면 즉시 종료, 아니면 execute_tools
+    # call_llm 후 no_tool_call/llm_error 이면 즉시 종료, 아니면 execute_tools
     def after_llm(state: AgentState) -> str:
-        if state.get("finish_reason") == "no_tool_call":
+        if state.get("finish_reason") in ("no_tool_call", "llm_error"):
             return END
         return "execute_tools"
 
@@ -364,6 +419,7 @@ def run_agent_langgraph(
         "messages": [],
         "tool_results": [],
         "chunks": [],
+        "llm_calls": [],
         "visited_tools": [],  # set → list (W-2 보정)
         "finish_reason": "",
     }
@@ -376,6 +432,7 @@ def run_agent_langgraph(
     result = AgentResult(
         chunks=_dedupe_chunks(final_state.get("chunks", [])),
         tool_results=final_state.get("tool_results", []),
+        llm_calls=final_state.get("llm_calls", []),
         iterations=final_state.get("iter_count", 0),
         finish_reason=finish_reason,
     )

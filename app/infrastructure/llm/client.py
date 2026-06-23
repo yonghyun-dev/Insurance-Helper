@@ -50,22 +50,32 @@ def get_chat_client() -> OpenAI:
             f".env 또는 환경변수에 설정하세요. (OpenAI 폴백 없음 — 국내 모델 전용 정책)"
         )
 
+    # 견고성 — 타임아웃/재시도 명시(SDK 기본값 의존 제거). 루프 내 행/단발 실패 방어.
+    timeout = settings.llm_timeout_s
+    max_retries = settings.llm_max_retries
+
     base_url = settings.effective_llm_base_url
     if base_url:
         logger.info(
-            "추론 LLM 클라이언트 생성 — provider=%s base_url=%s model=%s",
+            "추론 LLM 클라이언트 생성 — provider=%s base_url=%s model=%s timeout=%ss retries=%d",
             settings.llm_provider,
             base_url,
             settings.effective_llm_model,
+            timeout,
+            max_retries,
         )
-        return OpenAI(api_key=api_key, base_url=base_url)
+        return OpenAI(
+            api_key=api_key, base_url=base_url, timeout=timeout, max_retries=max_retries
+        )
     # provider=openai (오프라인 dev/eval) — SDK 기본 엔드포인트
     logger.info(
-        "추론 LLM 클라이언트 생성 — provider=%s (SDK 기본 엔드포인트) model=%s",
+        "추론 LLM 클라이언트 생성 — provider=%s (SDK 기본 엔드포인트) model=%s timeout=%ss retries=%d",
         settings.llm_provider,
         settings.effective_llm_model,
+        timeout,
+        max_retries,
     )
-    return OpenAI(api_key=api_key)
+    return OpenAI(api_key=api_key, timeout=timeout, max_retries=max_retries)
 
 
 def get_chat_model() -> str:

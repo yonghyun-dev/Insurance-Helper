@@ -304,3 +304,31 @@ class TestProcessPdf:
 
         for chunk in result.chunks:
             assert chunk.document_id is None
+
+
+# ===========================================================================
+# chunk_quality_stats — 적재 검증 집계 (Sprint 25 D)
+# ===========================================================================
+
+
+class TestChunkQualityStats:
+    """chunk_quality_stats — 조항 인식률 / 빈 텍스트 / 타입 분포."""
+
+    def test_quality_counts(self, session):
+        from app.domains.chunks.service import chunk_quality_stats
+
+        doc_id = _create_test_document(session)
+        chunks = [
+            _make_chunk(document_id=doc_id, chunk_type=ChunkType.ARTICLE, clause_no="제1조", text="본문"),
+            _make_chunk(document_id=doc_id, chunk_type=ChunkType.ARTICLE, clause_no="제2조", text="본문2"),
+            _make_chunk(document_id=doc_id, chunk_type=ChunkType.TABLE, clause_no="", text="| a | b |"),
+            _make_chunk(document_id=doc_id, chunk_type=ChunkType.PARAGRAPH, clause_no="", text="   "),
+        ]
+        _insert_chunks_to_db(session, doc_id, chunks)
+
+        q = chunk_quality_stats(session)
+        assert q.total == 4
+        assert q.with_clause_no == 2  # 제1조, 제2조
+        assert q.empty_text == 1  # 공백뿐인 청크 1개
+        assert sum(q.by_type.values()) == 4
+        assert len(q.by_type) == 3  # article / table / paragraph

@@ -74,6 +74,10 @@ class VectorStoreAdapter(Protocol):
         """저장된 임베딩 수."""
         ...
 
+    def sample_dim(self) -> int | None:
+        """적재된 임베딩 1개의 실제 차원 (검증용). 비어 있으면 None."""
+        ...
+
     def health(self) -> bool:
         """backend 접근 가능 여부."""
         ...
@@ -115,6 +119,11 @@ class ChromaAdapter:
         from app.domains.search import service as search_service
 
         return search_service.count()
+
+    def sample_dim(self) -> int | None:
+        from app.domains.search import service as search_service
+
+        return search_service.sample_dim()
 
     def health(self) -> bool:
         from app.domains.search import service as search_service
@@ -305,6 +314,19 @@ class PgVectorAdapter:
                 text("SELECT COUNT(*) FROM clause_chunks WHERE embedding IS NOT NULL")
             ).scalar()
         return int(row or 0)
+
+    def sample_dim(self) -> int | None:
+        from sqlalchemy import text
+
+        engine = self._get_engine()
+        with engine.connect() as conn:
+            row = conn.execute(
+                text(
+                    "SELECT vector_dims(embedding) FROM clause_chunks "
+                    "WHERE embedding IS NOT NULL LIMIT 1"
+                )
+            ).scalar()
+        return int(row) if row is not None else None
 
     def health(self) -> bool:
         from sqlalchemy import text

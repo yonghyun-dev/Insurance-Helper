@@ -6,7 +6,8 @@
 설계 참조: docs/design/rag-architecture.md, docs/design/graph-schema.md
 
 공개 API:
-    - service.retrieve(slots, top_k, mode=None, react=None) → list[RetrievalResult]
+    - service.retrieve(slots, top_k, mode=None) → list[RetrievalResult]  (단순 검색)
+    - service.run_agent(slots, user_message) → AgentResult  (LangGraph tool 자가 라우팅)
     - protocols.Retriever (Protocol)
     - protocols.RetrievalResult (TypedDict)
 

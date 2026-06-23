@@ -293,3 +293,85 @@ class TestInferTableCaption:
     def test_empty_lines_returns_none(self):
         # 빈 리스트 → None
         assert _infer_table_caption([]) is None
+
+
+# ===========================================================================
+# Upstage Document Parse 경로 (terms_parser=upstage) — Sprint 25
+# ===========================================================================
+
+
+class TestUpstageParser:
+    """_html_table_to_rows + _extract_pages_upstage + parse_pdf 라우팅 (오프라인 mock)."""
+
+    def test_html_table_to_rows(self):
+        from app.domains.chunks.parser import _html_table_to_rows
+
+        html = (
+            "<table><thead><tr><td>구분</td><td>내용</td></tr></thead>"
+            "<tbody><tr><td>A</td><td>가</td></tr><tr><td>B</td><td>나</td></tr></tbody></table>"
+        )
+        rows = _html_table_to_rows(html)
+        assert rows == [["구분", "내용"], ["A", "가"], ["B", "나"]]
+
+    def test_html_table_empty(self):
+        from app.domains.chunks.parser import _html_table_to_rows
+
+        assert _html_table_to_rows("") == []
+
+    def test_extract_pages_upstage_groups_and_tables(self, tmp_path, monkeypatch):
+        from app.domains.chunks import parser as parser_mod
+        from app.infrastructure.external.ocr import adapter as adapter_mod
+
+        fake_doc = {
+            "elements": [
+                {"category": "heading1", "page": 1, "text": "제1조 (목적)", "html": "<h1>제1조</h1>"},
+                {"category": "paragraph", "page": 1, "text": "이 약관은", "html": "<p>이 약관은</p>"},
+                {"category": "table", "page": 2, "text": "", "html":
+                    "<table><tr><td>구분</td><td>값</td></tr></table>"},
+                {"category": "paragraph", "page": 2, "text": "제2조 (정의)", "html": "<p>제2조</p>"},
+            ],
+            "page_count": 2,
+        }
+        monkeypatch.setattr(
+            adapter_mod.UpstageAdapter, "parse_document",
+            lambda self, b, m="application/pdf": fake_doc,
+        )
+
+        pdf = tmp_path / "x.pdf"
+        pdf.write_bytes(b"%PDF-1.4 dummy")
+        pages = parser_mod._extract_pages_upstage(pdf)
+
+        assert [p.page for p in pages] == [1, 2]
+        assert "제1조 (목적)" in pages[0].text
+        assert "이 약관은" in pages[0].text
+        assert pages[0].tables == []
+        # 2페이지: 표 1개 + 본문
+        assert len(pages[1].tables) == 1
+        assert pages[1].tables[0].rows == [["구분", "값"]]
+        assert "제2조 (정의)" in pages[1].text
+
+    def test_parse_pdf_routes_to_upstage(self, tmp_path, monkeypatch):
+        import app.infrastructure.core.config as _cfg
+        from app.domains.chunks.parser import UPSTAGE_PARSER_VERSION, parse_pdf
+        from app.infrastructure.external.ocr import adapter as adapter_mod
+
+        monkeypatch.setenv("TERMS_PARSER", "upstage")
+        _cfg.get_settings.cache_clear()
+
+        fake_doc = {
+            "elements": [{"category": "paragraph", "page": 1, "text": "본문", "html": "<p>본문</p>"}],
+            "page_count": 1,
+        }
+        monkeypatch.setattr(
+            adapter_mod.UpstageAdapter, "parse_document",
+            lambda self, b, m="application/pdf": fake_doc,
+        )
+
+        pdf = tmp_path / "terms.pdf"
+        pdf.write_bytes(b"%PDF-1.4 dummy")
+        doc = parse_pdf(pdf)
+
+        assert doc.parser_version == UPSTAGE_PARSER_VERSION
+        assert doc.page_count == 1
+        assert "본문" in doc.pages[0].text
+        _cfg.get_settings.cache_clear()

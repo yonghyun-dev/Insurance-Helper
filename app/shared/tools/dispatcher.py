@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import date
+from time import perf_counter
 from typing import Any
 
 from app.shared.tools.calc import calc_claim_amount, validate_coverage_period
@@ -39,7 +40,9 @@ class ToolNotImplementedError(Exception):
 
 
 def invoke(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
-    """LLM tool_call 을 실 함수로 라우팅.
+    """LLM tool_call 을 실 함수로 라우팅 + 소요시간/성공여부 로깅.
+
+    로그의 args 는 전역 PiiMaskingFilter(logging.py)가 마스킹한다.
 
     Args:
         tool_name: definitions.ALL_TOOLS 의 function.name
@@ -52,10 +55,27 @@ def invoke(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
         ToolNotFoundError: 정의되지 않은 tool (LLM 환각)
         ToolNotImplementedError: 정의는 있으나 미구현 (Sprint 단계상)
     """
+    logger.info("dispatcher: %s(%s)", tool_name, args)
+    t0 = perf_counter()
+    try:
+        result = _dispatch(tool_name, args)
+    except (ToolNotFoundError, ToolNotImplementedError) as exc:
+        logger.info(
+            "dispatcher: %s 미처리 %.1fms (%s)",
+            tool_name, (perf_counter() - t0) * 1000, type(exc).__name__,
+        )
+        raise
+    except Exception:
+        logger.error("dispatcher: %s 예외 %.1fms", tool_name, (perf_counter() - t0) * 1000)
+        raise
+    logger.info("dispatcher: %s ok %.1fms", tool_name, (perf_counter() - t0) * 1000)
+    return result
+
+
+def _dispatch(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
+    """tool_name 라우팅 본체. invoke() 가 타이밍/로깅으로 감싼다."""
     if tool_name not in tool_names():
         raise ToolNotFoundError(f"정의되지 않은 tool: {tool_name}")
-
-    logger.info("dispatcher: %s(%s)", tool_name, args)
 
     # Sprint 10 활성 — deterministic tools
     if tool_name == "calc_claim_amount":
@@ -74,9 +94,8 @@ def invoke(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
         )
         return result.model_dump(mode="json")
 
-    # Sprint 11 search_terms 활성 — query 기반 vector 검색.
-    # 주의: ReAct loop 안에서 호출되더라도 react=False 강제 (무한 재귀 회피).
-    # SlotState 의존성 없음 — LLM 이 query 텍스트 직접 생성.
+    # search_terms 활성 — query 기반 vector 검색(similarity_search 직접 호출 — 에이전트 retrieve 와
+    # 분리되어 무한 재귀 없음). SlotState 의존성 없음 — LLM 이 query 텍스트 직접 생성.
     if tool_name == "search_terms":
         from app.domains.search import service as search_service
 

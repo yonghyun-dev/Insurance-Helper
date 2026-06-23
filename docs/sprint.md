@@ -5,7 +5,9 @@
 - 직전 완료: **Sprint 18 ✅ (2026-05-26)** — 건강보험 API 더미 어댑터 + 진료내역 자동 prefill (REQ-14), 1100 tests
 - 완료: **Sprint 16 — 국내 전용 LLM 마이그레이션 1a+1b+1c** (2026-06-23, PM-25. 제품 OpenAI 0. 커밋 fb3eca9)
 - 완료: **Sprint 20 — 프론트 골격 이식 + 채팅 실동작** (PM-26) · **Sprint 21 — 진입흐름+OCR/건강보험** · **Sprint 22 — 서류체크리스트/요약/Review 백엔드+배선** (claims 도메인)
-- **현재: Sprint 23 ✅ — 법적 4페이지 + 접근성 + legacy 제거 완료** (2026-06-23, PM-27. 면책/개인정보/출처/접근성 `/legal/*` 이식 + useFontSize 전역 + reduced-motion + `frontend_legacy/` 제거. `tsc+vite build` 135모듈 통과, 6라우트 200. **PM-24 프론트 로드맵 Sprint 20~23 전부 완료**. 커밋 대기)
+- 완료: **Sprint 23 ✅ — 법적 4페이지 + 접근성 + legacy 제거** (2026-06-23, PM-27. `/legal/*` 이식 + useFontSize 전역. main 머지 78c62a6)
+- 완료: **Sprint 24 ✅ — 에이전트 LangGraph 일원화 + 관측성·견고성** (PM-28. 3갈래→단일 LangGraph, react.py 제거, 토큰·latency 계측 + audit.llm_calls/external 기록 + PII 마스킹 + LLM timeout/retry + 부분진행분 보존)
+- **현재: Sprint 25 ✅ — 약관 Upstage Document Parse 전환 + 적재 검증** (2026-06-23, PM-29. PyMuPDF→Upstage Document Parse(구조/표 보존) + terms_parser 토글, 4문서 재파싱. `ica verify` 신설: 744=744·차원 4096·조항 99%·빈텍스트 0. search/inspect 한글+별표 표 보존. **약관 풀스택 국내화 완성**. pytest 1128 passed. 커밋 대기: S24+S25 합본)
 
 ---
 

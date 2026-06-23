@@ -52,6 +52,12 @@ class SessionNotFoundError(Exception):
     """세션 만료 또는 오타. router 가 404 로 매핑."""
 
 
+# 외부 공공 API 어댑터에 연결된 tool — audit.external_api_calls trace 분류용.
+_EXTERNAL_API_TOOLS: frozenset[str] = frozenset(
+    {"lookup_law_clause", "get_disease_code", "get_fault_ratio_standard", "get_product_meta"}
+)
+
+
 # ---------------------------------------------------------------------------
 # 영역별 필수 슬롯 정의 (data-model.md § 영역별 필수 슬롯 표 + tech-decisions §4-1)
 # ---------------------------------------------------------------------------
@@ -273,28 +279,35 @@ def post_message(
 
         # 충족 또는 partial → RAG + assessment
         store.touch(session, status="analyzing")
-        # Sprint 11 — rag_react=true 면 agent (tool 다발 자가 라우팅), false 면 단순 RAG
-        # Sprint 13 — rag_backend 토글로 AgentRunner vs LangGraph 분기 (run_agent_dispatched)
+        # rag_react=true 면 agent (tool 다발 자가 라우팅, 단일 LangGraph 경로), false 면 단순 RAG.
         if get_settings().rag_react:
-            from app.domains.rag.service import run_agent_dispatched
+            from app.domains.rag.service import run_agent
 
             try:
-                agent_result = run_agent_dispatched(session.slots, text)
+                agent_result = run_agent(session.slots, text)
                 chunks = agent_result.chunks
-                # tool_calls trace 를 audit 에 기록 (Sprint 11 — 분쟁 시 재현)
+                # audit 기록 (분쟁 시 재현). PII 마스킹은 audit.complete 가 trace 전체에 적용.
                 audit_ctx.tool_calls = agent_result.tool_results
+                audit_ctx.llm_calls = agent_result.llm_calls
+                audit_ctx.external_api_calls = [
+                    tr for tr in agent_result.tool_results if tr["tool"] in _EXTERNAL_API_TOOLS
+                ]
+                total_tokens = sum(
+                    (c.get("total_tokens") or 0) for c in agent_result.llm_calls
+                )
                 logger.info(
-                    "agent: backend=%s iterations=%d finish_reason=%s chunks=%d tool_calls=%d",
-                    get_settings().rag_backend,
+                    "agent: iterations=%d finish_reason=%s chunks=%d tool_calls=%d "
+                    "llm_calls=%d total_tokens=%d",
                     agent_result.iterations,
                     agent_result.finish_reason,
                     len(agent_result.chunks),
                     len(agent_result.tool_results),
+                    len(agent_result.llm_calls),
+                    total_tokens,
                 )
             except Exception as exc:
-                # Sprint 13 researcher 08 위험 1 — 폴백 시 구형 ReActRunner 이중 호출 방지
-                logger.error("agent 실패 → 단순 RAG 폴백 (react=False 강제): %s", exc)
-                chunks = _search_chunks(session.slots, react=False)
+                logger.error("agent 실패 → 단순 RAG 폴백: %s", exc)
+                chunks = _search_chunks(session.slots)
         else:
             chunks = _search_chunks(session.slots)
         if not chunks:
@@ -387,25 +400,16 @@ def _build_no_match_ask(slots: SlotState) -> AssistantAsk:
     )
 
 
-def _search_chunks(
-    slots: SlotState, top_k: int = 8, *, react: bool | None = None
-) -> list[dict[str, Any]]:
-    """RAG 검색 thin wrapper.
+def _search_chunks(slots: SlotState, top_k: int = 8) -> list[dict[str, Any]]:
+    """RAG 검색 thin wrapper (단순 retrieve 경로).
 
-    Sprint 4 부터: app.domains.rag.service.retrieve 가 mode 라우팅 (vector/graph/hybrid) +
-    graceful fallback + ReAct opt-in 까지 캡슐화. 본 함수는 sessions.service 내부의
-    기존 호출자 인터페이스를 유지하기 위한 wrapper 만 남는다.
+    app.domains.rag.service.retrieve 가 mode 라우팅 (vector/graph/hybrid) + graceful
+    fallback 을 캡슐화. 본 함수는 sessions.service 내부의 기존 호출자 인터페이스 유지용 wrapper.
 
     슬롯 → 검색 query/filter 변환 로직은 `app/rag/_slots.py` 로 이전됨.
-
-    Sprint 13 (researcher 08 위험 1): react 인자 None 시 기존 동작 (settings.rag_react),
-    명시 시 그 값 사용 (agent 폴백 경로에서 react=False 강제하여 구형 ReActRunner 이중 호출 방지).
+    에이전트(tool 자가 라우팅) 경로는 본 함수가 아니라 run_agent(LangGraph)가 담당한다.
     """
-    return rag_service.retrieve(
-        slots,
-        top_k=top_k,
-        react=react if react is not None else get_settings().rag_react,
-    )
+    return rag_service.retrieve(slots, top_k=top_k)
 
 
 # ---------------------------------------------------------------------------

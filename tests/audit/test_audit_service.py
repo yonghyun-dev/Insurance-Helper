@@ -373,3 +373,45 @@ class TestInsertDbFailure:
             fail(ctx, error="테스트")
 
         assert any("audit insert 실패" in record.message for record in caplog.records)
+
+
+# ===========================================================================
+# _mask_trace — tool_calls / external_api_calls trace PII 마스킹 (Sprint 24 B3)
+# ===========================================================================
+
+
+class TestMaskTrace:
+    """_mask_trace — 중첩 dict/list 의 문자열 값에 PII 마스킹 재귀 적용."""
+
+    def test_masks_phone_in_nested_args(self):
+        from app.shared.audit.service import _mask_trace
+
+        trace = [
+            {
+                "tool": "search_terms",
+                "args": {"query": "010-1234-5678 로 연락주세요"},
+                "result": {"chunks": []},
+                "latency_ms": 12.3,
+                "ok": True,
+            }
+        ]
+        masked = _mask_trace(trace)
+        assert "010-1234-5678" not in masked[0]["args"]["query"]
+        # 비문자열(숫자/불리언)은 보존
+        assert masked[0]["latency_ms"] == 12.3
+        assert masked[0]["ok"] is True
+
+    def test_masks_rrn_and_email(self):
+        from app.shared.audit.service import _mask_trace
+
+        masked = _mask_trace({"a": "900101-1234567", "b": "user@example.com", "n": 5})
+        assert "900101-1234567" not in masked["a"]
+        assert "user@example.com" not in masked["b"]
+        assert masked["n"] == 5
+
+    def test_non_string_passthrough(self):
+        from app.shared.audit.service import _mask_trace
+
+        assert _mask_trace(None) is None
+        assert _mask_trace(42) == 42
+        assert _mask_trace([]) == []

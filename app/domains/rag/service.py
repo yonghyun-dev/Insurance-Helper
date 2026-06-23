@@ -16,7 +16,6 @@ from pybreaker import CircuitBreaker, CircuitBreakerError
 from app.domains.rag.graph import GraphRetriever
 from app.domains.rag.hybrid import HybridRetriever
 from app.domains.rag.protocols import RagMode, Retriever
-from app.domains.rag.react import ReActRunner
 from app.domains.rag.vector import VectorRetriever
 from app.domains.sessions.schemas import SlotState
 from app.infrastructure.core.config import get_settings
@@ -72,9 +71,8 @@ def retrieve(
     top_k: int = 8,
     *,
     mode: RagMode | None = None,
-    react: bool | None = None,
 ) -> list[dict[str, Any]]:
-    """슬롯 컨텍스트로 top_k 청크 반환. mode/react 미지정 시 settings 사용.
+    """슬롯 컨텍스트로 top_k 청크 반환. mode 미지정 시 settings 사용.
 
     graceful fallback:
         - mode 가 graph 또는 hybrid 인데 Neo4j health 실패 → vector mode 로 자동 폴백
@@ -83,10 +81,12 @@ def retrieve(
     Returns:
         list[dict] — 기존 search.service.similarity_search 와 호환 + source 필드.
         sessions.service.generate_assessment 가 그대로 소비.
+
+    주: 에이전트(tool 자가 라우팅) 경로는 본 함수가 아니라 run_agent(LangGraph) 가 담당.
+    settings.rag_react 가 에이전트 vs 단순 retrieve 를 sessions.service 에서 분기한다.
     """
     settings = get_settings()
     resolved_mode: RagMode = mode if mode is not None else settings.rag_mode  # type: ignore[assignment]
-    resolved_react = react if react is not None else settings.rag_react
 
     # graceful fallback — graph 의존 모드인데 health 실패 시 vector 로
     if resolved_mode in ("graph", "hybrid") and not _graph_singleton().health():
@@ -99,11 +99,7 @@ def retrieve(
 
     breaker = _rag_circuit_breaker()
     try:
-        if resolved_react:
-            # ReAct opt-in — 본 sprint I7 까지는 stub 이지만 인터페이스 미리 노출
-            results = breaker.call(ReActRunner(retriever).run, slots, top_k)
-        else:
-            results = breaker.call(retriever.retrieve, slots, top_k)
+        results = breaker.call(retriever.retrieve, slots, top_k)
     except CircuitBreakerError as exc:
         logger.warning("RAG circuit open (mode=%s) — vector 폴백 시도: %s", resolved_mode, exc)
         # circuit open 상태 — vector 직접 호출 (breaker 우회) 1회 시도
@@ -133,13 +129,16 @@ def retrieve(
 
 
 def run_agent(slots: SlotState, user_message: str) -> AgentResult:
-    """Sprint 11 — ReAct agent 실행.
+    """ReAct agent 실행 — 단일 LangGraph 경로 (Sprint 24 그래프 일원화).
 
     `retrieve()` 와 별개 — LLM 이 tool 다발 자가 라우팅 (search_terms / law / hira / kidi /
     calc / validate / fss / finish). 결과는 chunks + tool_results 둘 다 포함.
 
     sessions.service 가 settings.rag_react=true 일 때 본 함수 호출 → agent_result.chunks 를
     generate_assessment 의 chunks 인자로 전달.
+
+    심볼명 `run_agent` 유지 — sessions 테스트가 본 함수를 패치한다(패치 seam).
+    구 AgentRunner / rag_backend 토글은 제거되고 항상 LangGraph 구현으로 위임.
 
     Args:
         slots: 현재 SlotState
@@ -148,25 +147,9 @@ def run_agent(slots: SlotState, user_message: str) -> AgentResult:
     Returns:
         AgentResult (chunks + tool_results + iterations + finish_reason)
     """
-    from app.domains.rag.agent import (
-        AgentRunner,  # 지연 import — agent 가 dispatcher → search_service 의존
-    )
+    from app.domains.rag.langgraph_agent import run_agent_langgraph  # 지연 import
 
-    return AgentRunner().run(slots, user_message)
-
-
-def run_agent_dispatched(slots: SlotState, user_message: str) -> AgentResult:
-    """Sprint 13 — settings.rag_backend 토글에 따라 AgentRunner / LangGraph 분기.
-
-    sessions.service 에서 본 함수를 호출하면 backend 선택을 위임받는다.
-    회귀 0 — 기본 rag_backend="agentrunner" 이므로 기존 run_agent 와 동등.
-    """
-    settings = get_settings()
-    if settings.rag_backend == "langgraph":
-        from app.domains.rag.langgraph_agent import run_agent_langgraph  # 지연 import
-
-        return run_agent_langgraph(slots, user_message)
-    return run_agent(slots, user_message)
+    return run_agent_langgraph(slots, user_message)
 
 
 def clear_caches() -> None:

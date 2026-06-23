@@ -312,3 +312,78 @@ class TestRunAgentLanggraph:
         result = lg.run_agent_langgraph(auto_slots, "테스트", max_iter=3)
         assert result.finish_reason == "max_iter"
         assert result.iterations == 3
+
+
+# ===========================================================================
+# 관측성·견고성 (Sprint 24 B1/B5)
+# ===========================================================================
+
+
+def _make_response_with_usage(prompt: int, completion: int, tool_calls=None):
+    msg = SimpleNamespace(content="", tool_calls=tool_calls or [])
+    usage = SimpleNamespace(
+        prompt_tokens=prompt, completion_tokens=completion, total_tokens=prompt + completion
+    )
+    return SimpleNamespace(choices=[SimpleNamespace(message=msg)], usage=usage)
+
+
+class TestObservability:
+    def test_llm_calls_records_tokens_and_latency(self, auto_slots, monkeypatch):
+        """run_agent_langgraph 가 LLM 호출별 토큰/latency 를 llm_calls 에 누적."""
+        tcs = [_make_tool_call("tc1", "finish", {"reason": "done"})]
+        client = _make_fake_client([_make_response_with_usage(120, 30, tool_calls=tcs)])
+        monkeypatch.setattr(lg, "_get_openai_client", lambda: client)
+
+        result = lg.run_agent_langgraph(auto_slots, "사고 났어요")
+        assert len(result.llm_calls) == 1
+        call = result.llm_calls[0]
+        assert call["prompt_tokens"] == 120
+        assert call["completion_tokens"] == 30
+        assert call["total_tokens"] == 150
+        assert "latency_ms" in call
+
+    def test_tool_results_have_latency_and_ok(self, auto_slots, monkeypatch):
+        """execute_tools 가 tool 별 latency_ms + ok 플래그를 기록."""
+        tcs = [_make_tool_call("tc1", "finish", {"reason": "done"})]
+        client = _make_fake_client([_make_response(tool_calls=tcs)])
+        monkeypatch.setattr(lg, "_get_openai_client", lambda: client)
+
+        result = lg.run_agent_langgraph(auto_slots, "테스트")
+        tr = result.tool_results[0]
+        assert "latency_ms" in tr
+        assert tr["ok"] is True
+
+
+class TestLlmErrorRobustness:
+    def test_llm_error_preserves_partial_progress(self, auto_slots, monkeypatch):
+        """1턴 search_terms 누적 후 2턴 LLM 실패 → llm_error 종료 + 누적 chunks 보존."""
+        responses = [
+            _make_response(
+                tool_calls=[_make_tool_call("tc1", "search_terms", {"query": "추돌"})]
+            ),
+        ]
+        iter_resp = iter(responses)
+
+        class _Client:
+            class chat:  # noqa: N801
+                class completions:  # noqa: N801
+                    @staticmethod
+                    def create(*_a, **_kw):
+                        try:
+                            return next(iter_resp)
+                        except StopIteration:
+                            raise RuntimeError("upstage 5xx") from None
+
+        monkeypatch.setattr(lg, "_get_openai_client", lambda: _Client())
+        monkeypatch.setattr(
+            lg, "invoke",
+            lambda name, args: {"chunks": [{"id": "c1", "score": 0.8, "text": "약관"}]},
+        )
+
+        result = lg.run_agent_langgraph(auto_slots, "사고", max_iter=5)
+        assert result.finish_reason == "llm_error"
+        # 1턴에서 모은 chunk 가 보존됨 (전체 폐기 아님)
+        assert len(result.chunks) == 1
+        assert result.chunks[0]["id"] == "c1"
+        # 실패한 LLM 호출도 llm_calls 에 error 로 기록
+        assert any("error" in c for c in result.llm_calls)

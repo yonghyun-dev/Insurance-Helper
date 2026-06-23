@@ -273,6 +273,69 @@ def list_cmd(
 
 
 # ---------------------------------------------------------------------------
+# verify — 적재 검증 (카운트 일치 / 임베딩 차원 / 메타 완전성)
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def verify() -> None:
+    """인덱싱 적재 검증: SQLite↔벡터DB 카운트, 임베딩 차원(4096), 메타 완전성.
+
+    Sprint 25 — 약관 Upstage 인덱싱 후 "데이터가 제대로 들어갔는지" 점검 도구.
+    """
+    from app.domains.chunks import service as chunks_service
+    from app.domains.documents import service as documents_service
+    from app.domains.rag.vectorstore import get_vector_store
+    from app.infrastructure.core.config import get_settings
+    from app.infrastructure.core.database import session_scope
+
+    store = get_vector_store()
+    settings = get_settings()
+    ok = True
+
+    with session_scope() as session:
+        docs = documents_service.count_documents(session)
+        sqlite_count = chunks_service.count_chunks(session)
+        quality = chunks_service.chunk_quality_stats(session)
+
+    vector_count = store.count()
+    dim = store.sample_dim()
+    expected_dim = settings.embedding_dim
+
+    table = Table(title="적재 검증 (ica verify)", header_style="bold cyan")
+    table.add_column("항목")
+    table.add_column("값")
+    table.add_column("판정")
+
+    def _row(label: str, value: str, passed: bool) -> None:
+        table.add_row(label, value, "✓" if passed else "✗")
+
+    table.add_row("등록 문서", str(docs), "-")
+
+    count_ok = sqlite_count == vector_count
+    _row("카운트 (SQLite=벡터DB)", f"{sqlite_count} / {vector_count}", count_ok)
+
+    dim_ok = dim == expected_dim
+    _row("임베딩 차원", f"{dim} (기대 {expected_dim})", dim_ok)
+
+    clause_rate = (quality.with_clause_no / quality.total) if quality.total else 0.0
+    _row("조항(clause_no) 인식", f"{quality.with_clause_no}/{quality.total} ({clause_rate:.0%})", clause_rate > 0)
+
+    empty_ok = quality.empty_text == 0
+    _row("빈 텍스트 청크", str(quality.empty_text), empty_ok)
+
+    console.print(table)
+    console.print(f"chunk_type 분포: {quality.by_type}")
+
+    ok = count_ok and dim_ok and empty_ok and clause_rate > 0
+    if ok:
+        typer.secho("검증 통과 ✓", fg=typer.colors.GREEN)
+    else:
+        typer.secho("검증 실패 — 위 ✗ 항목 점검 필요", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+
+# ---------------------------------------------------------------------------
 # inspect
 # ---------------------------------------------------------------------------
 

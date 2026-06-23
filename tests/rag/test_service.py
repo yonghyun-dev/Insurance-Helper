@@ -77,7 +77,7 @@ class TestRetrieveModeRouting:
         monkeypatch.setattr(svc, "_graph_singleton", lambda: FakeRetriever(health_val=True))
         monkeypatch.setattr(svc, "_hybrid_singleton", lambda: FakeRetriever())
 
-        results = svc.retrieve(make_auto_slot(), mode="vector", react=False)
+        results = svc.retrieve(make_auto_slot(), mode="vector")
 
         assert all(r["source"] == "vector" for r in results)
 
@@ -90,7 +90,7 @@ class TestRetrieveModeRouting:
         monkeypatch.setattr(svc, "_vector_singleton", lambda: FakeRetriever(_fake_results(2, "vector")))
         monkeypatch.setattr(svc, "_hybrid_singleton", lambda: FakeRetriever())
 
-        results = svc.retrieve(make_auto_slot(), mode="graph", react=False)
+        results = svc.retrieve(make_auto_slot(), mode="graph")
 
         assert all(r["source"] == "graph" for r in results)
 
@@ -104,7 +104,7 @@ class TestRetrieveModeRouting:
         monkeypatch.setattr(svc, "_graph_singleton", lambda: graph)
         monkeypatch.setattr(svc, "_vector_singleton", lambda: FakeRetriever())
 
-        results = svc.retrieve(make_auto_slot(), mode="hybrid", react=False)
+        results = svc.retrieve(make_auto_slot(), mode="hybrid")
 
         assert len(results) == 3
 
@@ -128,7 +128,7 @@ class TestNeo4jFallback:
         monkeypatch.setattr(svc, "_vector_singleton", lambda: vector)
         monkeypatch.setattr(svc, "_hybrid_singleton", lambda: FakeRetriever())
 
-        results = svc.retrieve(make_auto_slot(), mode="graph", react=False)
+        results = svc.retrieve(make_auto_slot(), mode="graph")
 
         # vector 폴백 — source 검증
         assert all(r["source"] == "vector" for r in results)
@@ -144,7 +144,7 @@ class TestNeo4jFallback:
         monkeypatch.setattr(svc, "_vector_singleton", lambda: vector)
         monkeypatch.setattr(svc, "_hybrid_singleton", lambda: FakeRetriever())
 
-        results = svc.retrieve(make_auto_slot(), mode="hybrid", react=False)
+        results = svc.retrieve(make_auto_slot(), mode="hybrid")
 
         assert all(r["source"] == "vector" for r in results)
 
@@ -168,7 +168,7 @@ class TestRetrieverExceptionFallback:
         monkeypatch.setattr(svc, "_vector_singleton", lambda: vector)
         monkeypatch.setattr(svc, "_hybrid_singleton", lambda: FakeRetriever())
 
-        results = svc.retrieve(make_auto_slot(), mode="graph", react=False)
+        results = svc.retrieve(make_auto_slot(), mode="graph")
 
         # vector 폴백 성공
         assert len(results) > 0
@@ -185,68 +185,9 @@ class TestRetrieverExceptionFallback:
         monkeypatch.setattr(svc, "_hybrid_singleton", lambda: FakeRetriever())
 
         # vector 모드에서 예외 → 빈 list
-        results = svc.retrieve(make_auto_slot(), mode="vector", react=False)
+        results = svc.retrieve(make_auto_slot(), mode="vector")
 
         assert results == []
-
-
-# ===========================================================================
-# react opt-in
-# ===========================================================================
-
-
-class TestReactOptIn:
-    """react=True 시 ReActRunner 를 통해 실행된다."""
-
-    def test_react_true_invokes_react_runner(self, monkeypatch):
-        """react=True 면 ReActRunner.run 호출 (monkeypatch 로 확인)."""
-        import app.domains.rag.service as svc
-
-        called = {}
-
-        class FakeRunner:
-            def __init__(self, retriever, *, max_iter=5):
-                called["created"] = True
-
-            def run(self, slots, top_k=8):
-                called["run"] = True
-                return _fake_results(2, "vector")
-
-        monkeypatch.setattr(svc, "ReActRunner", FakeRunner)
-        vector = FakeRetriever(_fake_results(2, "vector"), health_val=True)
-        graph = FakeRetriever(health_val=True)
-        monkeypatch.setattr(svc, "_vector_singleton", lambda: vector)
-        monkeypatch.setattr(svc, "_graph_singleton", lambda: graph)
-        monkeypatch.setattr(svc, "_hybrid_singleton", lambda: FakeRetriever())
-
-        svc.retrieve(make_auto_slot(), mode="vector", react=True)
-
-        assert called.get("created") is True
-        assert called.get("run") is True
-
-    def test_react_false_does_not_invoke_react_runner(self, monkeypatch):
-        """react=False 면 ReActRunner 생성 안 함."""
-        import app.domains.rag.service as svc
-
-        called = {}
-
-        class FakeRunner:
-            def __init__(self, retriever, *, max_iter=5):
-                called["created"] = True
-
-            def run(self, slots, top_k=8):
-                return []
-
-        monkeypatch.setattr(svc, "ReActRunner", FakeRunner)
-        vector = FakeRetriever(_fake_results(2, "vector"), health_val=True)
-        graph = FakeRetriever(health_val=True)
-        monkeypatch.setattr(svc, "_vector_singleton", lambda: vector)
-        monkeypatch.setattr(svc, "_graph_singleton", lambda: graph)
-        monkeypatch.setattr(svc, "_hybrid_singleton", lambda: FakeRetriever())
-
-        svc.retrieve(make_auto_slot(), mode="vector", react=False)
-
-        assert "created" not in called
 
 
 # ===========================================================================
@@ -351,7 +292,7 @@ class TestCircuitBreaker:
         monkeypatch.setattr(svc, "_hybrid_singleton", lambda: FakeRetriever())
 
         # graph 모드로 호출 — circuit open → vector 폴백
-        results = svc.retrieve(make_auto_slot(), mode="graph", react=False)
+        results = svc.retrieve(make_auto_slot(), mode="graph")
 
         assert len(results) > 0
         assert all(r["source"] == "vector" for r in results)
@@ -375,7 +316,7 @@ class TestCircuitBreaker:
         monkeypatch.setattr(svc, "_hybrid_singleton", lambda: FakeRetriever())
 
         # vector 모드에서 circuit open → 폴백 없이 빈 list
-        results = svc.retrieve(make_auto_slot(), mode="vector", react=False)
+        results = svc.retrieve(make_auto_slot(), mode="vector")
 
         assert results == []
 
@@ -398,7 +339,7 @@ class TestCircuitBreaker:
         monkeypatch.setattr(svc, "_graph_singleton", lambda: graph)
         monkeypatch.setattr(svc, "_hybrid_singleton", lambda: FakeRetriever())
 
-        results = svc.retrieve(make_auto_slot(), mode="graph", react=False)
+        results = svc.retrieve(make_auto_slot(), mode="graph")
 
         assert results == []
 
@@ -413,15 +354,16 @@ class TestCircuitBreaker:
 
 
 # ===========================================================================
-# Sprint 11 — run_agent() 분기 테스트
+# run_agent() — 단일 LangGraph 경로 위임 (Sprint 24 일원화)
 # ===========================================================================
 
 
 class TestRunAgent:
-    """run_agent() — AgentRunner 를 지연 import 해 실행한다."""
+    """run_agent() — run_agent_langgraph 에 지연 import 위임한다."""
 
     def test_run_agent_returns_agent_result(self, monkeypatch):
-        """run_agent 가 AgentResult 반환."""
+        """run_agent 가 run_agent_langgraph 결과를 그대로 반환."""
+        import app.domains.rag.langgraph_agent as lg
         import app.domains.rag.service as svc
         from app.domains.rag.agent import AgentResult
 
@@ -431,41 +373,28 @@ class TestRunAgent:
             iterations=1,
             finish_reason="finish",
         )
+        monkeypatch.setattr(lg, "run_agent_langgraph", lambda slots, msg: fake_result)
 
-        class FakeAgentRunner:
-            def __init__(self, **kwargs):
-                pass
-
-            def run(self, slots, user_message):
-                return fake_result
-
-        # 지연 import 경로 monkeypatch
-        monkeypatch.setattr("app.domains.rag.agent.AgentRunner", FakeAgentRunner)
-
-        slots = make_auto_slot()
-        result = svc.run_agent(slots, "청구하고 싶어요")
+        result = svc.run_agent(make_auto_slot(), "청구하고 싶어요")
 
         assert result.finish_reason == "finish"
         assert result.chunks == [{"id": "c1"}]
         assert result.iterations == 1
 
-    def test_run_agent_calls_runner_with_correct_args(self, monkeypatch):
-        """run_agent 가 AgentRunner.run 에 slots + user_message 를 그대로 전달."""
+    def test_run_agent_calls_langgraph_with_correct_args(self, monkeypatch):
+        """run_agent 가 slots + user_message 를 그대로 전달."""
+        import app.domains.rag.langgraph_agent as lg
         import app.domains.rag.service as svc
         from app.domains.rag.agent import AgentResult
 
         captured = {}
 
-        class FakeAgentRunner:
-            def __init__(self, **kwargs):
-                pass
+        def fake_run(slots, user_message):
+            captured["slots"] = slots
+            captured["message"] = user_message
+            return AgentResult(finish_reason="finish")
 
-            def run(self, slots, user_message):
-                captured["slots"] = slots
-                captured["message"] = user_message
-                return AgentResult(finish_reason="finish")
-
-        monkeypatch.setattr("app.domains.rag.agent.AgentRunner", FakeAgentRunner)
+        monkeypatch.setattr(lg, "run_agent_langgraph", fake_run)
 
         slots = make_auto_slot()
         svc.run_agent(slots, "자동차 추돌 사고")
@@ -474,17 +403,14 @@ class TestRunAgent:
         assert captured["message"] == "자동차 추돌 사고"
 
     def test_run_agent_propagates_exception(self, monkeypatch):
-        """AgentRunner.run 예외는 그대로 전파 (sessions.service 가 폴백 처리)."""
+        """LangGraph 실행 예외는 그대로 전파 (sessions.service 가 폴백 처리)."""
+        import app.domains.rag.langgraph_agent as lg
         import app.domains.rag.service as svc
 
-        class BrokenAgentRunner:
-            def __init__(self, **kwargs):
-                pass
+        def broken(slots, user_message):
+            raise RuntimeError("agent 내부 오류")
 
-            def run(self, slots, user_message):
-                raise RuntimeError("agent 내부 오류")
-
-        monkeypatch.setattr("app.domains.rag.agent.AgentRunner", BrokenAgentRunner)
+        monkeypatch.setattr(lg, "run_agent_langgraph", broken)
 
         import pytest as _pytest
 

@@ -78,6 +78,23 @@ def begin(
     )
 
 
+def _mask_trace(obj: Any) -> Any:
+    """tool_calls / external_api_calls trace 의 모든 문자열 값에 PII 마스킹 재귀 적용.
+
+    args/result 에 사용자 평문(진단명·연락처 등)이 섞일 수 있어 평문 저장을 차단한다.
+    숫자/불리언 등 비문자열은 그대로 둔다.
+    """
+    from app.shared.security.pii import mask_pii
+
+    if isinstance(obj, str):
+        return mask_pii(obj)
+    if isinstance(obj, dict):
+        return {k: _mask_trace(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_mask_trace(v) for v in obj]
+    return obj
+
+
 def complete(
     ctx: AuditContext,
     *,
@@ -104,8 +121,8 @@ def complete(
             masked_user_input=ctx.masked_user_input,
             llm_calls=ctx.llm_calls or None,
             retrieved_chunk_ids=ctx.retrieved_chunk_ids or None,
-            external_api_calls=ctx.external_api_calls or None,
-            tool_calls=ctx.tool_calls or None,
+            external_api_calls=_mask_trace(ctx.external_api_calls) or None,
+            tool_calls=_mask_trace(ctx.tool_calls) or None,
             assistant_response_type=assistant_response_type,
             assistant_message_hash=msg_hash,
             confidence=confidence,
@@ -126,8 +143,8 @@ def fail(ctx: AuditContext, *, error: str) -> None:
             masked_user_input=ctx.masked_user_input,
             llm_calls=ctx.llm_calls or None,
             retrieved_chunk_ids=ctx.retrieved_chunk_ids or None,
-            external_api_calls=ctx.external_api_calls or None,
-            tool_calls=ctx.tool_calls or None,
+            external_api_calls=_mask_trace(ctx.external_api_calls) or None,
+            tool_calls=_mask_trace(ctx.tool_calls) or None,
             error=error,
             user_id=ctx.user_id,
         )

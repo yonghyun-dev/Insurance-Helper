@@ -11,6 +11,7 @@ OcrAdapter Protocol + OpenAiVisionAdapter + UpstageAdapter skeleton + 팩토리.
 from __future__ import annotations
 
 import base64
+import json
 from functools import lru_cache
 from typing import Protocol, TypedDict
 
@@ -30,6 +31,22 @@ class OcrResult(TypedDict):
     text: str           # OCR 원본 텍스트 (마스킹 전 — 호출자 책임으로 mask_pii 적용 후 LLM 전달)
     confidence: float   # 0.0~1.0 (OpenAI 는 self-reported)
     page_count: int     # 다중 페이지 PDF 시 페이지 수
+
+
+class ParsedElement(TypedDict):
+    """Upstage Document Parse 의 레이아웃 요소 1개."""
+
+    category: str   # heading1 / paragraph / list / table 등
+    page: int       # 1부터
+    text: str       # 평문(조/항 마커 보존). table 은 보통 빈 문자열
+    html: str       # 표는 html 에 행/열 구조 보존
+
+
+class ParsedDocument(TypedDict):
+    """Upstage Document Parse 응답 — 구조 보존 파싱 결과."""
+
+    elements: list[ParsedElement]
+    page_count: int
 
 
 class OcrAdapter(Protocol):
@@ -112,6 +129,7 @@ class OpenAiVisionAdapter:
 
 _UPSTAGE_OCR_PATH = "/document-digitization"
 _UPSTAGE_OCR_MODEL = "ocr"
+_UPSTAGE_PARSE_MODEL = "document-parse"
 _MIME_EXT = {
     "image/jpeg": ".jpg",
     "image/png": ".png",
@@ -164,6 +182,56 @@ class UpstageAdapter:
         pages = payload.get("pages") or []
         page_count = int(payload.get("numBilledPages") or len(pages) or 1)
         return OcrResult(text=text, confidence=confidence, page_count=page_count)
+
+    def parse_document(
+        self, file_bytes: bytes, mime_type: str = "application/pdf"
+    ) -> ParsedDocument:
+        """Upstage Document Parse — 레이아웃/페이지/표 구조를 보존한 파싱.
+
+        약관 인덱싱용(국내 풀스택). `model=document-parse`, output_formats=text+html
+        (text 는 조/항 마커 보존 평문, table 은 html 에 행/열 구조). markdown 은 헤딩에 '#'
+        를 붙여 조항 정규식을 깨뜨리므로 사용하지 않는다.
+        """
+        settings = get_settings()
+        if not settings.upstage_api_key:
+            raise OcrNotConfiguredError(
+                "UPSTAGE_API_KEY 미설정 — Upstage Document Parse 사용 불가"
+            )
+
+        url = settings.upstage_base_url.rstrip("/") + _UPSTAGE_OCR_PATH
+        filename = "document" + _MIME_EXT.get(mime_type, ".pdf")
+        try:
+            response = self._get_client().post(
+                url,
+                headers={"Authorization": f"Bearer {settings.upstage_api_key}"},
+                data={
+                    "model": _UPSTAGE_PARSE_MODEL,
+                    "output_formats": json.dumps(["text", "html"]),
+                },
+                files={"document": (filename, file_bytes, mime_type)},
+                timeout=180.0,  # 약관 PDF 는 페이지 많아 OCR 보다 김
+            )
+            response.raise_for_status()
+            payload = response.json()
+        except Exception as exc:  # noqa: BLE001
+            raise LLMError(f"Upstage document-parse 호출 실패: {exc}") from exc
+
+        elements: list[ParsedElement] = []
+        for el in payload.get("elements") or []:
+            content = el.get("content") or {}
+            elements.append(
+                ParsedElement(
+                    category=str(el.get("category") or "paragraph"),
+                    page=int(el.get("page") or 1),
+                    text=str(content.get("text") or ""),
+                    html=str(content.get("html") or ""),
+                )
+            )
+        pages_used = (payload.get("usage") or {}).get("pages")
+        page_count = int(pages_used) if pages_used else max(
+            (e["page"] for e in elements), default=0
+        )
+        return ParsedDocument(elements=elements, page_count=page_count)
 
 
 # ---------------------------------------------------------------------------
