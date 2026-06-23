@@ -187,3 +187,23 @@ export async function uploadDocument(
   }
   return body as UploadResponse;
 }
+
+// === Sprint 21 — 데모 배경 로그인 (HttpOnly JWT 쿠키) ===
+const DEMO_EMAIL = 'demo@example.com';
+const DEMO_PASSWORD = 'demo-insurance-1234';
+
+/** 데모 계정을 보장(signup)한 뒤 로그인 → JWT 쿠키 설정. 건강보험 등 인증 필요 API 용. */
+export async function demoLogin(): Promise<void> {
+  try {
+    await api<unknown>('/auth/signup', {
+      method: 'POST',
+      body: JSON.stringify({ email: DEMO_EMAIL, password: DEMO_PASSWORD }),
+    });
+  } catch (e) {
+    if (!(e instanceof IcaApiError && e.status === 409)) throw e; // 이미 존재 → 무시
+  }
+  await api<unknown>('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email: DEMO_EMAIL, password: DEMO_PASSWORD }),
+  });
+}

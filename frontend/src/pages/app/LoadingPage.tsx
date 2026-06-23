@@ -14,19 +14,22 @@ const STEPS = [
 
 export interface LoadingPageProps {
   onDone: () => void;
+  // Sprint 21 — 실제 첫 응답이 도착했는지. 애니메이션이 끝나도 응답 전이면 마지막 단계에서 대기.
+  ready: boolean;
 }
 
-export default function LoadingPage({ onDone }: LoadingPageProps) {
+export default function LoadingPage({ onDone, ready }: LoadingPageProps) {
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
     if (progress >= STEPS.length) {
-      const t = window.setTimeout(onDone, 600);
+      if (!ready) return; // 실제 백엔드 첫 응답 대기
+      const t = window.setTimeout(onDone, 400);
       return () => window.clearTimeout(t);
     }
     const t = window.setTimeout(() => setProgress((p) => p + 1), 900);
     return () => window.clearTimeout(t);
-  }, [progress, onDone]);
+  }, [progress, ready, onDone]);
 
   return (
     <div className={s.shell} data-screen-label="04 분석 중">

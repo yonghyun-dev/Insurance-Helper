@@ -95,6 +95,14 @@
   color: var(--text-secondary);
 }
 
+.attachBtn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: zoom-in;
+  display: block;
+}
+
 .attachThumb {
   display: block;
   max-width: 200px;

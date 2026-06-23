@@ -1,6 +1,6 @@
 // Sprint 20 — ChatPage 재배선: 하드코딩 scenarioMessages 제거, useSession 의
 // ask→assessment 멀티턴 루프를 새 디자인 패턴으로 구동한다. (설계: docs/design/frontend-chat-rewiring.md)
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import AppShell from '../../design-system/patterns/chat/AppShell';
 import BrandMark from '../../design-system/patterns/chat/BrandMark';
 import StepNavigator, { type StepItem } from '../../design-system/patterns/chat/StepNavigator';
@@ -18,17 +18,21 @@ import { useAutoScroll } from '../../design-system/hooks/useAutoScroll';
 import { useSession } from '../../hooks/useSession';
 import { koTime } from '../../lib/time';
 import CitationList from '../../components/CitationList';
+import ImageLightbox from '../../components/ImageLightbox';
+import HealthHistoryPanel from '../../components/HealthHistoryPanel';
 import type {
   AssistantAsk,
   AssistantAssessment,
   ChatMessage,
   LikelihoodLevel,
+  TreatmentCard,
 } from '../../types/api';
 import s from './ChatPage.module.css';
 
 export interface ChatPageProps {
   user: { name: string; dob: string; phone: string };
-  situation: string;
+  // Sprint 21 — 세션은 AppFlow 에서 생성해 주입(Situation/Loading 과 공유).
+  session: ReturnType<typeof useSession>;
   onReset: () => void;
 }
 
@@ -135,8 +139,7 @@ function renderAssessment(a: AssistantAssessment): ReactNode {
   );
 }
 
-export default function ChatPage({ user, situation, onReset }: ChatPageProps) {
-  const session = useSession();
+export default function ChatPage({ user, session, onReset }: ChatPageProps) {
   const {
     messages,
     isSending,
@@ -145,21 +148,14 @@ export default function ChatPage({ user, situation, onReset }: ChatPageProps) {
     toasts,
     sendMessage,
     retryLast,
-    startNewSession,
     removeToast,
+    uploadFile,
+    pushToast,
   } = session;
 
   const streamRef = useRef<HTMLDivElement>(null);
-  const seededRef = useRef(false);
-
-  // Welcome→Situation 입력을 첫 메시지로 시드 (진입흐름 최소 브릿지 — 정식 배선은 Sprint 21).
-  useEffect(() => {
-    if (seededRef.current || isRestoring) return;
-    if (situation.trim() && messages.length === 0) {
-      seededRef.current = true;
-      void sendMessage(situation.trim());
-    }
-  }, [isRestoring, situation, messages.length, sendMessage]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
 
   useAutoScroll(streamRef, [messages.length, isSending]);
 
@@ -168,9 +164,16 @@ export default function ChatPage({ user, situation, onReset }: ChatPageProps) {
   const st = STATUS_TEXT[status ?? 'gathering'] ?? STATUS_TEXT.gathering;
 
   function handleReset() {
-    void startNewSession();
-    seededRef.current = true; // reset 후 situation 재시드 방지
-    onReset();
+    onReset(); // AppFlow.reset 이 startNewSession + welcome 복귀 처리
+  }
+
+  // 건강보험 진료 카드 선택 → 자연어 메시지로 변환해 전송 (슬롯 자동 prefill)
+  function handleSelectTreatment(t: TreatmentCard) {
+    const period = t.is_hospitalization
+      ? `${t.hospitalization_days}일 입원`
+      : `외래 ${t.outpatient_visits}회`;
+    const msg = `${t.hospital_name}에서 ${t.treatment_date}에 ${t.diagnosis_summary}로 ${period} 진료받았어요. 환자 부담금은 ${t.claim_amount.toLocaleString()}원이에요.`;
+    void sendMessage(msg);
   }
 
   function renderMessage(m: ChatMessage): ReactNode {
@@ -183,7 +186,15 @@ export default function ChatPage({ user, situation, onReset }: ChatPageProps) {
       body = (
         <>
           {m.attachment ? (
-            <img className={s.attachThumb} src={m.attachment.dataUrl} alt={m.attachment.filename} />
+            <button
+              type="button"
+              className={s.attachBtn}
+              onClick={() =>
+                setLightbox({ src: m.attachment!.dataUrl, alt: m.attachment!.filename })
+              }
+            >
+              <img className={s.attachThumb} src={m.attachment.dataUrl} alt={m.attachment.filename} />
+            </button>
           ) : null}
           {m.content ? <p>{m.content}</p> : null}
         </>
@@ -248,10 +259,24 @@ export default function ChatPage({ user, situation, onReset }: ChatPageProps) {
 
         <ChatStream ref={streamRef}>{messages.map(renderMessage)}</ChatStream>
 
+        <HealthHistoryPanel onSelect={handleSelectTreatment} pushToast={pushToast} />
+
         <Composer
           onSend={(t) => void sendMessage(t)}
+          onAttach={() => fileInputRef.current?.click()}
           disabled={isSending || isRestoring}
           placeholder="청구 상황을 자유롭게 알려주세요."
+        />
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,application/pdf"
+          hidden
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void uploadFile(f);
+            e.target.value = '';
+          }}
         />
       </AppShell>
 
@@ -268,6 +293,15 @@ export default function ChatPage({ user, situation, onReset }: ChatPageProps) {
             </div>
           ))}
         </div>
+      ) : null}
+
+      {lightbox ? (
+        <ImageLightbox
+          src={lightbox.src}
+          alt={lightbox.alt}
+          filename={lightbox.alt}
+          onClose={() => setLightbox(null)}
+        />
       ) : null}
     </div>
   );
