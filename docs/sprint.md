@@ -4,8 +4,8 @@
 
 - 직전 완료: **Sprint 18 ✅ (2026-05-26)** — 건강보험 API 더미 어댑터 + 진료내역 자동 prefill (REQ-14), 1100 tests
 - 완료: **Sprint 16 — 국내 전용 LLM 마이그레이션 1a+1b+1c** (2026-06-23, PM-25. 제품 OpenAI 0. 커밋 fb3eca9)
-- **현재 작업: Sprint 20 — 프론트엔드 골격 이식 + 채팅 실동작 완료** (2026-06-23, PM-26. 새 dfocus 디자인 + 백엔드 이식 + ChatPage 재배선 + CitationList. 빌드 통과 + 백엔드 라이브 검증. 커밋 대기)
-- 대기: Sprint 21(진입흐름+OCR/건강보험) · 22(서류체크리스트/요약/Review 백엔드) · 23(법적/접근성/legacy 제거)
+- 완료: **Sprint 20 — 프론트 골격 이식 + 채팅 실동작** (PM-26) · **Sprint 21 — 진입흐름+OCR/건강보험** · **Sprint 22 — 서류체크리스트/요약/Review 백엔드+배선** (claims 도메인)
+- **현재: Sprint 23 ✅ — 법적 4페이지 + 접근성 + legacy 제거 완료** (2026-06-23, PM-27. 면책/개인정보/출처/접근성 `/legal/*` 이식 + useFontSize 전역 + reduced-motion + `frontend_legacy/` 제거. `tsc+vite build` 135모듈 통과, 6라우트 200. **PM-24 프론트 로드맵 Sprint 20~23 전부 완료**. 커밋 대기)
 
 ---
 

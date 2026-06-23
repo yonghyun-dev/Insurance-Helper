@@ -1,12 +1,20 @@
 import { NavLink, Outlet, Route, Routes, Navigate } from 'react-router-dom';
 import ShowcasePage from './pages/ShowcasePage';
 import AppFlow from './pages/app/AppFlow';
+import DisclaimerPage from './pages/legal/DisclaimerPage';
+import PrivacyPage from './pages/legal/PrivacyPage';
+import SourcesPage from './pages/legal/SourcesPage';
+import AccessibilityPage from './pages/legal/AccessibilityPage';
 import styles from './App.module.css';
 
 export default function App() {
   return (
     <Routes>
       <Route path="/app/*" element={<AppFlow />} />
+      <Route path="/legal/disclaimer" element={<DisclaimerPage />} />
+      <Route path="/legal/privacy" element={<PrivacyPage />} />
+      <Route path="/legal/sources" element={<SourcesPage />} />
+      <Route path="/legal/accessibility" element={<AccessibilityPage />} />
       <Route element={<ShowcaseLayout />}>
         <Route path="/showcase" element={<ShowcasePage />} />
       </Route>

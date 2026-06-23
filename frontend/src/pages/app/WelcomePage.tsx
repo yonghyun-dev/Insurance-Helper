@@ -1,5 +1,7 @@
 import { Button, Tile, Icon } from '../../design-system';
 import ShellHeader from '../../design-system/patterns/shell/ShellHeader';
+import LegalFooter from '../../components/LegalFooter';
+import FontSizeToggle from '../legal/FontSizeToggle';
 import s from './WelcomePage.module.css';
 
 export interface WelcomePageProps {
@@ -27,7 +29,7 @@ const TRUST_CARDS = [
 export default function WelcomePage({ onStart }: WelcomePageProps) {
   return (
     <div className={s.shell} data-screen-label="01 시작 화면">
-      <ShellHeader />
+      <ShellHeader rightSlot={<FontSizeToggle />} />
       <main className={s.main}>
         <div className={s.welcome}>
           <img className={s.mark} src="/assets/logo-mark.svg" alt="보험길잡이" />
@@ -61,6 +63,7 @@ export default function WelcomePage({ onStart }: WelcomePageProps) {
           </div>
         </div>
       </main>
+      <LegalFooter />
     </div>
   );
 }

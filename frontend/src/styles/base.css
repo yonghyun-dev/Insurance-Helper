@@ -81,3 +81,39 @@ a {
 a:hover { color: var(--link-primary-hover); }
 
 button { font-family: inherit; }
+
+/* ──────────────────────────────────────────────────────────────────
+   접근성 — 글자 크기(useFontSize) + 모션 감소
+   rem 기반 타이포 토큰이 <html> font-size 를 따라 함께 커진다.
+   ──────────────────────────────────────────────────────────────── */
+html.fs--small { font-size: 14px; }
+html.fs--medium { font-size: 16px; }
+html.fs--large { font-size: 18px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* 키보드 포커스 가시화 (마우스 클릭에는 표시하지 않음) */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* 스크린리더 전용 텍스트 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
