@@ -59,6 +59,15 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: compose 파일 VM 동기화
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          source: docker-compose.prod.yml
+          target: /opt/ica
+
       - name: VM 배포 (SSH → compose pull & up)
         uses: appleboy/ssh-action@v1
         with:

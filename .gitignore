@@ -70,3 +70,7 @@ frontend_legacy/
 frontend/2*/
 *.docx
 *.zip
+
+# Azure 프로비저닝 산출물 (시크릿·SSH 키) — 절대 커밋 금지
+infra/azure/.secrets*.env
+infra/azure/.deploy_key*

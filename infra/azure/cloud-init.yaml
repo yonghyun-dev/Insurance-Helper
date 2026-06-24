@@ -1,0 +1,16 @@
+#cloud-config
+# VM 부트스트랩 — Docker + compose 플러그인 설치, /opt/ica 준비.
+# az vm create --custom-data 로 주입된다. 배포 compose/.env 는 GitHub Actions 가 채운다.
+package_update: true
+packages:
+  - ca-certificates
+  - curl
+runcmd:
+  # Docker Engine + compose 플러그인(공식 설치 스크립트)
+  - curl -fsSL https://get.docker.com | sh
+  - systemctl enable --now docker
+  # 배포 사용자(azureuser)를 docker 그룹에 — sudo 없이 compose 실행
+  - usermod -aG docker azureuser
+  # 배포 디렉터리 — GitHub Actions 가 docker-compose.prod.yml 과 .env 를 여기에 둔다
+  - mkdir -p /opt/ica
+  - chown -R azureuser:azureuser /opt/ica
