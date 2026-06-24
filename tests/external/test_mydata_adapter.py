@@ -115,17 +115,17 @@ class TestProductionFixture:
         assert result[0]["insurer_id"] == "samsung"
         assert result[0]["product_id"] == "samsung_silson"
 
-    def test_p02_db_silson(self):
+    def test_p02_lotte_silson(self):
         adapter = DummyAdapter()
         result = adapter.fetch_insurances("p02")
         assert len(result) == 1
-        assert result[0]["insurer_id"] == "db"
-        assert result[0]["product_id"] == "db_silson"
+        assert result[0]["insurer_id"] == "lotte"
+        assert result[0]["product_id"] == "lotte_silson"
 
     def test_all_personas_single_indexed_silson(self):
         """모든 페르소나가 인덱싱된 5개 보험사 실손 1건씩 보유 (실손 중복가입 금지 반영)."""
         adapter = DummyAdapter()
-        insurers = {"samsung", "db", "hyundai", "meritz", "hanwha"}
+        insurers = {"samsung", "lotte", "hyundai", "meritz", "hanwha"}
         for pid in (f"p{n:02d}" for n in range(1, 11)):
             result = adapter.fetch_insurances(pid)
             assert len(result) == 1
