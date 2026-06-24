@@ -91,8 +91,8 @@
 
 .btn--sm { height: var(--size-sm); font-size: 0.75rem; }
 .btn--md { height: var(--size-md); }
-.btn--xl { height: var(--size-xl); padding-top: var(--space-04); padding-bottom: var(--space-04); align-items: flex-start; }
-.btn--2xl { height: var(--size-2xl); padding: var(--space-05); align-items: flex-start; }
+.btn--xl { height: var(--size-xl); padding-top: var(--space-04); padding-bottom: var(--space-04); align-items: center; }
+.btn--2xl { height: var(--size-2xl); padding: var(--space-05); align-items: center; }
 
 .btn--icon {
   width: var(--size-lg);

@@ -1,9 +1,8 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import clsx from 'clsx';
-import { Button, Field, Icon, Select, Tile } from '../../design-system';
+import { Button, Field, Icon, Tile } from '../../design-system';
 import ShellHeader from '../../design-system/patterns/shell/ShellHeader';
 import PreStepper from '../../design-system/patterns/onboarding/PreStepper';
-import { type DemoPersona, fetchDemoPersonas } from '../../api/client';
 import s from './IdentityPage.module.css';
 
 export interface UserInput {
@@ -19,27 +18,12 @@ export interface IdentityPageProps {
 }
 
 export default function IdentityPage({ initial, onSubmit }: IdentityPageProps) {
-  const [name, setName] = useState(initial?.name ?? '김민서');
-  const [dob, setDob] = useState(initial?.dob ?? '1985.04.12');
-  const [phone, setPhone] = useState(initial?.phone ?? '010-1234-5678');
+  const [name, setName] = useState(initial?.name ?? '');
+  const [dob, setDob] = useState(initial?.dob ?? '');
+  const [phone, setPhone] = useState(initial?.phone ?? '');
   const [verified, setVerified] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [consents, setConsents] = useState({ mydata: false, privacy: false });
-  const [personas, setPersonas] = useState<DemoPersona[]>([]);
-
-  // 실 마이데이터 미발급 — 데모 페르소나 중 하나로 로그인해 그 사람의 데이터를 가져온다.
-  useEffect(() => {
-    void fetchDemoPersonas()
-      .then(setPersonas)
-      .catch(() => setPersonas([]));
-  }, []);
-
-  function selectPersona(p: DemoPersona) {
-    setName(p.name);
-    setDob(p.dob);
-    setPhone(p.phone);
-    setVerified(false);
-  }
 
   const canSubmit = verified && consents.mydata && consents.privacy && name && dob && phone;
 
@@ -63,27 +47,6 @@ export default function IdentityPage({ initial, onSubmit }: IdentityPageProps) {
             가입한 보험을 안전하게 확인하기 위해 기본 정보와 동의를 받습니다.
             입력하신 정보는 청구 안내 외 용도로 사용되지 않습니다.
           </p>
-
-          {personas.length > 0 ? (
-            <Tile className={s.card}>
-              <div className={s.sectionTitle}>데모 사용자 선택</div>
-              <Select
-                placeholder="데모 사용자를 선택하세요"
-                value={phone}
-                options={personas.map((p) => ({
-                  value: p.phone,
-                  label: `${p.name} · ${p.label}`,
-                }))}
-                onChange={(v) => {
-                  const p = personas.find((x) => x.phone === v);
-                  if (p) selectPersona(p);
-                }}
-              />
-              <p className={s.demoHint}>
-                실 마이데이터 연동 전 데모입니다. 선택한 사용자의 가입 보험·진료내역을 불러옵니다.
-              </p>
-            </Tile>
-          ) : null}
 
           <Tile className={s.card}>
             <div className={s.sectionTitle}>기본 정보</div>
