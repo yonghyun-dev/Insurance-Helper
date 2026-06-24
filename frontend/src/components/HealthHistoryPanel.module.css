@@ -1,4 +1,5 @@
 .wrap {
+  position: relative;
   margin-bottom: 10px;
 }
 
@@ -24,13 +25,25 @@
   cursor: default;
 }
 
+/* 열린 진료 목록 — 트리거 위로 떠 있는 팝오버(레이아웃 밀지 않음) */
 .list {
   list-style: none;
-  margin: 10px 0 0;
-  padding: 0;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  width: min(440px, 100%);
+  max-height: 340px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 10px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  background: #fff;
+  border: 1px solid var(--gray-20);
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.14);
+  z-index: 30;
 }
 
 .card {
@@ -78,7 +91,17 @@
 }
 
 .empty {
-  margin-top: 10px;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  width: min(440px, 100%);
+  margin: 0;
+  padding: 12px 14px;
+  background: #fff;
+  border: 1px solid var(--gray-20);
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.14);
   font-size: 13px;
   color: var(--text-secondary);
+  z-index: 30;
 }
