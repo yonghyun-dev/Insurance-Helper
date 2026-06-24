@@ -51,7 +51,7 @@
 | 리전 | **Korea Central** | 국내 잔류 + Upstage 지연 |
 | VM | **B4ms (4vCPU/16GB)** Ubuntu LTS | 워크로드 유휴 대기형 → 버스터블 크레딧 비용효율. 안전 시 D4s_v5 |
 | 디스크 | Premium SSD P10(~128GB) | OS + docker. PDF는 Blob(디스크 X) |
-| 백엔드 replica | **3** (`compose --scale backend=3`) | HA + Solar 응답 수초 물림 |
+| 백엔드 replica | 데모 **1** 권장 / 2+ 는 §5.7 선결 | 멀티턴 세션이 프로세스 메모리 → 2+ replica 는 sticky/Redis 필요 |
 | 백엔드 컨테이너 | 0.5~1 vCPU / 1~2GB each | API 대기형이라 경량 |
 | DB | **Postgres Flexible B2s (2vCPU/4GB)** | 관계형+벡터 통합. 운영 시 GP D2ds |
 | 벡터 | `clause_chunks.embedding vector(4096)`, **인덱스 없음**(exact) | 2189행 sub-ms |
@@ -70,6 +70,11 @@
 4. **4096-d ANN 인덱스 불가**: pgvector 한계(vector 2000 / halfvec 4000). 현재 exact로 충분하나, 코퍼스 10만+ 성장 시 ① 임베딩 차원 축소(≤2000) ② Azure AI Search/Qdrant 분리. (sprint16 마이그레이션에 이미 명시·구현됨)
 5. **데이터 이관 ≠ 덤프**: SQLite→PG는 약관 PDF가 Blob에 있으므로 **`ica ingest` 재적재가 가장 깔끔**(청크/임베딩 재생성). users/demo는 `ica seed-demo`, audit은 신규 시작.
 6. **휘발 컨셉**: 세션 상태 영속 불필요(JWT). 단 audit log는 Postgres 영속(정책).
+7. **⚠️ 세션 affinity (로컬 검증에서 발견)**: `SessionStore` 는 **프로세스 메모리 dict**(`app/domains/sessions/store.py`, 30분 TTL). nginx 라운드로빈으로 **멀티턴의 각 턴이 다른 replica 로 분산되면 세션이 유실**된다(턴2에서 세션 미존재 에러 실측). → **백엔드 2+ replica 는 다음 중 하나 필수**:
+   - (a) **단일 replica**(데모 최단경로, HA 포기) — 30분 휘발 세션엔 수용 가능
+   - (b) **nginx sticky**(ip_hash) — 단 OSS nginx 는 `upstream` 블록이 시작 시 1회 DNS 해석이라 `--scale` 동적 IP 와 충돌(고정 upstream 필요)
+   - (c) **공유 세션스토어(Redis)** — `SessionStore` 를 Redis 백엔드로(중간 규모 코드 작업, 가장 견고)
+   - 참고: 관리형 ACA 는 세션 affinity 옵션 내장 — VM+nginx 자체관리의 트레이드오프.
 
 ## 6. 코드 변경 — 거의 없음 (이미 구현됨)
 
@@ -88,6 +93,8 @@
 
 → **남은 일은 인프라 프로비저닝 + 실 Postgres 연결 + 적재/검증 + 컨테이너화/배포**(DevOps).
 → 선택: 안정화 후 `ChromaAdapter`·chromadb 의존 제거(원래 폐기 계획). 데모 기간엔 폴백으로 잔존 가능.
+
+**예외 — Track C 로컬 검증에서 발견·수정한 코드 1건**: `app/shared/tools/dispatcher.py` 의 에이전트 `search_terms` 도구가 `search_service.similarity_search`(Chroma 전용)를 직접 호출 → pgvector 모드에서 빈 결과. `get_vector_store().query()`(어댑터 경유)로 교체해 backend 무관 동작. *(같은 이유로 `ica search` CLI 도 pgvector 모드에서 Chroma 를 쳐서 0건 — dev 도구라 후속 정리)*
 
 ## 7. 비용 개요 (Korea Central, 고정비 — 정확 견적은 SKU 확정 후)
 

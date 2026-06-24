@@ -94,14 +94,16 @@ def _dispatch(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
         )
         return result.model_dump(mode="json")
 
-    # search_terms 활성 — query 기반 vector 검색(similarity_search 직접 호출 — 에이전트 retrieve 와
-    # 분리되어 무한 재귀 없음). SlotState 의존성 없음 — LLM 이 query 텍스트 직접 생성.
+    # search_terms 활성 — query 기반 vector 검색. 벡터 backend 추상화(get_vector_store)를 거쳐
+    # 설정(effective_vector_store)에 따라 Chroma/pgvector 로 라우팅된다. similarity_search 직접 호출은
+    # Chroma 전용이라 pgvector 모드에서 빈 결과가 나므로 어댑터 경유로 통일(반환 형식 동일).
+    # 에이전트 retrieve 와 분리되어 무한 재귀 없음. SlotState 의존성 없음 — LLM 이 query 텍스트 직접 생성.
     if tool_name == "search_terms":
-        from app.domains.search import service as search_service
+        from app.domains.rag.vectorstore import get_vector_store
 
         query = args["query"]
         top_k = args.get("top_k", 8)
-        results = search_service.similarity_search(query, top_k=top_k)
+        results = get_vector_store().query(query, top_k=top_k)
         # Sprint 11 ReAct LLM 이 chunk_id + text 만 필요 (citations 검증에 사용)
         compact = [
             {
