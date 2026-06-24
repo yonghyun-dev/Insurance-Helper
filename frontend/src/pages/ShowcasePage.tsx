@@ -157,9 +157,9 @@ export default function ShowcasePage() {
               실손 의료비 보험
             </Checkbox>
             <Checkbox checked={check2} onChange={(e) => setCheck2(e.target.checked)}>
-              자동차 보험
+              비급여 특약
             </Checkbox>
-            <Checkbox checked disabled>여행자 보험 (비활성)</Checkbox>
+            <Checkbox checked disabled>3대비급여 특약 (비활성)</Checkbox>
           </div>
 
           <div className={s.col}>
@@ -189,7 +189,7 @@ export default function ShowcasePage() {
             <div className={s.lbl}>Tag</div>
             <div className={s.demo}>
               <Tag>실손</Tag>
-              <Tag color="blue">자동차</Tag>
+              <Tag color="blue">통원</Tag>
               <Tag color="green">완료</Tag>
               <Tag color="red">긴급</Tag>
               <Tag filter onDismiss={() => alert('필터 해제')}>필터 적용</Tag>
@@ -206,7 +206,7 @@ export default function ShowcasePage() {
           onChange={setSelect}
           options={[
             { value: 'losang', label: '실손 의료비 보험' },
-            { value: 'auto', label: '자동차 보험' },
+            { value: 'nonpay', label: '비급여 특약' },
             { value: 'cancer', label: '암 보험' },
             { value: 'travel', label: '여행자 보험' },
           ]}
@@ -247,8 +247,8 @@ export default function ShowcasePage() {
             <p className="ty-helper-01" style={{ marginTop: 8 }}>표준 약관 · 갱신형</p>
           </Tile>
           <Tile clickable>
-            <strong>자동차 보험 비교</strong>
-            <p className="ty-helper-01" style={{ marginTop: 8 }}>3개 보험사 견적 받기</p>
+            <strong>실손 약관 비교</strong>
+            <p className="ty-helper-01" style={{ marginTop: 8 }}>5개 보험사 약관 대조</p>
           </Tile>
           <Tile accent>
             <strong>암 진단비 추천</strong>
@@ -266,7 +266,7 @@ export default function ShowcasePage() {
           onChange={setTab}
           items={[
             { id: '실손', label: '실손 의료비' },
-            { id: '자동차', label: '자동차' },
+            { id: '비급여', label: '비급여' },
             { id: '암', label: '암 보험' },
             { id: '기타', label: '기타' },
           ]}
