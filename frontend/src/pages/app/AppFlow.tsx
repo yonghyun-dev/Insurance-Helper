@@ -12,11 +12,7 @@ type Stage = 'welcome' | 'identity' | 'situation' | 'loading' | 'chat' | 'review
 
 export default function AppFlow() {
   const [stage, setStage] = useState<Stage>('welcome');
-  const [user, setUser] = useState<UserInput>({
-    name: '김민서',
-    dob: '1985.04.12',
-    phone: '010-1234-5678',
-  });
+  const [user, setUser] = useState<UserInput>({ name: '', dob: '', phone: '' });
   const [situation, setSituation] = useState('');
   const sentRef = useRef(false);
 
