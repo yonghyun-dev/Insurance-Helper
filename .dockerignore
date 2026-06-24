@@ -1,0 +1,32 @@
+# 이미지 빌드 컨텍스트 축소 — 런타임 볼륨/불필요 산출물 제외
+.git
+.gitignore
+.venv
+**/__pycache__
+**/*.pyc
+**/*.pyo
+node_modules
+frontend/node_modules
+frontend/dist
+chroma_db
+data/raw
+data/page_images
+data/uploads
+*.db
+*.sqlite
+*.sqlite3
+.pytest_cache
+.ruff_cache
+.mypy_cache
+htmlcov
+.coverage
+tests
+docs
+scripts
+.claude
+.github
+docker-compose*.yml
+Dockerfile*
+# 문서는 제외하되 hatchling 빌드에 필요한 README.md 는 유지
+*.md
+!README.md

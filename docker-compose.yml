@@ -1,0 +1,86 @@
+# 로컬 풀스택 검증 — nginx + backend(×N) + Postgres(pgvector)
+#
+# Azure 비용 없이 프로덕션 토폴로지(nginx LB + 다중 백엔드 + pgvector)를 로컬에서 그대로 검증한다.
+#
+# 실행:
+#   docker compose up -d --build --scale backend=3
+#   open http://localhost:8080            # 프론트
+#   curl -i http://localhost:8080/health  # X-Upstream 헤더로 LB 분산 확인
+#
+# 데이터 적재(Track C, Upstage 비용 발생):
+#   docker compose run --rm migrate ica ingest --insurer all   # 또는 reindex
+#
+# 비밀번호: 로컬 기본값 제공(운영은 Key Vault). .env 의 POSTGRES_PASSWORD 로 override 가능.
+
+name: insurance-helper
+
+x-backend-env: &backend-env
+  DATABASE_URL: postgresql+psycopg://ica:${POSTGRES_PASSWORD:-ica_local_pw}@postgres:5432/ica_db
+  VECTOR_STORE: pgvector
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ica_db
+      POSTGRES_USER: ica
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ica_local_pw}
+      TZ: Asia/Seoul
+    ports:
+      - "5433:5432"          # 호스트 5433 → 컨테이너 5432 (기존 PG 충돌 회피)
+    volumes:
+      - ica-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ica -d ica_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 1회성: alembic 마이그레이션(vector(4096) 컬럼) + 데모 페르소나 시드
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file: [.env]
+    environment:
+      <<: *backend-env
+    volumes:
+      - ./data:/app/data    # personas.json 등 데모 데이터 접근
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["sh", "-c", "alembic upgrade head && ica seed-demo"]
+    restart: "no"
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file: [.env]
+    environment:
+      <<: *backend-env
+      DEMO_SEED_ON_STARTUP: "false"        # 시드는 migrate 가 1회 수행(replica 경쟁 회피)
+      CORS_ALLOW_ORIGINS: http://localhost:8080
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    expose:
+      - "8000"               # nginx 통해서만 노출(직접 포트 매핑 없음 → --scale 안전)
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  ica-pg-data:
