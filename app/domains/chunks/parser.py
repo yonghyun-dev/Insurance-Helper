@@ -27,7 +27,7 @@ from pathlib import Path
 import fitz  # PyMuPDF
 import pdfplumber
 
-from app.domains.chunks.schemas import RawDocument, RawPage, RawTable
+from app.domains.chunks.schemas import HEADING_MARK, RawDocument, RawPage, RawTable
 from app.infrastructure.core.config import get_settings
 from app.infrastructure.core.exceptions import IngestionError
 from app.infrastructure.core.logging import get_logger
@@ -36,8 +36,8 @@ logger = get_logger(__name__)
 
 PARSER_VERSION = "0.1.0"
 # Upstage Document Parse 경로는 별도 버전 — 파서 교체 시 재처리(parser_version 불일치) 유도.
-# 0.2.0: Upstage category 로 노이즈(머리말/꼬리말/목차) 필터 추가.
-UPSTAGE_PARSER_VERSION = "upstage-docparse-0.2.0"
+# 0.2.0: Upstage category 노이즈 필터. 0.3.0: heading1 마커로 조 경계 보강(교차참조 거짓경계 제거).
+UPSTAGE_PARSER_VERSION = "upstage-docparse-0.3.0"
 # document-parse 단일 요청 크기 한도(413) 회피용 페이지 배치 크기. 큰 약관 PDF 를 나눠 전송.
 UPSTAGE_PAGE_BATCH = 30
 # Upstage 가 분류해주는 레이아웃 노이즈 — 본문에서 제외(목차 오염·반복 머리말/꼬리말 제거).
@@ -103,6 +103,7 @@ def parse_pdf(file_path: Path | str) -> RawDocument:
         pages=pages,
         parser_version=parser_version,
         metadata=metadata,
+        heading_aware=(backend == "upstage"),
     )
 
 
@@ -346,6 +347,9 @@ def _extract_pages_upstage(path: Path) -> list[RawPage]:
                     tables.append(RawTable(page=pageno, rows=rows, caption=None))
             stripped = el["text"].strip()
             if stripped:
+                # heading1 은 마커를 붙여 structure.py 가 "진짜 heading"으로 인식하게 한다.
+                if el["category"] == "heading1":
+                    stripped = HEADING_MARK + stripped
                 text_parts.append(stripped)
         text = "\n".join(text_parts)
         pages.append(

@@ -10,7 +10,7 @@ app/chunks/structure.py 단위 테스트.
 
 from __future__ import annotations
 
-from app.domains.chunks.schemas import ChunkType
+from app.domains.chunks.schemas import HEADING_MARK, ChunkType, RawDocument, RawPage
 from app.domains.chunks.structure import (
     _ANNEX_RE,
     _ARTICLE_RE,
@@ -321,3 +321,58 @@ class TestRecognizeStructure:
         article = result.by_id(result.root_ids[0])
         assert "이 약관은 다음과 같이 적용됩니다." in article.text
         assert "보험료는 매월 납입합니다." in article.text
+
+
+# ===========================================================================
+# heading1 보조 조 경계 (Upstage heading_aware) — 교차참조 거짓경계 제거
+# ===========================================================================
+
+
+def _hdoc(text: str, *, heading_aware: bool) -> RawDocument:
+    return RawDocument(
+        file_path="t.pdf",
+        page_count=1,
+        parser_version="t",
+        pages=[RawPage(page=1, text=text, raw_text=text)],
+        heading_aware=heading_aware,
+    )
+
+
+def _article_clause_nos(text: str, *, heading_aware: bool) -> set[str]:
+    s = recognize_structure(_hdoc(text, heading_aware=heading_aware))
+    return {n.clause_no for n in s.nodes if n.chunk_type == ChunkType.ARTICLE}
+
+
+class TestHeadingAwareArticleBoundary:
+    """heading_aware(Upstage) 경로에서 heading 마커로 조 경계를 강화한다."""
+
+    def test_heading_marked_article_is_boundary_and_mark_stripped(self):
+        text = HEADING_MARK + "제3조 (보장종목별 보상내용)\n회사가 보상하는 내용은 다음과 같습니다."
+        s = recognize_structure(_hdoc(text, heading_aware=True))
+        arts = [n for n in s.nodes if n.chunk_type == ChunkType.ARTICLE]
+        assert len(arts) == 1
+        assert arts[0].clause_no == "제3조"
+        assert HEADING_MARK not in arts[0].text  # 마커는 청크 텍스트에 누출 안 됨
+
+    def test_unmarked_long_reference_is_not_boundary(self):
+        # heading 아님 + 뒤에 긴 본문 → 교차참조 → 조 경계 아님
+        text = (
+            HEADING_MARK + "제1조 (목적)\n"
+            "제6조(보험가입금액 한도 등)에서 정한 연간 보험가입금액의 한도 내에서 보상합니다."
+        )
+        assert _article_clause_nos(text, heading_aware=True) == {"제1조"}
+
+    def test_unmarked_short_heading_is_still_boundary(self):
+        # heading 마커 없어도 짧은 헤딩형이면 조 경계 인정(category 오태깅 보완)
+        text = HEADING_MARK + "제1조 (목적)\n제2조 (용어의 정의)"
+        assert _article_clause_nos(text, heading_aware=True) == {"제1조", "제2조"}
+
+    def test_heading_plus_paragraph_same_line_is_boundary(self):
+        # 헤딩 + 항(①) 동일 라인 → 조 경계 인정(참조 아님)
+        text = HEADING_MARK + "제1조 (목적)\n제5조 (보상) ① 회사는 보험금을 지급합니다."
+        assert _article_clause_nos(text, heading_aware=True) == {"제1조", "제5조"}
+
+    def test_pymupdf_path_keeps_pure_regex(self):
+        # heading_aware=False(pymupdf) → 참조 필터 미적용, 기존 동작 유지(회귀 방지)
+        text = "제6조(보험가입금액 한도 등)에서 정한 연간 보험가입금액의 한도 내에서 보상합니다."
+        assert _article_clause_nos(text, heading_aware=False) == {"제6조"}

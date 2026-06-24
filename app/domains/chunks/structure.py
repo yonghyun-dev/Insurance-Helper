@@ -23,6 +23,7 @@ import re
 import uuid
 
 from app.domains.chunks.schemas import (
+    HEADING_MARK,
     ChunkType,
     RawDocument,
     RawTable,
@@ -55,6 +56,21 @@ _ANNEX_RE = re.compile(r"^\s*\[?\s*별표\s*(\d+)\s*\]?\s+(?!\d)([^\n<]{1,80})$"
 #   - 또는 라인이 점선/공백 + 페이지 번호로 끝남 (예: "............... 22")
 _TOC_MULTIPLE_ARTICLES_RE = re.compile(r"제\s*\d+\s*조.+제\s*\d+\s*조")
 _TOC_PAGE_NUMBER_TAIL_RE = re.compile(r"[\.…·∙·•‧⋯\s]{3,}\d+\s*$")
+
+
+def _looks_like_article_reference(stripped: str, match: re.Match) -> bool:
+    """heading 으로 표시되지 않은 '제N조' 라인이 본문 속 교차참조인지 판정.
+
+    조 헤딩은 보통 '제N조 (제목)' 로 짧게 끝난다. 매칭 뒤에 긴 본문이 이어지면
+    "...제6조(보험가입금액 한도 등)에서 정한 ..." 같은 참조일 가능성이 높아 조 경계로
+    보지 않는다. 단 항(①)/호(1.) 로 이어지면 '헤딩+항 동일 라인'일 수 있어 조 경계로 인정.
+    heading_aware(Upstage) 경로에서만 호출 — pymupdf 경로는 기존 순수 정규식 유지.
+    """
+    remainder = stripped[match.end() :].strip()
+    if len(remainder) < 20:
+        return False
+    # 항(①)/호(1.) 로 이어지면 헤딩+항 동일 라인 → 참조 아님(조 경계 인정)
+    return not (_PARAGRAPH_RE.match(remainder) or _ITEM_RE.match(remainder))
 
 
 def _is_toc_line(line: str) -> bool:
@@ -124,6 +140,13 @@ def recognize_structure(raw: RawDocument) -> StructuredDocument:
             if not stripped:
                 continue
 
+            # Upstage heading1 마커 분리 — "진짜 heading" 신호. 이후 로직은 마커 제거된 텍스트 사용.
+            is_heading = stripped.startswith(HEADING_MARK)
+            if is_heading:
+                stripped = stripped[len(HEADING_MARK) :].strip()
+                if not stripped:
+                    continue
+
             # 목차 라인은 article/paragraph/item 매칭에서 제외 (거짓 노드 생성 방지)
             if _is_toc_line(stripped):
                 continue
@@ -148,7 +171,13 @@ def recognize_structure(raw: RawDocument) -> StructuredDocument:
                 current_paragraph = None
                 continue
 
-            if article_match:
+            # 조 경계: heading 으로 확정되거나(강한 신호), pymupdf 경로(heading 정보 없음),
+            # 또는 본문 속 교차참조가 아닐 때만 ARTICLE 생성. (heading_aware 에서 참조 거짓경계 제거)
+            if article_match and (
+                is_heading
+                or not raw.heading_aware
+                or not _looks_like_article_reference(stripped, article_match)
+            ):
                 clause_no = f"제{article_match.group(1)}조"
                 title = (article_match.group(2) or "").strip()
                 current_article = _new_node(

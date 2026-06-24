@@ -24,6 +24,10 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
+# Upstage heading1 element 를 RawPage.text 안에서 표시하는 제어문자(사유영역, 본문 미등장).
+# structure.py 가 "이 라인은 진짜 heading" 신호로 사용 후 제거한다. (pymupdf 경로는 미부착)
+HEADING_MARK = "[[HD]]"
+
 
 class ChunkType(StrEnum):
     """청크 유형. SQLite `clause_chunks.chunk_type` CHECK 제약과 동일."""
@@ -66,6 +70,10 @@ class RawDocument(BaseModel):
     pages: list[RawPage] = Field(default_factory=list)
     parser_version: str = Field(..., description="재처리 추적용")
     metadata: dict[str, str] = Field(default_factory=dict, description="producer/title 등")
+    # Upstage 경로면 True — page.text 에 HEADING_MARK 가 있어 structure 가 heading 신호 사용.
+    heading_aware: bool = Field(
+        default=False, description="page.text 에 heading 마커가 부착됐는지(Upstage 경로)"
+    )
 
 
 class StructureNode(BaseModel):
