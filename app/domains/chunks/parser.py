@@ -36,9 +36,13 @@ logger = get_logger(__name__)
 
 PARSER_VERSION = "0.1.0"
 # Upstage Document Parse 경로는 별도 버전 — 파서 교체 시 재처리(parser_version 불일치) 유도.
-UPSTAGE_PARSER_VERSION = "upstage-docparse-0.1.0"
+# 0.2.0: Upstage category 로 노이즈(머리말/꼬리말/목차) 필터 추가.
+UPSTAGE_PARSER_VERSION = "upstage-docparse-0.2.0"
 # document-parse 단일 요청 크기 한도(413) 회피용 페이지 배치 크기. 큰 약관 PDF 를 나눠 전송.
 UPSTAGE_PAGE_BATCH = 30
+# Upstage 가 분류해주는 레이아웃 노이즈 — 본문에서 제외(목차 오염·반복 머리말/꼬리말 제거).
+# 조/항/clause_no 의미 인식은 structure.py 의 도메인 정규식이 담당(category 가 대체 못 함).
+_UPSTAGE_DROP_CATEGORIES = frozenset({"header", "footer", "index"})
 
 # 헤더/푸터 탐지에 사용할 페이지 상/하단 비율
 HEADER_RATIO = 0.08
@@ -327,6 +331,8 @@ def _extract_pages_upstage(path: Path) -> list[RawPage]:
                 sub.close()
             parsed = adapter.parse_document(sub_bytes, "application/pdf")
             for el in parsed["elements"]:
+                if el["category"] in _UPSTAGE_DROP_CATEGORIES:
+                    continue  # 머리말/꼬리말/목차 노이즈 제거 (Upstage 레이아웃 분류 활용)
                 by_page[start + el["page"]].append(el)
 
     pages: list[RawPage] = []

@@ -356,6 +356,40 @@ class TestUpstageParser:
         assert pages[1].tables[0].rows == [["구분", "값"]]
         assert "제2조 (정의)" in pages[1].text
 
+    def test_extract_pages_upstage_drops_noise_categories(self, tmp_path, monkeypatch):
+        """Upstage category 로 머리말/꼬리말/목차(header/footer/index) 노이즈 제거."""
+        import fitz
+        from app.domains.chunks import parser as parser_mod
+        from app.infrastructure.external.ocr import adapter as adapter_mod
+
+        fake_doc = {
+            "elements": [
+                {"category": "heading1", "page": 1, "text": "제1조 (목적)", "html": ""},
+                {"category": "footer", "page": 1, "text": "별표 및 제도", "html": ""},
+                {"category": "index", "page": 1, "text": "제18조 (성립) ...43", "html": ""},
+                {"category": "header", "page": 1, "text": "삼성화재 실손", "html": ""},
+                {"category": "paragraph", "page": 1, "text": "이 약관은 보상한다", "html": ""},
+            ],
+            "page_count": 1,
+        }
+        monkeypatch.setattr(
+            adapter_mod.UpstageAdapter, "parse_document",
+            lambda self, b, m="application/pdf": fake_doc,
+        )
+        pdf = tmp_path / "x.pdf"
+        _doc = fitz.open()
+        _doc.new_page()
+        _doc.save(str(pdf))
+        _doc.close()
+
+        text = parser_mod._extract_pages_upstage(pdf)[0].text
+        assert "제1조 (목적)" in text
+        assert "이 약관은 보상한다" in text
+        # 노이즈는 본문에서 제외
+        assert "별표 및 제도" not in text       # footer
+        assert "...43" not in text              # index(목차)
+        assert "삼성화재 실손" not in text       # header
+
     def test_parse_pdf_routes_to_upstage(self, tmp_path, monkeypatch):
         import app.infrastructure.core.config as _cfg
         from app.domains.chunks.parser import UPSTAGE_PARSER_VERSION, parse_pdf
