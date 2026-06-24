@@ -43,16 +43,6 @@ class TestGetChatModel:
         )
         assert client_mod.get_chat_model() == "solar-pro2-250101"
 
-    def test_openai_resolves_llm_model(self, monkeypatch):
-        _set_env(
-            monkeypatch,
-            llm_provider="openai",
-            openai_api_key="sk-key",
-            llm_model="gpt-4o-mini",
-        )
-        assert client_mod.get_chat_model() == "gpt-4o-mini"
-
-
 class TestGetChatClientUpstage:
     def test_builds_client_pointed_at_upstage(self, monkeypatch):
         _set_env(monkeypatch, llm_provider="upstage", upstage_api_key="up-key")
@@ -91,21 +81,6 @@ class TestNoOpenAiFallback:
             client_mod.get_chat_client()
 
 
-class TestGetChatClientOpenai:
-    """provider=openai 는 오프라인 dev/eval 전용 탈출구 — 자동 선택되지 않음."""
-
-    def test_builds_default_openai_client(self, monkeypatch):
-        _set_env(monkeypatch, llm_provider="openai", openai_api_key="sk-key")
-        client = client_mod.get_chat_client()
-        assert "api.openai.com" in str(client.base_url)
-        assert client.api_key == "sk-key"
-
-    def test_missing_openai_key_raises(self, monkeypatch):
-        _set_env(monkeypatch, llm_provider="openai", openai_api_key="")
-        with pytest.raises(ConfigurationError, match="OPENAI_API_KEY"):
-            client_mod.get_chat_client()
-
-
 class TestGetEmbeddingClient:
     """Sprint 16 1b — 임베딩 클라이언트 (Upstage 전용, 폴백 없음)."""
 
@@ -124,9 +99,3 @@ class TestGetEmbeddingClient:
         )
         with pytest.raises(ConfigurationError, match="UPSTAGE_API_KEY"):
             client_mod.get_embedding_client()
-
-    def test_openai_provider_default_endpoint(self, monkeypatch):
-        _set_env(monkeypatch, embedding_provider="openai", openai_api_key="sk-key")
-        client = client_mod.get_embedding_client()
-        assert "api.openai.com" in str(client.base_url)
-        assert client.api_key == "sk-key"

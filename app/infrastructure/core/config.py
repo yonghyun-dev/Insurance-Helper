@@ -35,22 +35,10 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # OpenAI (Sprint 16 1a 이후 추론 경로에서는 미사용 — 임베딩(1b)/OCR(1c) 잔존 의존)
-    openai_api_key: str = Field(default="", description="OpenAI API 키 (임베딩/OCR 잔존 경로만)")
-    llm_model: str = Field(
-        default="gpt-4o-mini",
-        description="OpenAI 추론 모델 (provider=openai 또는 OCR 어댑터 레거시 경로)",
-    )
-    embedding_model: str = Field(
-        default="text-embedding-3-small", description="임베딩 모델 (1b 전까지 OpenAI)"
-    )
-
-    # Sprint 16 1a — 국내 전용 LLM (Upstage Solar) provider
-    # [하드 제약] 제품 추론은 국내 모델만. provider=upstage 가 기본이며 OpenAI 폴백 없음.
-    # openai 값은 오프라인 dev/eval 전용 — 제품 경로에서 자동 선택되지 않는다.
-    llm_provider: Literal["upstage", "openai"] = Field(
-        default="upstage",
-        description="추론 provider — upstage(Solar, 제품 기본) / openai(오프라인 dev·eval 전용)",
+    # [하드 제약] 제품 전 영역 국내 AI(Upstage) 전용 — OpenAI 미사용·미지원.
+    # 추론=Solar / 임베딩=solar-embedding / OCR·약관파싱=Document Parse.
+    llm_provider: Literal["upstage"] = Field(
+        default="upstage", description="추론 provider — Upstage Solar 전용"
     )
     upstage_api_key: str = Field(default="", description="Upstage API 키 — .env 에서 주입")
     upstage_base_url: str = Field(
@@ -59,11 +47,9 @@ class Settings(BaseSettings):
     )
     solar_model: str = Field(default="solar-pro2", description="Upstage Solar 추론 모델")
 
-    # Sprint 16 1b — 임베딩 provider (Upstage solar-embedding 4096-d, query/passage 분리)
-    # [하드 제약] 제품 임베딩도 국내 모델만. upstage 기본·OpenAI 폴백 없음.
-    embedding_provider: Literal["upstage", "openai"] = Field(
-        default="upstage",
-        description="임베딩 provider — upstage(Solar, 제품 기본) / openai(오프라인 dev·eval 전용)",
+    # 임베딩 provider (Upstage solar-embedding 4096-d, query/passage 분리). 국내 전용.
+    embedding_provider: Literal["upstage"] = Field(
+        default="upstage", description="임베딩 provider — Upstage solar-embedding 전용"
     )
     upstage_embedding_query_model: str = Field(
         default="embedding-query",
@@ -186,9 +172,8 @@ class Settings(BaseSettings):
     )
 
     # Sprint 15 — OCR 서류 처리 (REQ-11)
-    ocr_backend: Literal["openai", "upstage"] = Field(
-        default="openai",
-        description="OCR 어댑터 — openai (gpt-4o-mini Vision) 또는 upstage (Sprint 16 이후)",
+    ocr_backend: Literal["upstage"] = Field(
+        default="upstage", description="OCR 어댑터 — Upstage Document OCR 전용"
     )
     # 약관 PDF 인덱싱 파서 — upstage(Document Parse, 국내 풀스택·구조 보존) 또는 pymupdf(텍스트 추출 폴백).
     terms_parser: Literal["upstage", "pymupdf"] = Field(
@@ -211,45 +196,36 @@ class Settings(BaseSettings):
         default=10, ge=1, le=50, description="첨부 파일 최대 크기 (MB)"
     )
 
+    # provider 가 upstage 단일이라 effective_* 는 Upstage 값을 그대로 노출(호출부 호환 유지).
     @computed_field  # type: ignore[prop-decorator]
     @property
     def effective_llm_api_key(self) -> str:
-        """추론 provider 의 API 키. upstage → upstage_api_key, openai → openai_api_key."""
-        if self.llm_provider == "upstage":
-            return self.upstage_api_key
-        return self.openai_api_key
+        """추론 API 키 (Upstage)."""
+        return self.upstage_api_key
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def effective_llm_base_url(self) -> str:
-        """추론 provider 의 base_url. upstage → Upstage 엔드포인트, openai → 빈 문자열(SDK 기본)."""
-        if self.llm_provider == "upstage":
-            return self.upstage_base_url
-        return ""
+        """추론 base_url (Upstage 엔드포인트)."""
+        return self.upstage_base_url
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def effective_llm_model(self) -> str:
-        """추론 provider 의 모델명. upstage → solar_model, openai → llm_model."""
-        if self.llm_provider == "upstage":
-            return self.solar_model
-        return self.llm_model
+        """추론 모델명 (Upstage Solar)."""
+        return self.solar_model
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def effective_embedding_api_key(self) -> str:
-        """임베딩 provider 의 API 키. upstage → upstage_api_key, openai → openai_api_key."""
-        if self.embedding_provider == "upstage":
-            return self.upstage_api_key
-        return self.openai_api_key
+        """임베딩 API 키 (Upstage)."""
+        return self.upstage_api_key
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def effective_embedding_base_url(self) -> str:
-        """임베딩 provider 의 base_url. upstage → Upstage 엔드포인트, openai → 빈 문자열(SDK 기본)."""
-        if self.embedding_provider == "upstage":
-            return self.upstage_base_url
-        return ""
+        """임베딩 base_url (Upstage 엔드포인트)."""
+        return self.upstage_base_url
 
     @computed_field  # type: ignore[prop-decorator]
     @property

@@ -88,14 +88,6 @@ class TestSettingsDefaults:
         s = Settings()
         assert s.log_level == "INFO"
 
-    def test_default_embedding_model(self):
-        s = Settings()
-        assert s.embedding_model == "text-embedding-3-small"
-
-    def test_default_llm_model(self):
-        s = Settings()
-        assert s.llm_model == "gpt-4o-mini"
-
     def test_default_session_ttl(self):
         s = Settings()
         assert s.session_ttl_seconds == 1800
@@ -134,28 +126,15 @@ class TestLlmProvider:
             upstage_api_key="up-key",
             upstage_base_url="https://api.upstage.ai/v1",
             solar_model="solar-pro2",
-            openai_api_key="sk-ignored",
-            llm_model="gpt-4o-mini",
         )
         assert s.effective_llm_api_key == "up-key"
         assert s.effective_llm_base_url == "https://api.upstage.ai/v1"
         assert s.effective_llm_model == "solar-pro2"
 
-    def test_openai_effective_fields(self):
-        s = Settings(
-            llm_provider="openai",
-            upstage_api_key="up-ignored",
-            openai_api_key="sk-key",
-            llm_model="gpt-4o-mini",
-        )
-        assert s.effective_llm_api_key == "sk-key"
-        # openai provider 는 SDK 기본 엔드포인트 사용 → base_url 빈 문자열
-        assert s.effective_llm_base_url == ""
-        assert s.effective_llm_model == "gpt-4o-mini"
-
     def test_invalid_provider_raises(self):
+        # 국내 전용 — openai 포함 모든 비-upstage 값은 거부.
         with pytest.raises(ValidationError):
-            Settings(llm_provider="anthropic")
+            Settings(llm_provider="openai")
 
 
 class TestEmbeddingProvider:
@@ -175,22 +154,9 @@ class TestEmbeddingProvider:
         assert s.upstage_embedding_passage_model == "embedding-passage"
 
     def test_upstage_effective_fields(self):
-        s = Settings(
-            embedding_provider="upstage",
-            upstage_api_key="up-key",
-            openai_api_key="sk-ignored",
-        )
+        s = Settings(embedding_provider="upstage", upstage_api_key="up-key")
         assert s.effective_embedding_api_key == "up-key"
         assert s.effective_embedding_base_url == "https://api.upstage.ai/v1"
-
-    def test_openai_effective_fields(self):
-        s = Settings(
-            embedding_provider="openai",
-            upstage_api_key="up-ignored",
-            openai_api_key="sk-key",
-        )
-        assert s.effective_embedding_api_key == "sk-key"
-        assert s.effective_embedding_base_url == ""
 
 
 # ===========================================================================

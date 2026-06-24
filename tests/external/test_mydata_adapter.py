@@ -105,35 +105,32 @@ class TestGetMydataAdapterFactory:
 
 
 class TestProductionFixture:
-    """실제 data/demo/mydata.json (10 페르소나) 검증. 전부 인덱싱된 한화 자동차/화재."""
+    """실제 data/demo/mydata.json (10 페르소나) 검증. 실손 전용 — 각자 실손 1건."""
 
-    def test_p01_single_auto(self):
+    def test_p01_samsung_silson(self):
         adapter = DummyAdapter()
         result = adapter.fetch_insurances("p01")
         assert len(result) == 1
-        assert result[0]["area"] == "auto"
-        assert result[0]["insurer_id"] == "hanwha"
-        assert result[0]["product_id"] == "personal_auto_joint"
+        assert result[0]["area"] == "accident_disease"
+        assert result[0]["insurer_id"] == "samsung"
+        assert result[0]["product_id"] == "samsung_silson"
 
-    def test_p02_multiple_auto_fire(self):
+    def test_p02_db_silson(self):
         adapter = DummyAdapter()
         result = adapter.fetch_insurances("p02")
-        assert len(result) == 2
-        areas = {r["area"] for r in result}
-        assert areas == {"auto", "fire"}
-
-    def test_p03_single_fire(self):
-        adapter = DummyAdapter()
-        result = adapter.fetch_insurances("p03")
         assert len(result) == 1
-        assert result[0]["area"] == "fire"
-        assert result[0]["product_id"] == "housefire"
+        assert result[0]["insurer_id"] == "db"
+        assert result[0]["product_id"] == "db_silson"
 
-    def test_all_personas_use_indexed_hanwha_products(self):
-        """모든 페르소나 가입보험이 인덱싱된 한화 자동차/화재와 일치 (agent 인용 정합)."""
+    def test_all_personas_single_indexed_silson(self):
+        """모든 페르소나가 인덱싱된 5개 보험사 실손 1건씩 보유 (실손 중복가입 금지 반영)."""
         adapter = DummyAdapter()
-        valid_products = {"personal_auto_joint", "housefire"}
+        insurers = {"samsung", "db", "hyundai", "meritz", "hanwha"}
         for pid in (f"p{n:02d}" for n in range(1, 11)):
-            for ins in adapter.fetch_insurances(pid):
-                assert ins["insurer_id"] == "hanwha"
-                assert ins["product_id"] in valid_products
+            result = adapter.fetch_insurances(pid)
+            assert len(result) == 1
+            ins = result[0]
+            assert ins["area"] == "accident_disease"
+            assert ins["insurer_id"] in insurers
+            assert ins["product_id"] == f"{ins['insurer_id']}_silson"
+            assert ins["product_name"] == "실손의료보험"

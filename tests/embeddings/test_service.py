@@ -57,15 +57,6 @@ class TestModelForRole:
         )
         assert svc._model_for_role("query") == "embedding-query-250101"
 
-    def test_openai_single_model_ignores_role(self, monkeypatch):
-        monkeypatch.setattr(
-            svc,
-            "get_settings",
-            lambda: _settings(embedding_provider="openai", embedding_model="text-embedding-3-small"),
-        )
-        assert svc._model_for_role("query") == "text-embedding-3-small"
-        assert svc._model_for_role("passage") == "text-embedding-3-small"
-
 
 class TestEmbedTexts:
     def test_empty_returns_empty(self):

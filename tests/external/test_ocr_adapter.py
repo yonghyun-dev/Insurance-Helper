@@ -1,77 +1,23 @@
 """tests.external.test_ocr_adapter
 
-app/external/ocr/adapter.py 단위 테스트.
+app/external/ocr/adapter.py 단위 테스트 (Upstage 전용 — OpenAI 제거됨).
 
 테스트 대상:
-    - OpenAiVisionAdapter — mime 검증 + OpenAI mock 호출
-    - UpstageAdapter — Upstage OCR API mock 호출 (Sprint 16 1c)
-    - get_ocr_adapter 팩토리 — Settings.ocr_backend 분기
+    - UpstageAdapter.extract_text — Document OCR API mock 호출
+    - UpstageAdapter.parse_document — Document Parse 응답 매핑
+    - get_ocr_adapter 팩토리 — 항상 UpstageAdapter
 """
 
 from __future__ import annotations
-
-from types import SimpleNamespace
-from unittest.mock import patch
 
 import pytest
 from app.infrastructure.core.exceptions import ConfigurationError, LLMError
 from app.infrastructure.external.ocr.adapter import (
     OcrNotConfiguredError,
-    OpenAiVisionAdapter,
     UpstageAdapter,
     clear_cache,
     get_ocr_adapter,
 )
-
-
-def _make_fake_openai_client(text: str):
-    """OpenAI client mock — chat.completions.create."""
-    msg = SimpleNamespace(content=text, tool_calls=None)
-    response = SimpleNamespace(choices=[SimpleNamespace(message=msg)])
-
-    class _Client:
-        class chat:  # noqa: N801
-            class completions:  # noqa: N801
-                @staticmethod
-                def create(*_a, **_kw):
-                    return response
-
-    return _Client()
-
-
-class TestOpenAiVisionAdapter:
-    def test_rejects_pdf_mime(self):
-        adapter = OpenAiVisionAdapter(client=_make_fake_openai_client("text"))
-        with pytest.raises(LLMError, match="이미지"):
-            adapter.extract_text(b"%PDF...", "application/pdf")
-
-    def test_rejects_text_mime(self):
-        adapter = OpenAiVisionAdapter(client=_make_fake_openai_client("text"))
-        with pytest.raises(LLMError, match="이미지"):
-            adapter.extract_text(b"hello", "text/plain")
-
-    def test_extracts_text_from_jpeg(self):
-        adapter = OpenAiVisionAdapter(
-            client=_make_fake_openai_client("진단명: 골절\n환자: 홍길동")
-        )
-        result = adapter.extract_text(b"fake-jpg-bytes", "image/jpeg")
-        assert "진단명" in result["text"]
-        assert result["page_count"] == 1
-        assert 0.0 <= result["confidence"] <= 1.0
-
-    def test_confidence_lower_for_short_text(self):
-        adapter = OpenAiVisionAdapter(client=_make_fake_openai_client("짧음"))
-        result = adapter.extract_text(b"bytes", "image/png")
-        assert result["confidence"] == 0.5  # 길이 < 20
-
-    def test_missing_api_key_raises(self, monkeypatch):
-        monkeypatch.setenv("OPENAI_API_KEY", "")
-        from app.infrastructure.core.config import get_settings
-
-        get_settings.cache_clear()
-        adapter = OpenAiVisionAdapter()  # client 미주입 → lazy 시 raise
-        with pytest.raises(OcrNotConfiguredError, match="OPENAI_API_KEY"):
-            adapter.extract_text(b"x", "image/png")
 
 
 def _make_fake_httpx_client(payload: dict, *, raise_exc: Exception | None = None):
@@ -163,24 +109,14 @@ class TestGetOcrAdapterFactory:
     def teardown_method(self):
         clear_cache()
 
-    def test_returns_openai_when_settings_openai(self):
-        with patch("app.infrastructure.external.ocr.adapter.get_settings") as mock_s:
-            mock_s.return_value.ocr_backend = "openai"
-            adapter = get_ocr_adapter()
-            assert isinstance(adapter, OpenAiVisionAdapter)
-
-    def test_returns_upstage_when_settings_upstage(self):
-        with patch("app.infrastructure.external.ocr.adapter.get_settings") as mock_s:
-            mock_s.return_value.ocr_backend = "upstage"
-            adapter = get_ocr_adapter()
-            assert isinstance(adapter, UpstageAdapter)
+    def test_returns_upstage_always(self):
+        adapter = get_ocr_adapter()
+        assert isinstance(adapter, UpstageAdapter)
 
     def test_factory_cached(self):
-        with patch("app.infrastructure.external.ocr.adapter.get_settings") as mock_s:
-            mock_s.return_value.ocr_backend = "openai"
-            a1 = get_ocr_adapter()
-            a2 = get_ocr_adapter()
-            assert a1 is a2
+        a1 = get_ocr_adapter()
+        a2 = get_ocr_adapter()
+        assert a1 is a2
 
 
 class TestOcrNotConfiguredErrorInheritsConfigurationError:

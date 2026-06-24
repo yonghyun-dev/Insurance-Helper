@@ -8,7 +8,8 @@
 - 완료: **Sprint 23 ✅ — 법적 4페이지 + 접근성 + legacy 제거** (2026-06-23, PM-27. `/legal/*` 이식 + useFontSize 전역. main 머지 78c62a6)
 - 완료: **Sprint 24 ✅ — 에이전트 LangGraph 일원화 + 관측성·견고성** (PM-28. 3갈래→단일 LangGraph, react.py 제거, 토큰·latency 계측 + audit.llm_calls/external 기록 + PII 마스킹 + LLM timeout/retry + 부분진행분 보존)
 - 완료: **Sprint 25 ✅ — 약관 Upstage Document Parse 전환 + 적재 검증** (PM-29. ica verify 744=744·차원4096·조항99%. 약관 풀스택 국내화. main 머지 a564fcc)
-- **현재: Sprint 26 ✅ — 데모 페르소나(이름+전화 매핑) + 마이데이터/건강보험 가정 연동** (2026-06-23, PM-30. 10 사전시드 데모계정, 이름+전화 demo-login→그 사람의 가입보험/진료내역 조회. users.mydata_external_id + auth/personas + ica seed-demo + IdentityPage picker. 가입보험 전부 인덱싱 한화에 정합. pytest 1139 passed, npm build green, 라이브 라운드트립 OK. 커밋 대기)
+- 완료: **Sprint 26 ✅ — 데모 페르소나(이름+전화 매핑)** (PM-30. 10 데모계정 demo-login→가입보험/진료. main 머지 4487124)
+- **현재: Sprint 27 ✅ — 실손 전용 피벗 + 완전 국내화** (2026-06-24, PM-31. 5개 손보사 실손 약관 Upstage 인덱싱(1894청크), 자동차/화재 폐기, 페르소나 10명 실손 재정비. **.env OpenAI 제거 + ocr 기본 upstage = 추론·임베딩·OCR·파싱 전부 국내**. parser 페이지배치(413 회피)+429재시도. product_id 보험사접두. 라이브: Solar 에이전트가 삼성화재 실손 약관 인용. pytest 1138 passed, ruff 0. 약관 PDF는 gitignore. 커밋 대기)
 
 ---
 

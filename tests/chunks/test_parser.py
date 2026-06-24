@@ -338,7 +338,13 @@ class TestUpstageParser:
         )
 
         pdf = tmp_path / "x.pdf"
-        pdf.write_bytes(b"%PDF-1.4 dummy")
+        import fitz
+
+        _doc = fitz.open()
+        _doc.new_page()
+        _doc.new_page()
+        _doc.save(str(pdf))
+        _doc.close()
         pages = parser_mod._extract_pages_upstage(pdf)
 
         assert [p.page for p in pages] == [1, 2]
@@ -368,7 +374,13 @@ class TestUpstageParser:
         )
 
         pdf = tmp_path / "terms.pdf"
-        pdf.write_bytes(b"%PDF-1.4 dummy")
+        import fitz
+
+        _doc = fitz.open()
+        _doc.new_page()
+        _doc.new_page()
+        _doc.save(str(pdf))
+        _doc.close()
         doc = parse_pdf(pdf)
 
         assert doc.parser_version == UPSTAGE_PARSER_VERSION

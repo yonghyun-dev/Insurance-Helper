@@ -1,22 +1,20 @@
 """app.infrastructure.external.ocr.adapter
 
-OcrAdapter Protocol + OpenAiVisionAdapter + UpstageAdapter skeleton + 팩토리.
+OcrAdapter Protocol + UpstageAdapter(Document OCR + Document Parse) + 팩토리.
 
-설계 (tech-decisions § Sprint 15 결정 1~2):
-    - 단일 메서드 extract_text(image_bytes, mime_type) -> OcrResult
-    - OpenAI gpt-4o-mini multimodal — image_url base64 data URI
-    - Upstage skeleton — Sprint 16 활성
+[하드 제약] 제품 OCR·약관 파싱은 국내 모델(Upstage) 전용 — OpenAI 미사용.
+    - extract_text(image_bytes, mime_type) -> OcrResult   : 청구서류 OCR(model=ocr)
+    - parse_document(file_bytes, mime_type) -> ParsedDocument : 약관 구조 파싱(model=document-parse)
 """
 
 from __future__ import annotations
 
-import base64
 import json
+import time
 from functools import lru_cache
-from typing import Protocol, TypedDict
+from typing import Any, Protocol, TypedDict
 
 import httpx
-from openai import OpenAI
 
 from app.infrastructure.core.config import get_settings
 from app.infrastructure.core.exceptions import ConfigurationError, LLMError
@@ -58,72 +56,7 @@ class OcrNotConfiguredError(ConfigurationError):
 
 
 # ---------------------------------------------------------------------------
-# OpenAiVisionAdapter — gpt-4o-mini multimodal
-# ---------------------------------------------------------------------------
-
-
-_OCR_SYSTEM_PROMPT = (
-    "당신은 보험 청구 관련 서류 OCR 어시스턴트다. "
-    "이미지에 포함된 모든 한국어 텍스트를 정확히 추출하라. "
-    "줄바꿈과 표 구조를 최대한 보존하라. 추측이나 해석을 추가하지 마라."
-)
-
-
-class OpenAiVisionAdapter:
-    """OpenAI gpt-4o-mini multimodal 기반 OCR.
-
-    한국어 일반 텍스트 + 인쇄 폼 양호. 손글씨 정확도 제한.
-    """
-
-    def __init__(self, client: OpenAI | None = None) -> None:
-        self._client = client
-
-    def _get_client(self) -> OpenAI:
-        if self._client is None:
-            settings = get_settings()
-            if not settings.openai_api_key:
-                raise OcrNotConfiguredError("OPENAI_API_KEY 미설정 — OpenAI Vision OCR 사용 불가")
-            self._client = OpenAI(api_key=settings.openai_api_key)
-        return self._client
-
-    def extract_text(self, image_bytes: bytes, mime_type: str) -> OcrResult:
-        if mime_type not in {"image/jpeg", "image/png", "image/webp"}:
-            # PDF 는 별도 처리 필요 (PyMuPDF 로 페이지 → 이미지 후 호출). 본 어댑터는 이미지만.
-            raise LLMError(
-                f"OpenAI Vision 직접 지원 미해당 (이미지 jpeg/png/webp 만): {mime_type}"
-            )
-
-        client = self._get_client()
-        b64 = base64.b64encode(image_bytes).decode("ascii")
-        data_uri = f"data:{mime_type};base64,{b64}"
-
-        try:
-            response = client.chat.completions.create(
-                model=get_settings().llm_model,
-                messages=[
-                    {"role": "system", "content": _OCR_SYSTEM_PROMPT},
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": "이 이미지의 모든 텍스트를 추출해 출력하세요."},
-                            {"type": "image_url", "image_url": {"url": data_uri}},
-                        ],
-                    },
-                ],
-                temperature=0.0,
-            )
-        except Exception as exc:  # noqa: BLE001
-            raise LLMError(f"OpenAI Vision OCR 호출 실패: {exc}") from exc
-
-        text = response.choices[0].message.content or ""
-        # gpt-4o-mini 는 confidence 직접 제공 X — 텍스트 길이 기반 heuristic
-        confidence = 0.9 if len(text) > 20 else 0.5
-
-        return OcrResult(text=text, confidence=confidence, page_count=1)
-
-
-# ---------------------------------------------------------------------------
-# UpstageAdapter — Sprint 16 활성
+# UpstageAdapter — Document OCR + Document Parse (국내 전용)
 # ---------------------------------------------------------------------------
 
 
@@ -200,38 +133,51 @@ class UpstageAdapter:
 
         url = settings.upstage_base_url.rstrip("/") + _UPSTAGE_OCR_PATH
         filename = "document" + _MIME_EXT.get(mime_type, ".pdf")
-        try:
-            response = self._get_client().post(
-                url,
-                headers={"Authorization": f"Bearer {settings.upstage_api_key}"},
-                data={
-                    "model": _UPSTAGE_PARSE_MODEL,
-                    "output_formats": json.dumps(["text", "html"]),
-                },
-                files={"document": (filename, file_bytes, mime_type)},
-                timeout=180.0,  # 약관 PDF 는 페이지 많아 OCR 보다 김
-            )
-            response.raise_for_status()
-            payload = response.json()
-        except Exception as exc:  # noqa: BLE001
-            raise LLMError(f"Upstage document-parse 호출 실패: {exc}") from exc
-
-        elements: list[ParsedElement] = []
-        for el in payload.get("elements") or []:
-            content = el.get("content") or {}
-            elements.append(
-                ParsedElement(
-                    category=str(el.get("category") or "paragraph"),
-                    page=int(el.get("page") or 1),
-                    text=str(content.get("text") or ""),
-                    html=str(content.get("html") or ""),
+        # 429(rate limit) 는 백오프 재시도. 413(too large) 등은 즉시 실패(상위에서 분할 처리).
+        last_exc: Exception | None = None
+        for attempt in range(4):
+            try:
+                response = self._get_client().post(
+                    url,
+                    headers={"Authorization": f"Bearer {settings.upstage_api_key}"},
+                    data={
+                        "model": _UPSTAGE_PARSE_MODEL,
+                        "output_formats": json.dumps(["text", "html"]),
+                    },
+                    files={"document": (filename, file_bytes, mime_type)},
+                    timeout=180.0,  # 약관 PDF 는 페이지 많아 OCR 보다 김
                 )
+                response.raise_for_status()
+                return _parse_docparse_payload(response.json())
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code == 429 and attempt < 3:
+                    time.sleep(3 * (attempt + 1))  # 3s, 6s, 9s 백오프
+                    last_exc = exc
+                    continue
+                raise LLMError(f"Upstage document-parse 호출 실패: {exc}") from exc
+            except Exception as exc:  # noqa: BLE001
+                raise LLMError(f"Upstage document-parse 호출 실패: {exc}") from exc
+        raise LLMError(f"Upstage document-parse 호출 실패(재시도 소진): {last_exc}")
+
+
+def _parse_docparse_payload(payload: dict[str, Any]) -> ParsedDocument:
+    """Upstage document-parse 응답 JSON → ParsedDocument."""
+    elements: list[ParsedElement] = []
+    for el in payload.get("elements") or []:
+        content = el.get("content") or {}
+        elements.append(
+            ParsedElement(
+                category=str(el.get("category") or "paragraph"),
+                page=int(el.get("page") or 1),
+                text=str(content.get("text") or ""),
+                html=str(content.get("html") or ""),
             )
-        pages_used = (payload.get("usage") or {}).get("pages")
-        page_count = int(pages_used) if pages_used else max(
-            (e["page"] for e in elements), default=0
         )
-        return ParsedDocument(elements=elements, page_count=page_count)
+    pages_used = (payload.get("usage") or {}).get("pages")
+    page_count = int(pages_used) if pages_used else max(
+        (e["page"] for e in elements), default=0
+    )
+    return ParsedDocument(elements=elements, page_count=page_count)
 
 
 # ---------------------------------------------------------------------------
@@ -241,11 +187,8 @@ class UpstageAdapter:
 
 @lru_cache(maxsize=1)
 def get_ocr_adapter() -> OcrAdapter:
-    """Settings.ocr_backend 기반 어댑터 선택."""
-    settings = get_settings()
-    if settings.ocr_backend == "upstage":
-        return UpstageAdapter()
-    return OpenAiVisionAdapter()
+    """OCR 어댑터 — Upstage Document OCR 전용(국내 모델)."""
+    return UpstageAdapter()
 
 
 def clear_cache() -> None:

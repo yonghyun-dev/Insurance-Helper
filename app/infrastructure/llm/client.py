@@ -43,39 +43,23 @@ def get_chat_client() -> OpenAI:
     settings = get_settings()
     api_key = settings.effective_llm_api_key
     if not api_key:
-        provider = settings.llm_provider
-        key_env = "UPSTAGE_API_KEY" if provider == "upstage" else "OPENAI_API_KEY"
         raise ConfigurationError(
-            f"{key_env} 가 비어 있습니다 (llm_provider={provider!r}). "
-            f".env 또는 환경변수에 설정하세요. (OpenAI 폴백 없음 — 국내 모델 전용 정책)"
+            "UPSTAGE_API_KEY 가 비어 있습니다. .env 또는 환경변수에 설정하세요. "
+            "(제품 전 영역 국내 모델 전용 — OpenAI 미지원)"
         )
 
     # 견고성 — 타임아웃/재시도 명시(SDK 기본값 의존 제거). 루프 내 행/단발 실패 방어.
     timeout = settings.llm_timeout_s
     max_retries = settings.llm_max_retries
-
     base_url = settings.effective_llm_base_url
-    if base_url:
-        logger.info(
-            "추론 LLM 클라이언트 생성 — provider=%s base_url=%s model=%s timeout=%ss retries=%d",
-            settings.llm_provider,
-            base_url,
-            settings.effective_llm_model,
-            timeout,
-            max_retries,
-        )
-        return OpenAI(
-            api_key=api_key, base_url=base_url, timeout=timeout, max_retries=max_retries
-        )
-    # provider=openai (오프라인 dev/eval) — SDK 기본 엔드포인트
     logger.info(
-        "추론 LLM 클라이언트 생성 — provider=%s (SDK 기본 엔드포인트) model=%s timeout=%ss retries=%d",
-        settings.llm_provider,
+        "추론 LLM 클라이언트 생성 — Upstage base_url=%s model=%s timeout=%ss retries=%d",
+        base_url,
         settings.effective_llm_model,
         timeout,
         max_retries,
     )
-    return OpenAI(api_key=api_key, timeout=timeout, max_retries=max_retries)
+    return OpenAI(api_key=api_key, base_url=base_url, timeout=timeout, max_retries=max_retries)
 
 
 def get_chat_model() -> str:
@@ -96,17 +80,11 @@ def get_embedding_client() -> OpenAI:
     settings = get_settings()
     api_key = settings.effective_embedding_api_key
     if not api_key:
-        provider = settings.embedding_provider
-        key_env = "UPSTAGE_API_KEY" if provider == "upstage" else "OPENAI_API_KEY"
         raise ConfigurationError(
-            f"{key_env} 가 비어 있습니다 (embedding_provider={provider!r}). "
-            f".env 또는 환경변수에 설정하세요. (OpenAI 폴백 없음 — 국내 모델 전용 정책)"
+            "UPSTAGE_API_KEY 가 비어 있습니다. .env 또는 환경변수에 설정하세요. "
+            "(제품 임베딩 국내 모델 전용 — OpenAI 미지원)"
         )
-
-    base_url = settings.effective_embedding_base_url
-    if base_url:
-        return OpenAI(api_key=api_key, base_url=base_url)
-    return OpenAI(api_key=api_key)
+    return OpenAI(api_key=api_key, base_url=settings.effective_embedding_base_url)
 
 
 def clear_cache() -> None:

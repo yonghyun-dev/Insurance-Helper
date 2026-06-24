@@ -66,17 +66,11 @@ def _get_client() -> OpenAI:
 
 
 def _model_for_role(role: EmbeddingRole) -> str:
-    """provider + role 에 따른 임베딩 모델명 해석.
-
-    upstage: query → upstage_embedding_query_model / passage → upstage_embedding_passage_model
-    openai : embedding_model (role 무관 — 단일 모델)
-    """
+    """role 에 따른 Upstage 임베딩 모델명. query → embedding-query / passage → embedding-passage."""
     settings = get_settings()
-    if settings.embedding_provider == "upstage":
-        if role == "query":
-            return settings.upstage_embedding_query_model
-        return settings.upstage_embedding_passage_model
-    return settings.embedding_model
+    if role == "query":
+        return settings.upstage_embedding_query_model
+    return settings.upstage_embedding_passage_model
 
 
 @retry(

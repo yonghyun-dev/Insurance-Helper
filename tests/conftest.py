@@ -96,14 +96,14 @@ def tmp_settings(tmp_path, monkeypatch):
     monkeypatch.setenv("SQLITE_DB_PATH", str(db_path))
     monkeypatch.setenv("CHROMA_DB_PATH", str(chroma_path))
     monkeypatch.setenv("RAW_DATA_PATH", str(raw_path))
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key-not-real")
+    monkeypatch.setenv("UPSTAGE_API_KEY", "test-upstage-key")
     monkeypatch.setenv("LOG_LEVEL", "DEBUG")
 
     settings = _cfg.Settings(
         sqlite_db_path=db_path,
         chroma_db_path=chroma_path,
         raw_data_path=raw_path,
-        openai_api_key="test-key-not-real",
+        upstage_api_key="test-upstage-key",
         log_level="DEBUG",
     )
     yield settings

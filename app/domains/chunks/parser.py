@@ -37,6 +37,8 @@ logger = get_logger(__name__)
 PARSER_VERSION = "0.1.0"
 # Upstage Document Parse 경로는 별도 버전 — 파서 교체 시 재처리(parser_version 불일치) 유도.
 UPSTAGE_PARSER_VERSION = "upstage-docparse-0.1.0"
+# document-parse 단일 요청 크기 한도(413) 회피용 페이지 배치 크기. 큰 약관 PDF 를 나눠 전송.
+UPSTAGE_PAGE_BATCH = 30
 
 # 헤더/푸터 탐지에 사용할 페이지 상/하단 비율
 HEADER_RATIO = 0.08
@@ -308,11 +310,24 @@ def _extract_pages_upstage(path: Path) -> list[RawPage]:
     """
     from app.infrastructure.external.ocr.adapter import UpstageAdapter
 
-    parsed = UpstageAdapter().parse_document(path.read_bytes(), "application/pdf")
+    adapter = UpstageAdapter()
 
+    # Upstage document-parse 는 단일 요청 크기 한도(413)가 있어 큰 약관 PDF 를 페이지 배치로
+    # 분할 전송한다. 각 배치 응답의 page 는 1부터이므로 전역 페이지 = 배치 시작 + 로컬 page.
     by_page: dict[int, list] = defaultdict(list)
-    for el in parsed["elements"]:
-        by_page[el["page"]].append(el)
+    with fitz.open(path) as doc:
+        total = doc.page_count
+        for start in range(0, total, UPSTAGE_PAGE_BATCH):
+            end = min(start + UPSTAGE_PAGE_BATCH, total)
+            sub = fitz.open()
+            try:
+                sub.insert_pdf(doc, from_page=start, to_page=end - 1)
+                sub_bytes = sub.tobytes()
+            finally:
+                sub.close()
+            parsed = adapter.parse_document(sub_bytes, "application/pdf")
+            for el in parsed["elements"]:
+                by_page[start + el["page"]].append(el)
 
     pages: list[RawPage] = []
     for pageno in sorted(by_page):
