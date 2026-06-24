@@ -142,3 +142,24 @@
 4. nginx 3 replica 분산 확인, 1개 죽여도 무중단.
 5. GitHub push→자동 배포 1회 성공 + 롤백 1회 성공.
 6. pytest 회귀 0(pgvector 통합테스트 포함), ruff 0.
+
+## 10. 환경 분리 & CI/CD (확정 — VM 2대 완전 격리)
+
+GitFlow 브랜치 → 환경 자동 배포. dev/prod 를 **별도 VM + 별도 Azure Postgres** 로 완전 격리(장애 전파 없음).
+
+```
+git push dev   ──GitHub Actions──►  [dev VM]   nginx→backend(1) → dev Postgres
+git push main  ──GitHub Actions──►  [prod VM]  nginx→backend(1) → prod Postgres
+                                     (prod 는 수동 승인 게이트 권장)
+         공유: ACR(이미지 레지스트리) · 이미지 태그 <branch>-<sha>
+```
+
+**산출물(작성 완료)**
+- `.github/workflows/deploy.yml` — `on: push [main,dev]` → 브랜치로 GitHub Environment(prod/dev) 선택 → 이미지 빌드·ACR 푸시 → 대상 VM SSH `compose pull && up -d`. migrate 가 배포마다 `alembic upgrade head` + seed.
+- `docker-compose.prod.yml` — 로컬 postgres 제거(관리형 Azure PG), 이미지를 ACR 에서 pull, 백엔드 1 replica(§5.7 세션).
+
+**환경별 GitHub Environment 시크릿** (Track A 후 등록): `ACR_LOGIN_SERVER/USERNAME/PASSWORD`, `VM_HOST/USER/SSH_KEY`, `DATABASE_URL`(환경별 Azure PG), `UPSTAGE_API_KEY`, `JWT_SECRET_KEY`, `PUBLIC_ORIGIN`.
+
+**선행(Track A)**: dev/prod VM 2대(docker+compose, `/opt/ica/docker-compose.prod.yml` 배치) + Azure Postgres 2개(dev/prod) + ACR 1개. **워크플로/compose 는 준비됨 — VM·시크릿만 채우면 동작**.
+
+**남은 항목**: 운영 도메인 + nginx TLS(certbot, 443) — Track D2.

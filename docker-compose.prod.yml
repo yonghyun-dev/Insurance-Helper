@@ -1,0 +1,41 @@
+# 운영/개발 VM 배포용 compose (Azure)
+#
+# 로컬 docker-compose.yml 과 차이:
+#   - 로컬 postgres 컨테이너 없음 → 관리형 Azure Database for PostgreSQL(pgvector) 사용(DATABASE_URL).
+#   - 이미지를 빌드하지 않고 ACR 에서 pull (REGISTRY/IMAGE_TAG 는 .env, GitHub Actions 가 기록).
+#   - 백엔드 1 replica (인메모리 SessionStore — 멀티턴 세션 affinity. 확장 시 Redis 스토어 선행. azure-deploy.md §5.7)
+#
+# VM 배치: /opt/ica/docker-compose.prod.yml + /opt/ica/.env (Actions 가 배포 시 생성)
+# 실행(Actions 가 수행): docker compose -f docker-compose.prod.yml up -d --remove-orphans
+#
+# TLS: 현재 80 포트. 운영 도메인 연결 후 nginx+certbot(443) 추가 — Track D2.
+
+name: ica
+
+services:
+  # 배포 시 1회: alembic 마이그레이션(vector(4096) 등) + 데모 페르소나 시드
+  migrate:
+    image: ${REGISTRY}/ica-backend:${IMAGE_TAG}
+    env_file: [.env]
+    command: ["sh", "-c", "alembic upgrade head && ica seed-demo"]
+    restart: "no"
+
+  backend:
+    image: ${REGISTRY}/ica-backend:${IMAGE_TAG}
+    env_file: [.env]
+    environment:
+      DEMO_SEED_ON_STARTUP: "false"   # 시드는 migrate 가 1회 수행
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    expose:
+      - "8000"
+    restart: unless-stopped
+
+  web:
+    image: ${REGISTRY}/ica-web:${IMAGE_TAG}
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    restart: unless-stopped

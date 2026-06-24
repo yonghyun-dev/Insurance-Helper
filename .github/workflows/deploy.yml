@@ -1,0 +1,86 @@
+# GitHub Actions — 브랜치별 자동 배포 (GitFlow)
+#   push dev  → 개발(dev) VM    (GitHub Environment: dev)
+#   push main → 운영(prod) VM   (GitHub Environment: prod, 수동 승인 게이트 권장)
+#
+# 선행 조건 (Track A 프로비저닝 후 설정):
+#   - ACR 1개(공유), dev/prod VM 각 1대(docker+compose, /opt/ica 에 docker-compose.prod.yml 배치)
+#   - GitHub Environment 'dev'/'prod' 각각에 시크릿:
+#       ACR_LOGIN_SERVER, ACR_USERNAME, ACR_PASSWORD
+#       VM_HOST, VM_USER, VM_SSH_KEY
+#       DATABASE_URL        (해당 환경 Azure Postgres, postgresql+psycopg://...)
+#       UPSTAGE_API_KEY, JWT_SECRET_KEY
+#       PUBLIC_ORIGIN       (CORS 허용 origin, 예: https://app.example.kr)
+#   - prod Environment 에 'Required reviewers' 설정 시 main 배포에 수동 승인 게이트
+
+name: deploy
+
+on:
+  push:
+    branches: [main, dev]
+
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # main → prod 환경 / 그 외(dev) → dev 환경. 환경별 시크릿·승인 게이트가 여기서 적용됨.
+    environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+    env:
+      IMAGE_TAG: ${{ github.ref_name }}-${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ACR 로그인
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: 백엔드 이미지 빌드·푸시
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: ${{ secrets.ACR_LOGIN_SERVER }}/ica-backend:${{ env.IMAGE_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: web 이미지 빌드·푸시
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.web
+          push: true
+          tags: ${{ secrets.ACR_LOGIN_SERVER }}/ica-web:${{ env.IMAGE_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: VM 배포 (SSH → compose pull & up)
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            cd /opt/ica
+            # 시크릿은 GitHub Environment 에서 주입 — VM 에 .env(600) 로 기록
+            umask 077
+            cat > .env <<EOF
+            REGISTRY=${{ secrets.ACR_LOGIN_SERVER }}
+            IMAGE_TAG=${{ env.IMAGE_TAG }}
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            VECTOR_STORE=pgvector
+            DEMO_SEED_ON_STARTUP=false
+            UPSTAGE_API_KEY=${{ secrets.UPSTAGE_API_KEY }}
+            JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
+            CORS_ALLOW_ORIGINS=${{ secrets.PUBLIC_ORIGIN }}
+            EOF
+            echo "${{ secrets.ACR_PASSWORD }}" | docker login ${{ secrets.ACR_LOGIN_SERVER }} -u ${{ secrets.ACR_USERNAME }} --password-stdin
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+            docker image prune -f
