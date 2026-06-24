@@ -1,22 +1,48 @@
-# 운영/개발 VM 배포용 compose (Azure)
+# 올인원 VM 배포 compose (1환경, 비용 최소)
 #
-# 로컬 docker-compose.yml 과 차이:
-#   - 로컬 postgres 컨테이너 없음 → 관리형 Azure Database for PostgreSQL(pgvector) 사용(DATABASE_URL).
-#   - 이미지를 빌드하지 않고 ACR 에서 pull (REGISTRY/IMAGE_TAG 는 .env, GitHub Actions 가 기록).
-#   - 백엔드 1 replica (인메모리 SessionStore — 멀티턴 세션 affinity. 확장 시 Redis 스토어 선행. azure-deploy.md §5.7)
+# VM 1대에 nginx + backend + postgres(pgvector 컨테이너) 전부. 관리형 PG 없음.
+# 이미지는 ACR 에서 pull (REGISTRY/IMAGE_TAG 는 .env, GitHub Actions 가 기록).
+# 백엔드 1 replica (세션 affinity 이슈 없음).
 #
-# VM 배치: /opt/ica/docker-compose.prod.yml + /opt/ica/.env (Actions 가 배포 시 생성)
-# 실행(Actions 가 수행): docker compose -f docker-compose.prod.yml up -d --remove-orphans
-#
-# TLS: 현재 80 포트. 운영 도메인 연결 후 nginx+certbot(443) 추가 — Track D2.
+# VM 배치: /opt/ica/docker-compose.prod.yml + /opt/ica/.env + /opt/ica/data/demo (Actions 가 배포)
+# 데이터 적재(1회): PDF 를 /opt/ica/data/raw 에 둔 뒤
+#   docker compose -f docker-compose.prod.yml run --rm migrate ica ingest
+# TLS: 현재 80. 도메인 연결 후 nginx+certbot(443) 추가 — Track D2.
 
 name: ica
 
+x-backend-env: &backend-env
+  DATABASE_URL: postgresql+psycopg://ica:${POSTGRES_PASSWORD}@postgres:5432/ica_db
+  VECTOR_STORE: pgvector
+
 services:
-  # 배포 시 1회: alembic 마이그레이션(vector(4096) 등) + 데모 페르소나 시드
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ica_db
+      POSTGRES_USER: ica
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: Asia/Seoul
+    volumes:
+      - ica-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ica -d ica_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # 배포 시 1회: alembic 마이그레이션(vector(4096)) + 데모 페르소나 시드
   migrate:
     image: ${REGISTRY}/ica-backend:${IMAGE_TAG}
     env_file: [.env]
+    environment:
+      <<: *backend-env
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
     command: ["sh", "-c", "alembic upgrade head && ica seed-demo"]
     restart: "no"
 
@@ -24,8 +50,13 @@ services:
     image: ${REGISTRY}/ica-backend:${IMAGE_TAG}
     env_file: [.env]
     environment:
-      DEMO_SEED_ON_STARTUP: "false"   # 시드는 migrate 가 1회 수행
+      <<: *backend-env
+      DEMO_SEED_ON_STARTUP: "false"
+    volumes:
+      - ./data:/app/data
     depends_on:
+      postgres:
+        condition: service_healthy
       migrate:
         condition: service_completed_successfully
     expose:
@@ -39,3 +70,6 @@ services:
     ports:
       - "80:80"
     restart: unless-stopped
+
+volumes:
+  ica-pg-data:

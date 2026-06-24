@@ -1,57 +1,60 @@
-# Azure 프로비저닝 (Track A)
+# Azure 프로비저닝 (Track A — 1환경 올인원)
 
-2-VM(dev/prod) 완전 격리 + 환경별 Postgres(pgvector) + 공유 ACR/Blob 을 az CLI 로 일괄 생성한다.
-설계: `docs/infra/azure-deploy.md`.
+VM 1대에 nginx + backend + **postgres(pgvector 컨테이너)** 전부 올리는 최소 비용 구성.
+관리형 Postgres·dev 환경 없음. 설계: `docs/infra/azure-deploy.md`.
 
-## 생성 리소스
+## 생성 리소스 (월 ~$35, 끄면 ~$2)
 - 리소스 그룹 1 (Korea Central)
-- ACR 1 (공유, admin 활성)
-- Storage + Blob 컨테이너 1 (약관 PDF, 프라이빗 · 아카이브용)
-- Postgres Flexible 2 (dev/prod, pgvector allowlist, `ica_db`)
-- VM 2 (dev/prod, Ubuntu+Docker, `/opt/ica`)
-- 배포 SSH 키 1쌍, 환경별 시크릿 파일
+- ACR 1 (Basic, 공유)
+- VM 1 (B2s 2vCPU/4GB, Ubuntu+Docker, `/opt/ica`)
+- 배포 SSH 키 1쌍, 시크릿 파일
 
 ## 사전 준비
 - `az login` + 구독 선택(`az account set -s <id>`)
-- `gh auth login` (시크릿 등록용)
+- `gh auth login`
 - `openssl`, `ssh-keygen`
 
 ## 실행 순서
 ```bash
-# 1) (선택) 이름 접미사 등 조정
-vim infra/azure/vars.sh        # SUFFIX 는 전역 고유하게
+# 1) (선택) 이름/사이즈 조정
+vim infra/azure/vars.sh        # SUFFIX 전역 고유, VM_SIZE 등
 
-# 2) 프로비저닝 (멱등 — 재실행 안전)
+# 2) 프로비저닝 (멱등)
 bash infra/azure/provision.sh
 
-# 3) 앱 시크릿을 환경별 파일에 추가 (.env 에서 복사)
-echo "UPSTAGE_API_KEY=$(grep ^UPSTAGE_API_KEY= .env | cut -d= -f2-)" | tee -a infra/azure/.secrets.dev.env infra/azure/.secrets.prod.env
-echo "JWT_SECRET_KEY=$(grep ^JWT_SECRET_KEY= .env | cut -d= -f2-)"   | tee -a infra/azure/.secrets.dev.env infra/azure/.secrets.prod.env
+# 3) 앱 키를 시크릿 파일에 추가 (.env 에서 복사)
+echo "UPSTAGE_API_KEY=$(grep ^UPSTAGE_API_KEY= .env | cut -d= -f2-)" >> infra/azure/.secrets.env
+echo "JWT_SECRET_KEY=$(grep ^JWT_SECRET_KEY= .env | cut -d= -f2-)"   >> infra/azure/.secrets.env
 
-# 4) GitHub Environment 시크릿 등록
+# 4) GitHub 리포 시크릿 등록
 bash infra/azure/set-github-secrets.sh
 
 # 5) 배포 트리거
-git push origin dev      # → 개발 VM
-git push origin main     # → 운영 VM (Environment 승인 게이트 설정 시 승인 필요)
+git push origin main           # → 올인원 VM 자동 배포 (web/backend/postgres)
 ```
 
-## 배포 후 데이터 적재 (Track C2 — Upstage 비용)
-배포된 앱은 스키마/시드만 있고 **약관 청크는 비어 있다**. 로컬(약관 PDF + Upstage 키 보유)에서 Azure PG 로 직접 적재:
+## 배포 후 데이터 적재 (1회 — Upstage 비용)
+배포된 앱은 스키마/시드만 있고 **약관 청크는 비어 있다**. postgres 가 VM 컨테이너라 적재도 VM 에서:
 ```bash
-# 내 공인 IP 를 PG 방화벽에 임시 허용 (적재용)
-MYIP=$(curl -s ifconfig.me)
-az postgres flexible-server firewall-rule create -g ica-rg -n <PG_PROD> --rule-name local --start-ip-address $MYIP --end-ip-address $MYIP
+# 약관 PDF 를 VM 으로 복사 (로컬 data/raw → VM)
+scp -i infra/azure/.deploy_key -r data/raw azureuser@<VM_IP>:/opt/ica/data/
 
-# Azure PG 를 가리켜 적재 (DATABASE_URL 은 .secrets.prod.env 참조)
-DATABASE_URL="<prod DATABASE_URL>" VECTOR_STORE=pgvector uv run ica ingest
-DATABASE_URL="<prod DATABASE_URL>" uv run ica verify
-# dev 환경도 동일 반복. 적재 후 방화벽 local 규칙 제거 권장.
+# VM 에서 적재 + 검증
+ssh -i infra/azure/.deploy_key azureuser@<VM_IP>
+cd /opt/ica
+docker compose -f docker-compose.prod.yml run --rm migrate ica ingest
+docker compose -f docker-compose.prod.yml run --rm migrate ica verify
+```
+
+## 비용 절감 — 안 쓸 때 끄기
+데모/심사 때만 켜고 평소엔 컴퓨팅 과금 정지:
+```bash
+az vm deallocate -g ica-rg -n ica-vm    # 정지 (디스크만 소액 과금)
+az vm start      -g ica-rg -n ica-vm    # 재개 (공인 IP 가 바뀌면 VM_HOST 시크릿 갱신)
 ```
 
 ## 주의
-- `.secrets.*.env`, `.deploy_key*` 는 **gitignore** — 절대 커밋 금지.
-- ACR admin 비번/PG 비번은 시크릿 파일에 평문 보존(로컬). 대회 후 로테이션.
-- TLS(443/도메인): 운영 도메인 연결 후 nginx+certbot 추가 (Track D2). 현재 80 포트.
-- prod 환경에 `Required reviewers` 설정 시 main 배포에 수동 승인 게이트가 걸린다.
-- 정리: `az group delete -n ica-rg --yes` (전체 삭제).
+- `.secrets.env`, `.deploy_key*` 는 **gitignore** — 절대 커밋 금지.
+- postgres 데이터는 VM 의 docker 볼륨(`ica-pg-data`)에 영속. VM 삭제 시 사라짐(재적재 가능).
+- TLS(443/도메인): 도메인 연결 후 nginx+certbot — Track D2.
+- 전체 정리: `az group delete -n ica-rg --yes`.

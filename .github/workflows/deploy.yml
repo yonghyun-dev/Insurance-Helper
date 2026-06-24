@@ -1,34 +1,27 @@
-# GitHub Actions — 브랜치별 자동 배포 (GitFlow)
-#   push dev  → 개발(dev) VM    (GitHub Environment: dev)
-#   push main → 운영(prod) VM   (GitHub Environment: prod, 수동 승인 게이트 권장)
+# GitHub Actions — main 푸시 시 올인원 VM 자동 배포 (1환경)
 #
-# 선행 조건 (Track A 프로비저닝 후 설정):
-#   - ACR 1개(공유), dev/prod VM 각 1대(docker+compose, /opt/ica 에 docker-compose.prod.yml 배치)
-#   - GitHub Environment 'dev'/'prod' 각각에 시크릿:
+# 선행 (Track A 후):
+#   - ACR + VM 1대(docker, /opt/ica). bash infra/azure/provision.sh
+#   - 리포 시크릿 (bash infra/azure/set-github-secrets.sh 가 등록):
 #       ACR_LOGIN_SERVER, ACR_USERNAME, ACR_PASSWORD
 #       VM_HOST, VM_USER, VM_SSH_KEY
-#       DATABASE_URL        (해당 환경 Azure Postgres, postgresql+psycopg://...)
-#       UPSTAGE_API_KEY, JWT_SECRET_KEY
-#       PUBLIC_ORIGIN       (CORS 허용 origin, 예: https://app.example.kr)
-#   - prod Environment 에 'Required reviewers' 설정 시 main 배포에 수동 승인 게이트
+#       POSTGRES_PASSWORD, UPSTAGE_API_KEY, JWT_SECRET_KEY, PUBLIC_ORIGIN
 
 name: deploy
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main]
 
 concurrency:
-  group: deploy-${{ github.ref_name }}
+  group: deploy-main
   cancel-in-progress: true
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    # main → prod 환경 / 그 외(dev) → dev 환경. 환경별 시크릿·승인 게이트가 여기서 적용됨.
-    environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
     env:
-      IMAGE_TAG: ${{ github.ref_name }}-${{ github.sha }}
+      IMAGE_TAG: main-${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
 
@@ -59,13 +52,13 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: compose 파일 VM 동기화
+      - name: compose + 데모데이터 VM 동기화
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
-          source: docker-compose.prod.yml
+          source: "docker-compose.prod.yml,data/demo"
           target: /opt/ica
 
       - name: VM 배포 (SSH → compose pull & up)
@@ -77,12 +70,11 @@ jobs:
           script: |
             set -euo pipefail
             cd /opt/ica
-            # 시크릿은 GitHub Environment 에서 주입 — VM 에 .env(600) 로 기록
             umask 077
             cat > .env <<EOF
             REGISTRY=${{ secrets.ACR_LOGIN_SERVER }}
             IMAGE_TAG=${{ env.IMAGE_TAG }}
-            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
             VECTOR_STORE=pgvector
             DEMO_SEED_ON_STARTUP=false
             UPSTAGE_API_KEY=${{ secrets.UPSTAGE_API_KEY }}

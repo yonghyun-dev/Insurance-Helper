@@ -163,3 +163,19 @@ git push main  ──GitHub Actions──►  [prod VM]  nginx→backend(1) → 
 **선행(Track A)**: dev/prod VM 2대(docker+compose, `/opt/ica/docker-compose.prod.yml` 배치) + Azure Postgres 2개(dev/prod) + ACR 1개. **워크플로/compose 는 준비됨 — VM·시크릿만 채우면 동작**.
 
 **남은 항목**: 운영 도메인 + nginx TLS(certbot, 443) — Track D2.
+
+## 11. 채택 구성 — 1환경 올인원 (비용 최소, 실제 배포본)
+
+위 2-VM·관리형 PG 설계는 "정석"이나, **워크로드가 가볍고(외부 AI) 코퍼스 2188청크라** 대회 데모엔 과사양 → **VM 1대 올인원**으로 축소 채택.
+
+| 항목 | 2-VM 설계(참고) | **올인원 채택** |
+|:--|:--|:--|
+| VM | B4ms ×2 | **B2s ×1** (2vCPU/4GB) |
+| Postgres | 관리형 ×2 | **컨테이너 pgvector ×1** (VM 내, 볼륨 영속) |
+| 환경 | dev/prod 격리 | **1환경** (main → VM) |
+| 백엔드 replica | sticky/Redis 필요 | **1** (세션 affinity 이슈 없음) |
+| 월 비용 | ~$370 | **~$35** (끄면 ~$2) |
+
+- 산출물: `infra/azure/{vars,provision,set-github-secrets}.sh` + `cloud-init.yaml` + `docker-compose.prod.yml`(postgres 컨테이너 포함) + `.github/workflows/deploy.yml`(main 트리거).
+- 비용 킬러: 데모 때만 켜고 평소 `az vm deallocate` → 컴퓨팅 과금 ~0.
+- 확장 필요 시: 2-VM·관리형 PG 설계(§1~10)로 승급 — 어댑터/마이그레이션 동일(코드 무변경).
