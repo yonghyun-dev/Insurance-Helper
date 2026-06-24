@@ -58,6 +58,18 @@ _TOC_MULTIPLE_ARTICLES_RE = re.compile(r"제\s*\d+\s*조.+제\s*\d+\s*조")
 _TOC_PAGE_NUMBER_TAIL_RE = re.compile(r"[\.…·∙·•‧⋯\s]{3,}\d+\s*$")
 
 
+# 약관 조항 번호 상한 — 초과하면 상법/민법/보험업법 등 "법령 참조"로 간주(약관 조 아님).
+# 실손 보통약관은 ~30조, 특약은 제1조부터 재시작이라 100 을 넘는 약관 조는 사실상 없다.
+# (예: 본문 인용 "「상법」 제651조(고지의무위반)" 이 라인 분리되어 거짓 조항이 되는 것 방지)
+_MAX_ARTICLE_NO = 100
+
+
+def _article_number(match: re.Match) -> int:
+    """article 매치에서 조 번호 정수 추출. '40의2' → 40, 추출 실패 시 0."""
+    digits = re.match(r"\d+", match.group(1).replace(" ", ""))
+    return int(digits.group()) if digits else 0
+
+
 def _looks_like_article_reference(stripped: str, match: re.Match) -> bool:
     """heading 으로 표시되지 않은 '제N조' 라인이 본문 속 교차참조인지 판정.
 
@@ -171,12 +183,17 @@ def recognize_structure(raw: RawDocument) -> StructuredDocument:
                 current_paragraph = None
                 continue
 
-            # 조 경계: heading 으로 확정되거나(강한 신호), pymupdf 경로(heading 정보 없음),
-            # 또는 본문 속 교차참조가 아닐 때만 ARTICLE 생성. (heading_aware 에서 참조 거짓경계 제거)
-            if article_match and (
-                is_heading
-                or not raw.heading_aware
-                or not _looks_like_article_reference(stripped, article_match)
+            # 조 경계 판정:
+            #  (1) 번호 상식 가드 — N 이 상한 초과면 법령 참조(상법 제651조 등)로 보고 제외(전 경로 공통).
+            #  (2) heading 확정 OR pymupdf(heading 정보 없음) OR 본문 속 교차참조가 아닐 때.
+            if (
+                article_match
+                and _article_number(article_match) <= _MAX_ARTICLE_NO
+                and (
+                    is_heading
+                    or not raw.heading_aware
+                    or not _looks_like_article_reference(stripped, article_match)
+                )
             ):
                 clause_no = f"제{article_match.group(1)}조"
                 title = (article_match.group(2) or "").strip()

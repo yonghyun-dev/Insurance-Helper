@@ -376,3 +376,33 @@ class TestHeadingAwareArticleBoundary:
         # heading_aware=False(pymupdf) → 참조 필터 미적용, 기존 동작 유지(회귀 방지)
         text = "제6조(보험가입금액 한도 등)에서 정한 연간 보험가입금액의 한도 내에서 보상합니다."
         assert _article_clause_nos(text, heading_aware=False) == {"제6조"}
+
+
+# ===========================================================================
+# 조 번호 상한 가드 — 법령 참조(상법 제651조 등) 거짓 조항 제거
+# ===========================================================================
+
+
+class TestArticleNumberGuard:
+    """제N조의 N 이 상한 초과면 법령 참조로 보고 조 경계에서 제외(전 경로 공통)."""
+
+    def test_large_number_not_article_even_if_heading(self):
+        # heading 으로 태깅돼도 제651조(상법 참조)는 약관 조 아님
+        text = HEADING_MARK + "제1조 (목적)\n" + HEADING_MARK + "제651조 (고지의무위반으로 인한 계약해지)"
+        assert _article_clause_nos(text, heading_aware=True) == {"제1조"}
+
+    def test_large_number_dropped_in_pymupdf_path_too(self):
+        # pymupdf 경로(heading 정보 없음)에서도 번호 가드 적용
+        text = "제5조 (보험금)\n제777조 (민법 준용)"
+        assert _article_clause_nos(text, heading_aware=False) == {"제5조"}
+
+    def test_boundary_number_kept(self):
+        # 상한 이하(제50조)는 정상 조항
+        text = HEADING_MARK + "제50조 (특별약관 적용)\n본문 내용입니다."
+        assert _article_clause_nos(text, heading_aware=True) == {"제50조"}
+
+    def test_article_number_extraction(self):
+        from app.domains.chunks.structure import _ARTICLE_RE, _article_number
+
+        assert _article_number(_ARTICLE_RE.match("제40조 (제목)")) == 40
+        assert _article_number(_ARTICLE_RE.match("제 7 조")) == 7
