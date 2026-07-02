@@ -16,7 +16,7 @@ export VM_IMAGE="${VM_IMAGE:-Ubuntu2204}"
 export VM_ADMIN="${VM_ADMIN:-azureuser}"           # GitHub Actions VM_USER 와 동일
 
 # GitHub 리포 (set-github-secrets.sh — gh CLI 인증 필요)
-export GH_REPO="${GH_REPO:-dfocus-ai/Insurance-Helper}"
+export GH_REPO="${GH_REPO:-yonghyun-dev/Insurance-Helper}"
 
 # 산출물(시크릿) 경로 — gitignore
 export SECRETS_DIR="${SECRETS_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
