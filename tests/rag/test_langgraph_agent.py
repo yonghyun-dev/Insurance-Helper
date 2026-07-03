@@ -59,7 +59,7 @@ def _make_fake_client(responses: list):
 
 @pytest.fixture
 def auto_slots() -> SlotState:
-    return SlotState(area="auto", insurer="hanwha")
+    return SlotState(area="accident_disease", insurer="hanwha")
 
 
 # ===========================================================================
@@ -73,9 +73,9 @@ class TestHelpers:
         assert lg._slot_summary(s) == "(empty)"
 
     def test_slot_summary_partial(self):
-        s = SlotState(area="auto", insurer="hanwha")
+        s = SlotState(area="accident_disease", insurer="hanwha")
         result = lg._slot_summary(s)
-        assert "area=auto" in result
+        assert "area=accident_disease" in result
         assert "insurer=hanwha" in result
 
     def test_dedupe_chunks_keeps_highest_score(self):
@@ -110,7 +110,7 @@ class TestPrepareMessages:
         )
         assert len(state["messages"]) == 2
         assert state["messages"][0]["role"] == "system"
-        assert "area=auto" in state["messages"][0]["content"]
+        assert "area=accident_disease" in state["messages"][0]["content"]
         assert state["messages"][1]["role"] == "user"
         assert state["messages"][1]["content"] == "사고 났어요"
         assert state["iter_count"] == 0

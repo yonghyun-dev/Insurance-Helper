@@ -24,7 +24,7 @@ from app.domains.rag.graph import (
     _rows_to_results,
 )
 
-from tests.rag.conftest import make_auto_slot
+from tests.rag.conftest import make_accident_disease_slot
 
 # ===========================================================================
 # _extract_rows
@@ -207,7 +207,7 @@ class TestGraphRetrieverRetrieve:
         retriever.__dict__["_chain"] = FakeChain()
         retriever.__dict__["_graph"] = object()  # health 용
 
-        results = retriever.retrieve(make_auto_slot(), top_k=8)
+        results = retriever.retrieve(make_accident_disease_slot(), top_k=8)
 
         assert len(results) == 1
         assert results[0]["id"] == "abc"
@@ -224,7 +224,7 @@ class TestGraphRetrieverRetrieve:
         retriever.__dict__["_chain"] = FakeChain()
         retriever.__dict__["_graph"] = object()
 
-        results = retriever.retrieve(make_auto_slot(), top_k=8)
+        results = retriever.retrieve(make_accident_disease_slot(), top_k=8)
 
         assert len(results) == 3
 
@@ -239,7 +239,7 @@ class TestGraphRetrieverRetrieve:
         retriever.__dict__["_chain"] = FailChain()
         retriever.__dict__["_graph"] = object()
 
-        results = retriever.retrieve(make_auto_slot(), top_k=8)
+        results = retriever.retrieve(make_accident_disease_slot(), top_k=8)
 
         assert results == []
 
@@ -254,7 +254,7 @@ class TestGraphRetrieverRetrieve:
         retriever.__dict__["_chain"] = FakeChain()
         retriever.__dict__["_graph"] = object()
 
-        results = retriever.retrieve(make_auto_slot(), top_k=8)
+        results = retriever.retrieve(make_accident_disease_slot(), top_k=8)
         assert results == []
 
     def test_retrieve_respects_top_k(self):
@@ -268,7 +268,7 @@ class TestGraphRetrieverRetrieve:
         retriever.__dict__["_chain"] = FakeChain()
         retriever.__dict__["_graph"] = object()
 
-        results = retriever.retrieve(make_auto_slot(), top_k=3)
+        results = retriever.retrieve(make_accident_disease_slot(), top_k=3)
         assert len(results) <= 3
 
 

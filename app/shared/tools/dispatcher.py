@@ -116,14 +116,8 @@ def _dispatch(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
         ]
         return {"chunks": compact, "count": len(compact)}
 
-    # Sprint 9 외부 어댑터 — KIDI 만 활성 (정적 데이터, API key 불필요).
-    # law / hira 는 어댑터 골격은 있으나 OC/serviceKey 발급 대기 → 호출 시 NotConfiguredError.
-    if tool_name == "get_fault_ratio_standard":
-        from app.infrastructure.external.kidi import lookup_by_scenario
-
-        result = lookup_by_scenario(args["scenario_keyword"])
-        return result.model_dump() if result else {"matched": False}
-
+    # 외부 어댑터 — law / hira 는 어댑터 골격만(OC/serviceKey 발급 대기 → NotConfiguredError).
+    # (get_fault_ratio_standard[KIDI]·get_product_meta[fss] 는 auto/fire 전용이라 PM-33 에서 제거)
     if tool_name == "lookup_law_clause":
         from app.infrastructure.external.law import LawNotConfiguredError, lookup_clause
 
@@ -139,15 +133,6 @@ def _dispatch(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
         try:
             result = lookup_by_name(args["diagnosis_korean"])
         except HiraNotConfiguredError as exc:
-            raise ToolNotImplementedError(str(exc)) from exc
-        return result.model_dump() if result else {"matched": False}
-
-    if tool_name == "get_product_meta":
-        from app.infrastructure.external.fss import FssNotImplementedError, get_product_meta
-
-        try:
-            result = get_product_meta(args["insurer"], args["product_name"])
-        except FssNotImplementedError as exc:
             raise ToolNotImplementedError(str(exc)) from exc
         return result.model_dump() if result else {"matched": False}
 

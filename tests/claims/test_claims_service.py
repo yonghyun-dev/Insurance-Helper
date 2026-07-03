@@ -30,14 +30,6 @@ class TestChecklist:
         ids = {i.id for i in cs.build_checklist(SlotState()).items}
         assert {"claim_form", "id_copy", "bankbook"} <= ids
 
-    def test_auto_docs(self):
-        ids = {i.id for i in cs.build_checklist(SlotState(area="auto")).items}
-        assert "accident_cert" in ids and "repair_estimate" in ids
-
-    def test_fire_docs(self):
-        ids = {i.id for i in cs.build_checklist(SlotState(area="fire")).items}
-        assert "fire_cert" in ids and "loss_detail" in ids
-
     def test_accident_disease_docs(self):
         ids = {i.id for i in cs.build_checklist(SlotState(area="accident_disease")).items}
         assert "diagnosis" in ids and "receipt_detail" in ids
@@ -60,10 +52,6 @@ class TestChecklist:
         }
         assert "admission_cert" not in ids
 
-    def test_auto_with_diagnosis_adds_med_receipt(self):
-        ids = {i.id for i in cs.build_checklist(SlotState(area="auto", diagnosis="골절")).items}
-        assert "med_receipt" in ids
-
     def test_required_flag_on_common(self):
         items = cs.build_checklist(SlotState()).items
         assert all(i.required for i in items if i.id in {"claim_form", "id_copy", "bankbook"})
@@ -71,9 +59,11 @@ class TestChecklist:
 
 class TestSummary:
     def test_summary_without_assessment(self):
-        sm = cs.build_summary(_session(area="auto", insurer="한화손해보험", product="자동차보험"))
+        sm = cs.build_summary(
+            _session(area="accident_disease", insurer="한화손해보험", product="실손의료보험")
+        )
         assert sm.insurer == "한화손해보험"
-        assert sm.product == "자동차보험"
+        assert sm.product == "실손의료보험"
         assert sm.likelihood is None
         assert sm.satisfied == [] and sm.next_steps == []
         assert len(sm.checklist) >= 3

@@ -53,7 +53,7 @@ class TestShouldApply:
         assert _smalltalk.should_apply(SlotState(), "안녕") is True
 
     def test_skips_when_area_already_set(self):
-        slots = SlotState(area="auto")
+        slots = SlotState(area="accident_disease")
         assert _smalltalk.should_apply(slots, "안녕") is False
 
     def test_skips_when_not_smalltalk(self):
@@ -102,11 +102,11 @@ class TestPostMessageSmalltalkGuard:
             options=[],
         )
         with (
-            patch.object(llm_mod, "extract_slots", return_value={"area": "auto"}),
+            patch.object(llm_mod, "extract_slots", return_value={"area": "accident_disease"}),
             patch.object(llm_mod, "next_question", return_value=fake_ask) as m_next,
         ):
             session, first = service.create_session(
-                initial_message="자동차 사고가 났어요"
+                initial_message="다쳐서 병원에 갔어요"
             )
 
         assert first is not None

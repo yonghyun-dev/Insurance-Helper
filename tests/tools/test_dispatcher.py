@@ -4,8 +4,8 @@ app/tools/dispatcher.py 단위 테스트.
 
 테스트 대상:
     - invoke(): 정상 라우팅 (calc_claim_amount / validate_coverage_period / finish)
-    - invoke(): 미구현 stub (search_terms / lookup_law_clause / get_disease_code /
-                              get_fault_ratio_standard / get_product_meta) → ToolNotImplementedError
+    - invoke(): 미구현 stub (search_terms / lookup_law_clause / get_disease_code)
+                              → ToolNotImplementedError
     - invoke(): 정의되지 않은 tool → ToolNotFoundError
     - _parse_iso_date(): ISO 문자열 → date / date 객체 직접 전달
     - serialize_for_llm(): JSON 직렬화 (한글 unescape)
@@ -214,24 +214,12 @@ class TestInvokeNotImplementedStubs:
         with pytest.raises(ToolNotImplementedError):
             invoke("get_disease_code", {"diagnosis_korean": "발목 골절"})
 
-    def test_get_fault_ratio_standard_returns_static_match(self):
-        # Sprint 9 KIDI 활성화 — 정적 데이터셋에서 매칭. ToolNotImplementedError 아님.
-        result = invoke("get_fault_ratio_standard", {"scenario_keyword": "신호대기 추돌"})
-        # "신호대기" / "추돌" 키워드는 차101 시나리오에 매칭
-        assert result.get("chart_no") == "차101"
-
-    def test_get_product_meta_raises_not_implemented(self):
-        with pytest.raises(ToolNotImplementedError):
-            invoke("get_product_meta", {"insurer": "한화손해보험", "product_name": "운전자보험"})
-
     @pytest.mark.parametrize(
         "tool_name,args",
         [
             # Sprint 11: search_terms 도 활성 (vector 직접) — 제외
             ("lookup_law_clause", {"law_name": "상법", "keyword_or_article": "제1조"}),
             ("get_disease_code", {"diagnosis_korean": "뇌졸중"}),
-            # Sprint 9: get_fault_ratio_standard 는 활성화 (정적 데이터) — 제외
-            ("get_product_meta", {"insurer": "삼성화재", "product_name": "주택화재보험"}),
         ],
     )
     def test_stub_tools_raise_tool_not_implemented_error(self, tool_name, args):

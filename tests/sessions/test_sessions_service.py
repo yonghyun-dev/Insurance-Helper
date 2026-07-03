@@ -119,16 +119,16 @@ def _make_chunks() -> list[dict]:
     ]
 
 
-def _full_auto_slots() -> SlotState:
-    """auto 영역 필수 슬롯 모두 채운 SlotState."""
+def _full_accident_disease_slots() -> SlotState:
+    """accident_disease 영역 필수 슬롯 모두 채운 SlotState."""
     return SlotState(
-        area="auto",
+        area="accident_disease",
         insurer="한화손해보험",
-        product="개인용자동차보험",
+        product="실손의료보험",
         incident_date=date(2026, 3, 15),
-        incident_type="추돌",
-        fault_ratio=30,
-        damage_type="자차",
+        diagnosis="골절",
+        hospitalization_days=5,
+        outpatient_visits=2,
     )
 
 
@@ -187,36 +187,10 @@ class TestComputeMissing:
         # area 가 첫 번째
         assert missing[0] == "area"
 
-    def test_area_set_unlocks_area_specific_slots(self):
-        # area=auto + 공통 채움 → auto 전용 슬롯 missing
-        slots = SlotState(
-            area="auto",
-            insurer="한화",
-            product="자동차보험",
-            incident_date=date(2026, 1, 1),
-        )
-        missing = _compute_missing(slots)
-        assert "incident_type" in missing
-        assert "fault_ratio" in missing
-        assert "damage_type" in missing
-
-    def test_all_auto_slots_filled_returns_empty(self):
-        # auto 전체 충족 → 빈 리스트
-        missing = _compute_missing(_full_auto_slots())
+    def test_all_slots_filled_returns_empty(self):
+        # 전체 충족 → 빈 리스트
+        missing = _compute_missing(_full_accident_disease_slots())
         assert missing == []
-
-    def test_fire_area_specific_slots_required(self):
-        # area=fire + 공통 채움 → fire 전용 슬롯 missing
-        slots = SlotState(
-            area="fire",
-            insurer="삼성화재",
-            product="화재보험",
-            incident_date=date(2026, 2, 1),
-        )
-        missing = _compute_missing(slots)
-        assert "loss_type" in missing
-        assert "damaged_items" in missing
-        assert "cause" in missing
 
     def test_accident_disease_area_specific_slots_required(self):
         # area=accident_disease + 공통 채움 → 전용 슬롯 missing
@@ -249,11 +223,11 @@ class TestComputeMissing:
         # area 가 None 이면 영역별 슬롯 체크 안 함
         slots = SlotState(
             insurer="한화",
-            product="자동차보험",
+            product="실손의료보험",
             incident_date=date(2026, 1, 1),
         )
         missing = _compute_missing(slots)
-        assert "incident_type" not in missing  # auto 전용 — area 없으면 체크 안 함
+        assert "diagnosis" not in missing  # accident_disease 전용 — area 없으면 체크 안 함
 
 
 # ===========================================================================
@@ -266,11 +240,11 @@ class TestMergeSlots:
 
     def test_merge_updates_field(self):
         # 기존 슬롯에 새 insurer 머지
-        current = SlotState(area="auto")
+        current = SlotState(area="accident_disease")
         updates = {"insurer": "한화손해보험"}
         merged = _merge_slots(current, updates)
         assert merged.insurer == "한화손해보험"
-        assert merged.area == "auto"  # 기존 값 유지
+        assert merged.area == "accident_disease"  # 기존 값 유지
 
     def test_merge_runs_validator_on_date_string(self):
         # updates 에 문자열 날짜 → validator 거쳐 date 로 변환
@@ -295,9 +269,9 @@ class TestMergeSlots:
 
     def test_merge_empty_updates_returns_unchanged_slots(self):
         # 빈 updates → 기존 슬롯 그대로
-        current = SlotState(area="auto", insurer="한화")
+        current = SlotState(area="accident_disease", insurer="한화")
         merged = _merge_slots(current, {})
-        assert merged.area == "auto"
+        assert merged.area == "accident_disease"
         assert merged.insurer == "한화"
 
 
@@ -309,25 +283,6 @@ class TestMergeSlots:
 class TestSlotsToQuery:
     """_slots_to_query area 별 쿼리 생성 검증."""
 
-    def test_auto_area_query_contains_auto_keywords(self):
-        slots = SlotState(area="auto", incident_type="추돌", damage_type="자차")
-        query = _slots_to_query(slots)
-        assert "자동차" in query
-        assert "추돌" in query
-        assert "자차" in query
-
-    def test_fire_area_query_contains_fire_keywords(self):
-        slots = SlotState(area="fire", loss_type="전소", cause="실화")
-        query = _slots_to_query(slots)
-        assert "화재" in query
-        assert "전소" in query
-
-    def test_fire_area_with_damaged_items(self):
-        slots = SlotState(area="fire", damaged_items=["냉장고", "세탁기"])
-        query = _slots_to_query(slots)
-        assert "냉장고" in query
-        assert "세탁기" in query
-
     def test_accident_disease_query_contains_disease_keywords(self):
         slots = SlotState(area="accident_disease", diagnosis="골절")
         query = _slots_to_query(slots)
@@ -336,8 +291,7 @@ class TestSlotsToQuery:
 
     def test_query_always_contains_common_suffix(self):
         # 공통 suffix '보험금 지급 사유' 포함
-        for area in ("auto", "fire", "accident_disease"):
-            slots = SlotState(area=area)  # type: ignore[arg-type]
+        for slots in (SlotState(area="accident_disease"), SlotState()):
             query = _slots_to_query(slots)
             assert "보험금" in query
 
@@ -351,22 +305,14 @@ class TestSlotsToFilters:
     """_slots_to_filters Chroma 필터 생성 검증."""
 
     def test_area_set_returns_area_filter(self):
-        slots = SlotState(area="auto")
+        slots = SlotState(area="accident_disease")
         filters = _slots_to_filters(slots)
-        assert filters == {"area": "auto"}
+        assert filters == {"area": "accident_disease"}
 
     def test_no_area_returns_none(self):
         # area 없음 → None
         slots = SlotState()
         assert _slots_to_filters(slots) is None
-
-    def test_insurer_not_included_in_filters(self):
-        # insurer 는 PoC 한계로 필터 미적용
-        slots = SlotState(area="auto", insurer="한화손해보험")
-        filters = _slots_to_filters(slots)
-        assert filters is not None
-        assert "insurer" not in filters
-        assert filters == {"area": "auto"}
 
 
 # ===========================================================================
@@ -567,14 +513,14 @@ class TestPostMessageAskPath:
         ask = _make_ask()
         monkeypatch.setattr(
             "app.domains.sessions.service.llm.extract_slots",
-            lambda *a, **kw: {"area": "auto"},
+            lambda *a, **kw: {"area": "accident_disease"},
         )
         monkeypatch.setattr("app.domains.sessions.service.llm.next_question", lambda *a, **kw: ask)
 
         session = isolated_store.create()
-        response = post_message(session.session_id, "자동차 사고가 났어요")
+        response = post_message(session.session_id, "다쳐서 병원에 갔어요")
 
-        assert response.slots.area == "auto"
+        assert response.slots.area == "accident_disease"
 
     def test_post_message_status_gathering_when_missing(self, isolated_store, monkeypatch):
         ask = _make_ask()
@@ -611,7 +557,7 @@ class TestPostMessageAssessmentPath:
         )
 
         session = isolated_store.create()
-        session.slots = _full_auto_slots()
+        session.slots = _full_accident_disease_slots()
 
         response = post_message(session.session_id, "청구하고 싶어요")
 
@@ -633,7 +579,7 @@ class TestPostMessageAssessmentPath:
         )
 
         session = isolated_store.create()
-        session.slots = _full_auto_slots()
+        session.slots = _full_accident_disease_slots()
 
         response = post_message(session.session_id, "청구하고 싶어요")
         assert response.turn == 1
@@ -649,7 +595,7 @@ class TestPostMessageAssessmentPath:
         )
 
         session = isolated_store.create()
-        session.slots = _full_auto_slots()
+        session.slots = _full_accident_disease_slots()
 
         response = post_message(session.session_id, "청구하고 싶어요")
 
@@ -669,7 +615,7 @@ class TestPostMessageAssessmentPath:
         )
 
         session = isolated_store.create()
-        session.slots = _full_auto_slots()
+        session.slots = _full_accident_disease_slots()
 
         with pytest.raises(LLMError):
             post_message(session.session_id, "청구하고 싶어요")
@@ -686,7 +632,7 @@ class TestComputeMissingUnknownSlots:
     def test_single_unknown_slot_excluded_from_missing(self):
         # unknown_slots=['product'] → 'product' 은 missing 에 없음
         slots = SlotState(
-            area="auto",
+            area="accident_disease",
             insurer="한화손해보험",
             incident_date=date(2026, 3, 15),
             unknown_slots=["product"],
@@ -698,7 +644,7 @@ class TestComputeMissingUnknownSlots:
         # unknown_slots=['product', 'policy_start_date'] 모두 제외
         # (policy_start_date 는 필수 슬롯 아니라 effect 없음 — insurer 도 테스트)
         slots = SlotState(
-            area="auto",
+            area="accident_disease",
             incident_date=date(2026, 3, 15),
             unknown_slots=["product", "insurer"],
         )
@@ -709,41 +655,41 @@ class TestComputeMissingUnknownSlots:
     def test_empty_unknown_slots_preserves_original_behavior(self):
         # unknown_slots=[] 이면 기존 동작 유지 (회귀)
         slots = SlotState(
-            area="auto",
+            area="accident_disease",
             insurer="한화손해보험",
-            product="개인용자동차보험",
+            product="실손의료보험",
             incident_date=date(2026, 3, 15),
         )
         missing = _compute_missing(slots)
-        # auto 영역 전용 슬롯(incident_type, fault_ratio, damage_type) 은 missing
-        assert "incident_type" in missing
-        assert "fault_ratio" in missing
-        assert "damage_type" in missing
+        # accident_disease 영역 전용 슬롯은 missing
+        assert "diagnosis" in missing
+        assert "hospitalization_days" in missing
+        assert "outpatient_visits" in missing
 
     def test_unknown_area_specific_slot_excluded(self):
-        # area=auto + incident_type 이 unknown → incident_type missing 에서 제외
+        # area=accident_disease + diagnosis 가 unknown → diagnosis missing 에서 제외
         slots = SlotState(
-            area="auto",
+            area="accident_disease",
             insurer="한화손해보험",
-            product="개인용자동차보험",
+            product="실손의료보험",
             incident_date=date(2026, 3, 15),
-            fault_ratio=30,
-            damage_type="자차",
-            unknown_slots=["incident_type"],
+            hospitalization_days=5,
+            outpatient_visits=2,
+            unknown_slots=["diagnosis"],
         )
         missing = _compute_missing(slots)
-        assert "incident_type" not in missing
+        assert "diagnosis" not in missing
         assert missing == []  # 나머지 슬롯 모두 채워짐
 
     def test_unknown_common_slot_excluded(self):
-        # area=fire + incident_date 가 unknown → incident_date missing 에서 제외
+        # area=accident_disease + incident_date 가 unknown → incident_date missing 에서 제외
         slots = SlotState(
-            area="fire",
+            area="accident_disease",
             insurer="삼성화재",
-            product="화재보험",
-            loss_type="전소",
-            cause="전기 합선",
-            damaged_items=["냉장고"],
+            product="실손의료보험",
+            diagnosis="골절",
+            hospitalization_days=5,
+            outpatient_visits=2,
             unknown_slots=["incident_date"],
         )
         missing = _compute_missing(slots)
@@ -760,7 +706,7 @@ class TestShouldPartial:
 
     def _base_slots(self) -> SlotState:
         """unknown_slots 없는 기본 SlotState."""
-        return SlotState(area="auto", insurer="한화", product="자동차보험")
+        return SlotState(area="accident_disease", insurer="한화", product="자동차보험")
 
     def test_trigger_unknown_threshold_true(self):
         # unknown_slots 수 ≥ 2 → True
@@ -956,7 +902,7 @@ class TestPostMessagePartialMode:
 
         session = isolated_store.create()
         # area 만 채워서 missing 이 있는 상태
-        session.slots = SlotState(area="auto")
+        session.slots = SlotState(area="accident_disease")
 
         response = post_message(session.session_id, "그냥 알려줘")
 
@@ -980,7 +926,7 @@ class TestPostMessagePartialMode:
         )
 
         session = isolated_store.create()
-        session.slots = SlotState(area="auto")
+        session.slots = SlotState(area="accident_disease")
 
         # history 에 ask 메시지 3개 추가
         from datetime import UTC, datetime
@@ -1021,7 +967,7 @@ class TestPostMessagePartialMode:
         session = isolated_store.create()
         # unknown_slots 2개, missing 있는 상태
         session.slots = SlotState(
-            area="auto",
+            area="accident_disease",
             unknown_slots=["insurer", "product"],
         )
 
@@ -1036,7 +982,7 @@ class TestPostMessagePartialMode:
         monkeypatch.setattr("app.domains.sessions.service.llm.next_question", lambda *a, **kw: ask)
 
         session = isolated_store.create()
-        session.slots = SlotState(area="auto")  # missing 있음, partial 조건 없음
+        session.slots = SlotState(area="accident_disease")  # missing 있음, partial 조건 없음
 
         response = post_message(session.session_id, "사고 났어요")
         assert response.assistant.type == "ask"
@@ -1053,7 +999,7 @@ class TestPostMessagePartialMode:
         )
 
         session = isolated_store.create()
-        session.slots = SlotState(area="auto")
+        session.slots = SlotState(area="accident_disease")
 
         response = post_message(session.session_id, "그냥 알려줘")
         assert response.assistant.type == "ask"
@@ -1107,7 +1053,7 @@ class TestPostMessageRagReact:
         )
 
         session = isolated_store.create()
-        session.slots = _full_auto_slots()
+        session.slots = _full_accident_disease_slots()
 
         response = post_message(session.session_id, "청구하고 싶어요")
 
@@ -1145,7 +1091,7 @@ class TestPostMessageRagReact:
         )
 
         session = isolated_store.create()
-        session.slots = _full_auto_slots()
+        session.slots = _full_accident_disease_slots()
 
         post_message(session.session_id, "청구하고 싶어요")
 
@@ -1196,7 +1142,7 @@ class TestPostMessageRagReact:
         monkeypatch.setattr(_audit, "begin", fake_begin)
 
         session = isolated_store.create()
-        session.slots = _full_auto_slots()
+        session.slots = _full_accident_disease_slots()
 
         post_message(session.session_id, "청구하고 싶어요")
 
@@ -1233,7 +1179,7 @@ class TestPostMessageRagReact:
         )
 
         session = isolated_store.create()
-        session.slots = _full_auto_slots()
+        session.slots = _full_accident_disease_slots()
 
         response = post_message(session.session_id, "청구하고 싶어요")
 
@@ -1269,7 +1215,7 @@ class TestPostMessageRagReact:
         )
 
         session = isolated_store.create()
-        session.slots = _full_auto_slots()
+        session.slots = _full_accident_disease_slots()
 
         response = post_message(session.session_id, "청구하고 싶어요")
 
@@ -1299,7 +1245,7 @@ class TestPostMessageRagReact:
         )
 
         session = isolated_store.create()
-        session.slots = _full_auto_slots()
+        session.slots = _full_accident_disease_slots()
 
         response = post_message(session.session_id, "청구하고 싶어요")
 

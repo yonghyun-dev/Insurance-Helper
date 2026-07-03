@@ -53,15 +53,7 @@ def slots_to_query(slots: SlotState) -> str:
     parts: list[str] = []
     if slots.insurer:
         parts.append(slots.insurer)
-    if slots.area == "auto":
-        parts.append(
-            f"자동차 사고 {slots.incident_type or ''} {slots.damage_type or ''}".strip()
-        )
-    elif slots.area == "fire":
-        parts.append(f"화재 {slots.loss_type or ''} {slots.cause or ''}".strip())
-        if slots.damaged_items:
-            parts.append("손해 품목 " + ", ".join(slots.damaged_items))
-    elif slots.area == "accident_disease":
+    if slots.area == "accident_disease":
         parts.append(f"상해 {slots.diagnosis or ''} 입원".strip())
     parts.append("보험금 지급 사유")
     return " ".join(p for p in parts if p)
@@ -94,19 +86,13 @@ def slots_to_question(slots: SlotState) -> str:
         return "약관 상 보험금 지급 사유와 관련된 조항을 찾아 주세요."
 
     area_korean = {
-        "auto": "자동차보험",
-        "fire": "주택화재보험",
-        "accident_disease": "상해/질병보험",
+        "accident_disease": "실손의료보험",
     }.get(slots.area, slots.area)
 
     parts: list[str] = [f"{area_korean} 약관에서"]
     if slots.product:
         parts.append(f"상품명 '{slots.product}' 와 관련해")
-    if slots.area == "auto" and slots.incident_type:
-        parts.append(f"'{slots.incident_type}' 사고에 대한")
-    elif slots.area == "fire" and slots.loss_type:
-        parts.append(f"'{slots.loss_type}' 손해에 대한")
-    elif slots.area == "accident_disease" and slots.diagnosis:
+    if slots.diagnosis:
         parts.append(f"진단명 '{slots.diagnosis}' 관련")
     parts.append("보험금 지급 사유와 면책 조항을 찾아 주세요.")
     return " ".join(parts)

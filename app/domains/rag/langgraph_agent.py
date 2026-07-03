@@ -58,10 +58,7 @@ _SYSTEM_PROMPT = """\
 1. 모든 영역에서 `search_terms` 를 최소 1회 호출 (약관 인용 의무)
 2. 모든 영역에서 `validate_coverage_period` 호출 (사고일 ∈ 보장기간 검증, 의무)
 3. 청구 금액 추정 시 `calc_claim_amount` 호출 (deterministic — LLM 산수 환각 회피)
-4. 영역별 권장:
-   - auto: `get_fault_ratio_standard` (표준 과실비율) + `lookup_law_clause` (자배법)
-   - fire: `lookup_law_clause` (상법)
-   - accident_disease: `get_disease_code` (KCD 코드) + `lookup_law_clause` (보험업법)
+4. 권장(실손의료보험): `get_disease_code` (KCD 진단코드) + `lookup_law_clause` (보험업법)
 5. 같은 tool 을 동일 인자로 2회 호출 금지 (이미 결과를 받았다)
 6. 정보 충분하면 `finish` tool 호출하여 종료 (즉시 generate_assessment 단계로 진입)
 7. 최대 5회 iter — 도달 시 강제 종료
@@ -106,7 +103,7 @@ class AgentState(TypedDict, total=False):
 
 def _slot_summary(slots: SlotState) -> str:
     parts: list[str] = []
-    for field_name in ("area", "insurer", "product", "incident_date", "incident_type"):
+    for field_name in ("area", "insurer", "product", "incident_date", "diagnosis"):
         val = getattr(slots, field_name, None)
         if val:
             parts.append(f"{field_name}={val}")
@@ -147,7 +144,7 @@ def prepare_messages(state: AgentState) -> AgentState:
     slots = state["slots"]
     user_message = state["user_message"]
 
-    area = slots.area or "auto"
+    area = slots.area or "accident_disease"
     area_policy = tools_for_area(area)  # type: ignore[arg-type]
     system = _SYSTEM_PROMPT.format(
         slots_summary=_slot_summary(slots),

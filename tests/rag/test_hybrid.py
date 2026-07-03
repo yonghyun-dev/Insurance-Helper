@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from app.domains.rag.hybrid import HybridRetriever, _dedupe_by_id
 
-from tests.rag.conftest import make_auto_slot, make_retrieval_result
+from tests.rag.conftest import make_accident_disease_slot, make_retrieval_result
 
 # ===========================================================================
 # _dedupe_by_id
@@ -113,7 +113,7 @@ class TestHybridRetrieverRetrieve:
         vector = FakeVectorRetriever(v_results)
         retriever = HybridRetriever(vector=vector, graph=None)
 
-        results = retriever.retrieve(make_auto_slot(), top_k=8)
+        results = retriever.retrieve(make_accident_disease_slot(), top_k=8)
 
         assert len(results) == 2
         assert all(r["source"] == "vector" for r in results)
@@ -132,7 +132,7 @@ class TestHybridRetrieverRetrieve:
         graph = FakeGraphRetriever(g_results)
         retriever = HybridRetriever(vector=vector, graph=graph)
 
-        results = retriever.retrieve(make_auto_slot(), top_k=8)
+        results = retriever.retrieve(make_accident_disease_slot(), top_k=8)
 
         ids = [r["id"] for r in results]
         assert "shared" in ids
@@ -149,7 +149,7 @@ class TestHybridRetrieverRetrieve:
         graph = FakeGraphRetriever(g_results)
         retriever = HybridRetriever(vector=vector, graph=graph)
 
-        results = retriever.retrieve(make_auto_slot(), top_k=8)
+        results = retriever.retrieve(make_accident_disease_slot(), top_k=8)
 
         scores = [r["score"] for r in results]
         assert scores == sorted(scores, reverse=True)
@@ -161,7 +161,7 @@ class TestHybridRetrieverRetrieve:
         graph = FakeGraphRetriever(raise_exc=True)
         retriever = HybridRetriever(vector=vector, graph=graph)
 
-        results = retriever.retrieve(make_auto_slot(), top_k=8)
+        results = retriever.retrieve(make_accident_disease_slot(), top_k=8)
 
         assert len(results) == 2
         assert all(r["source"] == "vector" for r in results)
@@ -174,7 +174,7 @@ class TestHybridRetrieverRetrieve:
         graph = FakeGraphRetriever(g_results)
         retriever = HybridRetriever(vector=vector, graph=graph)
 
-        results = retriever.retrieve(make_auto_slot(), top_k=6)
+        results = retriever.retrieve(make_accident_disease_slot(), top_k=6)
 
         assert len(results) <= 6
 

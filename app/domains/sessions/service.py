@@ -72,8 +72,7 @@ version 은 누락 시 active 자동 선택이라 필수 아님.
 """
 
 _AREA_REQUIRED: dict[str, tuple[str, ...]] = {
-    "auto": ("incident_type", "fault_ratio", "damage_type"),
-    "fire": ("loss_type", "damaged_items", "cause"),
+    # 실손 전용(PM-33). auto/fire 폐기.
     # outpatient_visits 는 data-model 표 상 O 지만 _is_empty 가 0 을 유효로 보므로
     # 0 회 통원 환자도 충족 처리됨. 명시 누락 시 LLM 이 안 물어볼 위험이 있어 포함.
     "accident_disease": ("diagnosis", "hospitalization_days", "outpatient_visits"),

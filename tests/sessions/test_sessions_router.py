@@ -331,7 +331,7 @@ class TestGetSessionStateEndpoint:
 
     def test_get_session_response_contains_slots(self, client, monkeypatch):
         session = _make_session_stub()
-        session.slots = SlotState(area="auto")
+        session.slots = SlotState(area="accident_disease")
         monkeypatch.setattr(
             "app.domains.sessions.router.service.get_session",
             lambda session_id: session,
@@ -339,7 +339,7 @@ class TestGetSessionStateEndpoint:
 
         response = client.get("/api/v1/sessions/test-session-id")
         data = response.json()
-        assert data["slots"]["area"] == "auto"
+        assert data["slots"]["area"] == "accident_disease"
 
     def test_get_session_response_contains_history(self, client, monkeypatch):
         session = _make_session_stub()

@@ -23,16 +23,8 @@ _COMMON: tuple[tuple[str, str, bool, str], ...] = (
     ("bankbook", "통장 사본", True, "보험금 입금 계좌(본인 명의) 확인용입니다."),
 )
 
-# 영역별 추가 서류
+# 영역별 추가 서류 (실손 전용, PM-33)
 _AREA: dict[str, tuple[tuple[str, str, bool, str], ...]] = {
-    "auto": (
-        ("accident_cert", "교통사고 사실확인원", True, "경찰서에서 발급하는 사고 증빙입니다."),
-        ("repair_estimate", "수리비 견적서·영수증", True, "차량·대물 손해액 산정 근거입니다."),
-    ),
-    "fire": (
-        ("fire_cert", "화재증명원", True, "소방서에서 발급하는 화재 사실 증빙입니다."),
-        ("loss_detail", "손해 명세서·피해 사진", True, "손해 범위와 금액 산정 근거입니다."),
-    ),
     "accident_disease": (
         ("diagnosis", "진단서", True, "상해·질병명과 치료 내용을 확인합니다."),
         ("receipt_detail", "진료비 영수증·세부내역서", True, "청구 금액 산정 근거입니다."),
@@ -62,16 +54,6 @@ def build_checklist(slots: SlotState) -> ClaimChecklist:
                 reason="입원 사실 확인용입니다.",
             )
         )
-    if area == "auto" and slots.diagnosis:
-        items.append(
-            ChecklistItem(
-                id="med_receipt",
-                label="병원 진료비 영수증",
-                required=True,
-                reason="부상 치료비 청구 근거입니다.",
-            )
-        )
-
     return ClaimChecklist(area=area, items=items)
 
 

@@ -379,12 +379,12 @@ class TestExtractSlotsUnknownMerge:
         # LLM 이 unknown_slots 키 안 보냄 → 기존 unknown_slots 보존 (result 에 unknown_slots 키 없음)
         self._patch_openai(
             monkeypatch,
-            {"slot_updates": {"area": "auto"}},  # unknown_slots 키 없음
+            {"slot_updates": {"area": "accident_disease"}},  # unknown_slots 키 없음
         )
         from app.domains.sessions.llm import extract_slots
 
         current = SlotState(unknown_slots=["insurer"])
-        result = extract_slots([], "자동차 사고예요", current)
+        result = extract_slots([], "다쳐서 병원에 갔어요", current)
         # unknown_slots 키가 없으면 호출자가 현재 값 유지 → 덮어쓰지 않음
         assert "unknown_slots" not in result
 
@@ -405,13 +405,13 @@ class TestExtractSlotsUnknownMerge:
         # slot_updates 와 unknown_slots 동시에 반환
         self._patch_openai(
             monkeypatch,
-            {"slot_updates": {"area": "fire"}, "unknown_slots": ["insurer"]},
+            {"slot_updates": {"area": "accident_disease"}, "unknown_slots": ["insurer"]},
         )
         from app.domains.sessions.llm import extract_slots
 
         current = SlotState()
-        result = extract_slots([], "화재 사고인데 보험사 모르겠어요", current)
-        assert result.get("area") == "fire"
+        result = extract_slots([], "다쳤는데 보험사 모르겠어요", current)
+        assert result.get("area") == "accident_disease"
         assert "insurer" in result.get("unknown_slots", [])
 
 
@@ -492,7 +492,7 @@ class TestGenerateAssessmentConfidence:
             }
         ]
         slots = SlotState(
-            area="auto",
+            area="accident_disease",
             insurer="한화손해보험",
             product="개인용자동차보험",
             unknown_slots=["incident_date"],
@@ -527,7 +527,7 @@ class TestGenerateAssessmentConfidence:
             }
         ]
         slots = SlotState(
-            area="auto",
+            area="accident_disease",
             insurer="한화손해보험",
             product="개인용자동차보험",
         )
@@ -561,7 +561,7 @@ class TestGenerateAssessmentConfidence:
                 },
             }
         ]
-        slots = SlotState(area="auto")
+        slots = SlotState(area="accident_disease")
 
         result = generate_assessment(slots, chunks)
         assert result.confidence == "full"
@@ -619,16 +619,9 @@ class TestTonePromptGuide:
         assert "떠넘기지 않는다" in _NEXT_QUESTION_SYSTEM or "떠넘기" in _NEXT_QUESTION_SYSTEM
 
     def test_next_question_system_preserves_option_rule_heading(self):
-        # 회귀: Sprint 6 이전부터 있던 "옵션 규칙 (강제)" 절 보존
+        # 회귀: "옵션 규칙 (강제)" 절 보존 (실손 전용 피벗으로 부제 추가됨)
         from app.domains.sessions.llm import _NEXT_QUESTION_SYSTEM
-        assert "옵션 규칙 (강제)" in _NEXT_QUESTION_SYSTEM
-
-    def test_next_question_system_preserves_area_option_korean(self):
-        # 회귀: area 슬롯 옵션은 한국어 ['자동차', '화재', '사고질병'] 사용
-        from app.domains.sessions.llm import _NEXT_QUESTION_SYSTEM
-        assert "자동차" in _NEXT_QUESTION_SYSTEM
-        assert "화재" in _NEXT_QUESTION_SYSTEM
-        assert "사고질병" in _NEXT_QUESTION_SYSTEM
+        assert "옵션 규칙 (강제" in _NEXT_QUESTION_SYSTEM
 
     def test_next_question_system_polite_tone_phrase_included(self):
         # 친절체 + 존댓말 예시 문구 포함

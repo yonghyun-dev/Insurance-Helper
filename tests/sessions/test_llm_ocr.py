@@ -100,12 +100,12 @@ class TestExtractSlotsFromDocument:
         """
         # LLM 응답이 본문에 필드 1개 발견했다고 가정
         fake_response = _make_tool_response(
-            {"area": "auto", "incident_date": "2026-05-10"},
+            {"area": "accident_disease", "incident_date": "2026-05-10"},
             "extract_slots_from_document",
         )
         with patch("app.domains.sessions.llm._get_client", return_value=_patch_openai(fake_response)):
-            result = llm.extract_slots_from_document("자동차 사고 신고 2026-05-10", "other")
-        assert result["area"] == "auto"
+            result = llm.extract_slots_from_document("상해 사고 신고 2026-05-10", "other")
+        assert result["area"] == "accident_disease"
         assert result["incident_date"] == "2026-05-10"
 
     def test_other_doc_type_empty_text_returns_empty(self):
@@ -140,13 +140,13 @@ class TestExtractSlotsFromDocument:
 
     def test_police_report_extracts_fields(self):
         fake_response = _make_tool_response(
-            {"incident_date": "2026-05-10", "incident_type": "추돌"},
+            {"incident_date": "2026-05-10", "incident_location": "강남대로"},
             "extract_slots_from_document",
         )
         with patch("app.domains.sessions.llm._get_client", return_value=_patch_openai(fake_response)):
             result = llm.extract_slots_from_document("경찰 신고서", "police_report")
         assert result["incident_date"] == "2026-05-10"
-        assert result["incident_type"] == "추돌"
+        assert result["incident_location"] == "강남대로"
 
     def test_unknown_doc_type_not_in_mapping_returns_empty(self):
         """_DOC_TYPE_SLOT_FIELDS 에 없는 doc_type 은 LLM 호출 없이 빈 dict 반환."""

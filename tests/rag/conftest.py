@@ -9,8 +9,6 @@ RAG 테스트 공통 픽스처.
 
 from __future__ import annotations
 
-from datetime import date
-
 import pytest
 from app.domains.rag.protocols import RetrievalResult
 from app.domains.sessions.schemas import SlotState
@@ -18,42 +16,6 @@ from app.domains.sessions.schemas import SlotState
 # ---------------------------------------------------------------------------
 # SlotState 샘플 빌더
 # ---------------------------------------------------------------------------
-
-
-def make_auto_slot(
-    *,
-    insurer: str = "한화손해보험",
-    product: str = "개인용자동차보험",
-    incident_type: str = "추돌",
-    damage_type: str = "자차",
-    incident_date: date | None = date(2026, 3, 15),
-) -> SlotState:
-    """auto 영역 SlotState."""
-    return SlotState(
-        area="auto",
-        insurer=insurer,
-        product=product,
-        incident_date=incident_date,
-        incident_type=incident_type,
-        damage_type=damage_type,
-    )
-
-
-def make_fire_slot(
-    *,
-    loss_type: str = "전소",
-    cause: str = "전기 합선",
-    damaged_items: list[str] | None = None,
-) -> SlotState:
-    """fire 영역 SlotState."""
-    return SlotState(
-        area="fire",
-        insurer="삼성화재",
-        product="주택화재보험",
-        loss_type=loss_type,
-        cause=cause,
-        damaged_items=damaged_items or ["가전제품"],
-    )
 
 
 def make_accident_disease_slot(
@@ -100,16 +62,6 @@ def make_retrieval_result(
 # ---------------------------------------------------------------------------
 # pytest 픽스처
 # ---------------------------------------------------------------------------
-
-
-@pytest.fixture()
-def auto_slot() -> SlotState:
-    return make_auto_slot()
-
-
-@pytest.fixture()
-def fire_slot() -> SlotState:
-    return make_fire_slot()
 
 
 @pytest.fixture()

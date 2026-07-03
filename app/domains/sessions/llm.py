@@ -65,11 +65,7 @@ def _get_client() -> OpenAI:
 _SLOT_FIELD_ENUM = [
     # 공통
     "area", "insurer", "product", "version", "incident_date", "evidence",
-    # auto
-    "incident_type", "fault_ratio", "damage_type",
-    # fire
-    "loss_type", "damaged_items", "cause",
-    # accident_disease
+    # accident_disease (실손 전용, PM-33 — auto/fire 필드 제거)
     "diagnosis", "hospitalization_days", "outpatient_visits",
     # Sprint 17 — 청구서 표준 필드 (필수 X, OCR/마이데이터 prefill 친화)
     "hospital", "diagnosis_code", "treatment_period",
@@ -165,19 +161,13 @@ _EXTRACT_SLOTS_TOOL = {
                 "additionalProperties": False,
                 "description": "갱신할 슬롯 (필드명은 아래 properties 만 허용)",
                 "properties": {
-                    "area": {"type": "string", "enum": ["auto", "fire", "accident_disease"]},
+                    "area": {"type": "string", "enum": ["accident_disease"]},
                     "insurer": {"type": "string"},
                     "product": {"type": "string"},
                     "version": {"type": "string"},
                     "incident_date": {"type": "string", "description": "ISO YYYY-MM-DD 형식 권장"},
                     "evidence": {"type": "array", "items": {"type": "string"}},
-                    "incident_type": {"type": "string", "description": "auto 전용 (추돌/단독/대물/대인)"},
-                    "fault_ratio": {"type": "integer", "minimum": 0, "maximum": 100},
-                    "damage_type": {"type": "string", "description": "auto 전용 (자차/대물/대인)"},
-                    "loss_type": {"type": "string", "description": "fire 전용 (전소/부분소실/도난/누수)"},
-                    "damaged_items": {"type": "array", "items": {"type": "string"}},
-                    "cause": {"type": "string"},
-                    "diagnosis": {"type": "string", "description": "accident_disease 전용"},
+                    "diagnosis": {"type": "string", "description": "진단명 (실손)"},
                     "hospitalization_days": {"type": "integer", "minimum": 0},
                     "outpatient_visits": {"type": "integer", "minimum": 0},
                     # Sprint 17 — 청구서 표준 필드 (필수 X, OCR/마이데이터 prefill 친화)
@@ -217,22 +207,18 @@ def _extract_slots_system(today: date) -> str:
     return (
         "당신은 보험청구심사 어시스턴트의 슬롯 추출기다.\n"
         "사용자 자연어 메시지를 읽고 SlotState 의 필드 중 명시적으로 언급된 값만 추출한다.\n\n"
-        "필수 규칙:\n"
-        "1. `area` 는 가장 먼저 결정한다 (auto/fire/accident_disease).\n"
-        "   - '자동차/충돌/추돌/주차/접촉/대인배상' 단서 → area=auto\n"
-        "   - '주택화재/누수/도난/소실/소방' 단서 → area=fire\n"
-        "   - '입원/통원/진단/골절/질병/상해/넘어졌/다쳤/병원' 단서 → area=accident_disease\n"
+        "필수 규칙 (실손의료보험 전용):\n"
+        "1. `area` 는 항상 `accident_disease` (입원/통원/진단/질병/상해/골절/수술/병원 단서).\n"
         "2. **사용자가 언급한 보험사명·상품명을 빠짐없이 `insurer`/`product` 로 추출**.\n"
-        "   - 예: '한화손해보험 개인용자동차보험' → insurer='한화손해보험', product='개인용자동차보험'\n"
-        "   - 예: '삼성생명 무배당상해입원보장' → insurer='삼성생명', product='무배당상해입원보장'\n"
+        "   - 예: '삼성화재 실손의료보험' → insurer='삼성화재', product='실손의료보험'\n"
         "3. `incident_date` 는 ISO YYYY-MM-DD 형식. 오늘 = " + today.isoformat() + ", 어제 = " + yesterday + ".\n"
         "   - '지난주', '며칠 전' 같은 모호 표현은 추출 생략\n"
-        "4. fire 영역의 가전제품/가구/건물 등 손상 품목은 `damaged_items` (배열) — `damage_type` 아님.\n"
-        "5. auto 영역의 `damage_type` 은 보장 종목(자차/대물/대인). 손상 품목 아님.\n"
+        "4. `diagnosis`(진단명, 예: 급성 충수염), `hospitalization_days`(입원 일수), "
+        "`outpatient_visits`(외래 횟수) 를 명시 시 추출.\n"
         "6-a. **\"모름\"/\"몰라\"/\"모르겠어\"/\"잘 모르겠어\" 등 명시적 무지 표현** → 해당 슬롯을 `unknown_slots` 배열에 추가 "
         "(slot_updates 에는 넣지 않는다). 예: '보험사 잘 모르겠어' → unknown_slots=['insurer'].\n"
-        "6-b. **부정 표현 → 정수 슬롯 0 으로 채움**. 예: '입원 안 했어' / '통원 없어' / '하루도 안 함' → "
-        "hospitalization_days=0, '통원 0번' → outpatient_visits=0, '과실 0%' → fault_ratio=0.\n"
+        "6-b. **부정 표현 → 정수 슬롯 0 으로 채움**. 예: '입원 안 했어' → hospitalization_days=0, "
+        "'통원 없어' → outpatient_visits=0.\n"
         "7. 추론·추측·기본값 입력 금지. 모호하면 그 필드는 생략 (단 6-a, 6-b 는 명시이므로 적용).\n\n"
         "허용 필드: " + ", ".join(_SLOT_FIELD_ENUM) + "."
     )
@@ -332,18 +318,12 @@ _NEXT_QUESTION_SYSTEM = (
     "친절한 한국어 질문을 만들어라. 한 번에 너무 많이 묻지 말고, 사용자가 답하기 쉽게 "
     "선택지(options)가 명확하면 함께 제공해라. 단, 답이 자유로운 케이스는 options 를 빈 리스트로. "
     "\n\n"
-    "**옵션 규칙 (강제)**:\n"
+    "**옵션 규칙 (강제, 실손의료보험 전용)**:\n"
     "- 슬롯 성격에 따라 options 제공 여부를 결정한다:\n"
-    "  * **closed-ended 슬롯 (enum 분류, 5종)**: options 채움 + 마지막에 '모르겠습니다' 추가\n"
-    "    - area: ['자동차', '화재', '사고질병', '모르겠습니다']\n"
-    "    - incident_type (auto): ['추돌', '접촉', '주차사고', '단독사고', '기타', '모르겠습니다']\n"
-    "    - damage_type (auto): ['대물', '대인', '자기차량', '기타', '모르겠습니다']\n"
-    "    - loss_type (fire): ['전손', '부분손해', '도난', '기타', '모르겠습니다']\n"
-    "    - cause (fire): ['전기적 원인', '가스/조리 부주의', '방화', '자연재해', '기타', '모르겠습니다']\n"
     "  * **open-ended 슬롯 (자유 텍스트)**: options 는 반드시 **빈 배열 []** 로 한다. 선택지 강요 X.\n"
-    "    - insurer, product, incident_date, diagnosis, damaged_items, evidence,\n"
-    "      hospitalization_days, outpatient_visits, fault_ratio\n"
-    "- area 의 영문 코드(auto/fire/accident_disease)를 options 에 절대 사용하지 않는다.\n"
+    "    - insurer, product, incident_date, diagnosis, evidence,\n"
+    "      hospitalization_days, outpatient_visits\n"
+    "- area 의 영문 코드(accident_disease)를 options 에 절대 사용하지 않는다.\n"
     "- 사용자가 '모르겠습니다' 선택 시 extract_slots 가 unknown_slots 에 머지 → partial 모드 자연 진입.\n"
     "- 자유 텍스트 슬롯에서도 사용자가 '모르겠습니다' 라고 직접 입력 가능 (extract_slots 가 인식).\n"
     "\n"
@@ -625,10 +605,6 @@ _SLOT_LABELS: dict[str, str] = {
     "hospital": "병원명",
     "insurer": "보험사",
     "product": "상품명",
-    "incident_type": "사고 유형",
-    "damage_type": "손해 유형",
-    "loss_type": "손해 종류",
-    "fault_ratio": "과실 비율",
 }
 # 긴 키 우선 치환 (diagnosis_code 를 diagnosis 보다 먼저) — 부분 치환 방지.
 _SLOT_LABELS_ORDERED: list[str] = sorted(_SLOT_LABELS, key=len, reverse=True)
@@ -788,10 +764,8 @@ _DOC_TYPE_SLOT_FIELDS: dict[str, list[str]] = {
         "hospital", "diagnosis_code", "treatment_period", "incident_date",
     ],
     "police_report": [
-        # 기존 4
-        "incident_date", "incident_type", "fault_ratio", "damage_type",
-        # Sprint 17 — 경찰 신고서 표준 필드 1
-        "incident_location",
+        # 실손 전용(PM-33) — auto 필드 제거. 상해 사고 신고서에서 날짜·장소·진단만.
+        "incident_date", "incident_location", "diagnosis",
     ],
     "claim_form": [
         # 기존 3
@@ -910,32 +884,26 @@ def classify_document(text: str) -> dict[str, Any]:
 # LLM 환각(표 라벨을 필드 값으로 잘못 추출) 억제 핵심.
 _FIELD_DESCRIPTIONS: dict[str, str] = {
     "area": (
-        "보험 분야 코드. 정확히 다음 셋 중 하나만 영문 코드로: "
-        "'auto'(자동차), 'fire'(화재), 'accident_disease'(상해·질병·의료비). "
+        "보험 분야 코드. 실손의료보험 전용이므로 의료 관련 서류면 'accident_disease' 하나만. "
         "의료비 영수증·진단서·약제비 영수증은 accident_disease. "
-        "**중요 반례**: 식음료 결제·항공권·통신·핸드폰 수리·일반 영수증 등 자동차/화재/상해와 "
-        "**무관한 서류에는 area 추출 금지** (특히 'fire' 로 잘못 매핑하지 말 것). "
+        "**중요 반례**: 식음료 결제·항공권·통신·핸드폰 수리·일반 영수증 등 의료와 "
+        "**무관한 서류에는 area 추출 금지**. "
         "분야가 명백하지 않으면 응답에서 area 키 자체를 제외한다. "
         "**중요**: area 가 명확하지 않다고 해서 evidence/claim_amount/incident_date 같은 "
         "다른 슬롯의 추출까지 생략하지 말 것 — area 만 비우고 나머지는 정상 추출."
     ),
-    "insurer": "보험사 회사명 (예: 한화손해보험, 삼성화재, KB손해보험). 카드사·은행 이름은 제외.",
-    "product": "보험 상품명 (예: 차차차매일안심자동차보험, 무배당i리젠보장보험).",
+    "insurer": "보험사 회사명 (예: 삼성화재, 현대해상, 메리츠화재, 롯데손해보험, 한화손해보험). 카드사·은행 이름은 제외.",
+    "product": "보험 상품명 (예: 실손의료보험).",
     "incident_date": (
         "사고/진료 시작일. **YYYY-MM-DD** 형식. "
         "영수증의 '진료기간' 행이 있으면 그 시작일을 사용. "
         "예: 진료기간이 '2022.08.31 ~ 2022.09.05' 이면 incident_date='2022-08-31'."
     ),
-    "incident_type": "사고 유형 (자동차): 추돌·접촉·주차사고·단독사고·기타.",
     "incident_location": (
-        "사고/진료 발생 장소. 주소·시·구·도로명 등. "
-        "영수증의 '사업장 소재지' / '병원 주소' / 신고서의 '사고 장소' 모두 가능. "
+        "진료 발생 장소. 주소·시·구·도로명 등. "
+        "영수증의 '사업장 소재지' / '병원 주소' 모두 가능. "
         "예: '경기도 안산시 단원구'."
     ),
-    "damage_type": "손해 유형 (자동차): 자기차량·대물·대인·기타.",
-    "fault_ratio": "과실 비율 (0~100 정수).",
-    "loss_type": "손해 종류 (화재): 전손·부분손해·도난·누수.",
-    "cause": "원인 (화재): 전기적 원인·가스/조리 부주의·방화·자연재해·기타.",
     "diagnosis": (
         "진단명·병명·질환명 (**반드시 한국어**, 자유 텍스트). 예: '발목 골절', '폐렴'. "
         "**반례**: 진료과목명(내과·정형외과·Orthopedics·Internal Medicine 등) 단독은 진단명이 아님 — 응답에서 제외. "
@@ -969,9 +937,8 @@ _FIELD_DESCRIPTIONS: dict[str, str] = {
     ),
     "evidence": (
         "증빙 서류명. 본 서류 자체의 제목. "
-        "예: '진료비 계산서·영수증', '진단서', '경찰 사고확인원', '약제비 영수증'."
+        "예: '진료비 계산서·영수증', '진단서', '입퇴원 확인서', '약제비 영수증'."
     ),
-    "damaged_items": "손상 물품 목록 (화재).",
     "version": "보험 약관 버전.",
     "unknown_slots": "사용자가 모른다고 명시한 슬롯 (LLM 추출 미사용)",
     "document_metadata": "참고용 자유 메타 (UI 확인 카드용)",

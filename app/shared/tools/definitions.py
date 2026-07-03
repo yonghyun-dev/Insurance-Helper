@@ -108,61 +108,6 @@ GET_DISEASE_CODE: ToolDef = {
     },
 }
 
-GET_FAULT_RATIO_STANDARD: ToolDef = {
-    "type": "function",
-    "function": {
-        "name": "get_fault_ratio_standard",
-        "description": (
-            "자동차 사고 표준 과실비율을 손보협회 인정기준 도표에서 lookup. "
-            "auto 영역의 사고 유형이 명확할 때 호출."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "scenario_keyword": {
-                    "type": "string",
-                    "description": (
-                        "사고 유형 키워드 (예: '신호대기 추돌', '교차로 직진 동시 진입', "
-                        "'주차장 후진 추돌')"
-                    ),
-                },
-            },
-            "required": ["scenario_keyword"],
-        },
-    },
-}
-
-
-# ---------------------------------------------------------------------------
-# 외부 크롤링 (Sprint 10)
-# ---------------------------------------------------------------------------
-
-GET_PRODUCT_META: ToolDef = {
-    "type": "function",
-    "function": {
-        "name": "get_product_meta",
-        "description": (
-            "보험사·상품명을 받아 공시실에서 최신 약관 메타 + PDF URL 을 조회. "
-            "extract_slots 가 잡은 product 가 우리 인덱스에 없을 때 호출 (자동 ingest 후보)."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "insurer": {
-                    "type": "string",
-                    "description": "보험사명 (예: '한화손해보험')",
-                },
-                "product_name": {
-                    "type": "string",
-                    "description": "상품명 (예: '운전자보험')",
-                },
-            },
-            "required": ["insurer", "product_name"],
-        },
-    },
-}
-
-
 # ---------------------------------------------------------------------------
 # Deterministic Python tool (Sprint 10 — 이미 구현)
 # ---------------------------------------------------------------------------
@@ -263,12 +208,11 @@ FINISH: ToolDef = {
 # 전체 tool 카탈로그
 # ---------------------------------------------------------------------------
 
+# 실손 전용 피벗(PM-33) — auto/fire tool(get_fault_ratio_standard/get_product_meta) 제거.
 ALL_TOOLS: list[ToolDef] = [
     SEARCH_TERMS,
     LOOKUP_LAW_CLAUSE,
     GET_DISEASE_CODE,
-    GET_FAULT_RATIO_STANDARD,
-    GET_PRODUCT_META,
     CALC_CLAIM_AMOUNT,
     VALIDATE_COVERAGE_PERIOD,
     FINISH,
@@ -279,21 +223,9 @@ ALL_TOOLS: list[ToolDef] = [
 # 영역별 의무·권장 tool (LLM system prompt 가이드용)
 # ---------------------------------------------------------------------------
 
-Area = Literal["auto", "fire", "accident_disease"]
+Area = Literal["accident_disease"]
 
 TOOLS_BY_AREA: dict[Area, dict[str, list[str]]] = {
-    "auto": {
-        "mandatory": ["search_terms", "validate_coverage_period"],
-        "recommended": [
-            "lookup_law_clause",
-            "get_fault_ratio_standard",
-            "calc_claim_amount",
-        ],
-    },
-    "fire": {
-        "mandatory": ["search_terms", "validate_coverage_period"],
-        "recommended": ["lookup_law_clause", "calc_claim_amount"],
-    },
     "accident_disease": {
         "mandatory": ["search_terms", "validate_coverage_period"],
         "recommended": [

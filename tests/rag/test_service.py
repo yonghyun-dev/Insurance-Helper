@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.rag.conftest import make_auto_slot, make_retrieval_result
+from tests.rag.conftest import make_accident_disease_slot, make_retrieval_result
 
 # ---------------------------------------------------------------------------
 # 공통 stub
@@ -77,7 +77,7 @@ class TestRetrieveModeRouting:
         monkeypatch.setattr(svc, "_graph_singleton", lambda: FakeRetriever(health_val=True))
         monkeypatch.setattr(svc, "_hybrid_singleton", lambda: FakeRetriever())
 
-        results = svc.retrieve(make_auto_slot(), mode="vector")
+        results = svc.retrieve(make_accident_disease_slot(), mode="vector")
 
         assert all(r["source"] == "vector" for r in results)
 
@@ -90,7 +90,7 @@ class TestRetrieveModeRouting:
         monkeypatch.setattr(svc, "_vector_singleton", lambda: FakeRetriever(_fake_results(2, "vector")))
         monkeypatch.setattr(svc, "_hybrid_singleton", lambda: FakeRetriever())
 
-        results = svc.retrieve(make_auto_slot(), mode="graph")
+        results = svc.retrieve(make_accident_disease_slot(), mode="graph")
 
         assert all(r["source"] == "graph" for r in results)
 
@@ -104,7 +104,7 @@ class TestRetrieveModeRouting:
         monkeypatch.setattr(svc, "_graph_singleton", lambda: graph)
         monkeypatch.setattr(svc, "_vector_singleton", lambda: FakeRetriever())
 
-        results = svc.retrieve(make_auto_slot(), mode="hybrid")
+        results = svc.retrieve(make_accident_disease_slot(), mode="hybrid")
 
         assert len(results) == 3
 
@@ -128,7 +128,7 @@ class TestNeo4jFallback:
         monkeypatch.setattr(svc, "_vector_singleton", lambda: vector)
         monkeypatch.setattr(svc, "_hybrid_singleton", lambda: FakeRetriever())
 
-        results = svc.retrieve(make_auto_slot(), mode="graph")
+        results = svc.retrieve(make_accident_disease_slot(), mode="graph")
 
         # vector 폴백 — source 검증
         assert all(r["source"] == "vector" for r in results)
@@ -144,7 +144,7 @@ class TestNeo4jFallback:
         monkeypatch.setattr(svc, "_vector_singleton", lambda: vector)
         monkeypatch.setattr(svc, "_hybrid_singleton", lambda: FakeRetriever())
 
-        results = svc.retrieve(make_auto_slot(), mode="hybrid")
+        results = svc.retrieve(make_accident_disease_slot(), mode="hybrid")
 
         assert all(r["source"] == "vector" for r in results)
 
@@ -168,7 +168,7 @@ class TestRetrieverExceptionFallback:
         monkeypatch.setattr(svc, "_vector_singleton", lambda: vector)
         monkeypatch.setattr(svc, "_hybrid_singleton", lambda: FakeRetriever())
 
-        results = svc.retrieve(make_auto_slot(), mode="graph")
+        results = svc.retrieve(make_accident_disease_slot(), mode="graph")
 
         # vector 폴백 성공
         assert len(results) > 0
@@ -185,7 +185,7 @@ class TestRetrieverExceptionFallback:
         monkeypatch.setattr(svc, "_hybrid_singleton", lambda: FakeRetriever())
 
         # vector 모드에서 예외 → 빈 list
-        results = svc.retrieve(make_auto_slot(), mode="vector")
+        results = svc.retrieve(make_accident_disease_slot(), mode="vector")
 
         assert results == []
 
@@ -292,7 +292,7 @@ class TestCircuitBreaker:
         monkeypatch.setattr(svc, "_hybrid_singleton", lambda: FakeRetriever())
 
         # graph 모드로 호출 — circuit open → vector 폴백
-        results = svc.retrieve(make_auto_slot(), mode="graph")
+        results = svc.retrieve(make_accident_disease_slot(), mode="graph")
 
         assert len(results) > 0
         assert all(r["source"] == "vector" for r in results)
@@ -316,7 +316,7 @@ class TestCircuitBreaker:
         monkeypatch.setattr(svc, "_hybrid_singleton", lambda: FakeRetriever())
 
         # vector 모드에서 circuit open → 폴백 없이 빈 list
-        results = svc.retrieve(make_auto_slot(), mode="vector")
+        results = svc.retrieve(make_accident_disease_slot(), mode="vector")
 
         assert results == []
 
@@ -339,7 +339,7 @@ class TestCircuitBreaker:
         monkeypatch.setattr(svc, "_graph_singleton", lambda: graph)
         monkeypatch.setattr(svc, "_hybrid_singleton", lambda: FakeRetriever())
 
-        results = svc.retrieve(make_auto_slot(), mode="graph")
+        results = svc.retrieve(make_accident_disease_slot(), mode="graph")
 
         assert results == []
 
@@ -375,7 +375,7 @@ class TestRunAgent:
         )
         monkeypatch.setattr(lg, "run_agent_langgraph", lambda slots, msg: fake_result)
 
-        result = svc.run_agent(make_auto_slot(), "청구하고 싶어요")
+        result = svc.run_agent(make_accident_disease_slot(), "청구하고 싶어요")
 
         assert result.finish_reason == "finish"
         assert result.chunks == [{"id": "c1"}]
@@ -396,7 +396,7 @@ class TestRunAgent:
 
         monkeypatch.setattr(lg, "run_agent_langgraph", fake_run)
 
-        slots = make_auto_slot()
+        slots = make_accident_disease_slot()
         svc.run_agent(slots, "자동차 추돌 사고")
 
         assert captured["slots"] is slots
@@ -415,4 +415,4 @@ class TestRunAgent:
         import pytest as _pytest
 
         with _pytest.raises(RuntimeError, match="agent 내부 오류"):
-            svc.run_agent(make_auto_slot(), "질문")
+            svc.run_agent(make_accident_disease_slot(), "질문")

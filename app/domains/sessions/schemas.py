@@ -30,7 +30,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 SessionStatus = Literal["gathering", "analyzing", "answered", "closed"]
 """세션 상태 전이 — data-model.md § 상태 전이 와 동기화."""
 
-Area = Literal["auto", "fire", "accident_disease"]
+# 실손 전용 피벗(Sprint 27) 이후 accident_disease(상해·질병) 단일. auto/fire 폐기(PM-33).
+Area = Literal["accident_disease"]
 """허용된 영역 코드 — documents.models AREA_CODES 와 동기화."""
 
 LikelihoodLevel = Literal["높음", "중간", "낮음"]
@@ -93,20 +94,6 @@ class SlotState(BaseModel):
             except ValueError:
                 return None
         return value
-
-    # auto 전용
-    incident_type: str | None = Field(
-        default=None, description="추돌 / 단독 / 대물 / 대인"
-    )
-    fault_ratio: Annotated[int, Field(ge=0, le=100)] | None = None
-    damage_type: str | None = Field(default=None, description="자차 / 대물 / 대인")
-
-    # fire 전용
-    loss_type: str | None = Field(
-        default=None, description="전소 / 부분소실 / 도난 / 누수"
-    )
-    damaged_items: list[str] = Field(default_factory=list)
-    cause: str | None = None
 
     # accident_disease 전용
     diagnosis: str | None = None

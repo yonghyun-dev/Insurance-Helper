@@ -4,7 +4,7 @@ app/sessions/schemas.py 단위 테스트.
 
 테스트 대상:
     - SlotState._coerce_date: None / date / ISO 문자열 / 잘못된 문자열
-    - SlotState 필드 제약 (fault_ratio, hospitalization_days, outpatient_visits 경계값)
+    - SlotState 필드 제약 (hospitalization_days, outpatient_visits 경계값)
     - SlotState.unknown_slots: Sprint 6 신규 필드 (기본값, 유효 리스트)
     - Message 필드 제약 (content min_length=1, extra 금지)
     - AssistantAsk 필드 제약 (expected_slots min/max 1~2)
@@ -82,26 +82,6 @@ class TestSlotStateCoerceDate:
 
 class TestSlotStateFieldConstraints:
     """SlotState 개별 필드 제약 검증."""
-
-    def test_fault_ratio_zero_is_valid(self):
-        # fault_ratio = 0 → 유효 (ge=0)
-        slot = SlotState(area="auto", fault_ratio=0)
-        assert slot.fault_ratio == 0
-
-    def test_fault_ratio_hundred_is_valid(self):
-        # fault_ratio = 100 → 유효 (le=100)
-        slot = SlotState(area="auto", fault_ratio=100)
-        assert slot.fault_ratio == 100
-
-    def test_fault_ratio_over_max_raises_validation_error(self):
-        # fault_ratio = 101 → ValidationError
-        with pytest.raises(ValidationError):
-            SlotState(area="auto", fault_ratio=101)
-
-    def test_fault_ratio_negative_raises_validation_error(self):
-        # fault_ratio = -1 → ValidationError
-        with pytest.raises(ValidationError):
-            SlotState(area="auto", fault_ratio=-1)
 
     def test_hospitalization_days_zero_is_valid(self):
         # hospitalization_days = 0 → 유효
@@ -453,11 +433,11 @@ class TestSlotStateUnknownSlots:
     def test_unknown_slots_does_not_affect_other_fields(self):
         # unknown_slots 가 있어도 다른 필드 정상 동작
         slot = SlotState(
-            area="auto",
+            area="accident_disease",
             insurer="한화손해보험",
             unknown_slots=["product"],
         )
-        assert slot.area == "auto"
+        assert slot.area == "accident_disease"
         assert slot.insurer == "한화손해보험"
         assert slot.unknown_slots == ["product"]
 

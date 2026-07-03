@@ -57,19 +57,6 @@ class TestSlotStateNewFields:
 class TestComputeMissingPolicy:
     """_compute_missing 이 Sprint 17 신규 필드를 필수로 안 봄."""
 
-    def test_new_fields_not_required_for_auto(self):
-        s = SlotState(
-            area="auto",
-            insurer="hanwha",
-            product="auto_personal",
-            incident_date="2026-05-10",
-            incident_type="추돌",
-            fault_ratio=20,
-            damage_type="대물",
-        )
-        missing = _compute_missing(s)
-        assert missing == []
-
     def test_new_fields_not_required_for_accident_disease(self):
         s = SlotState(
             area="accident_disease",
@@ -92,7 +79,7 @@ class TestComputeMissingPolicy:
 class TestSlotStateRoundTrip:
     def test_dump_load_with_new_fields(self):
         s = SlotState(
-            area="auto",
+            area="accident_disease",
             insurer="hanwha",
             hospital="한강병원",
             claim_amount=500_000,
@@ -105,7 +92,7 @@ class TestSlotStateRoundTrip:
         assert loaded.document_metadata == {"key": "value"}
 
     def test_dump_minimal_excludes_default_empty_metadata(self):
-        s = SlotState(area="auto")
+        s = SlotState(area="accident_disease")
         dumped = s.model_dump(mode="json")
         assert dumped.get("document_metadata") == {}
         assert dumped.get("hospital") is None
@@ -163,7 +150,7 @@ class TestExtractSlotsLlmAcceptsNewFields:
         fake = _make_tool_response(
             {
                 "slot_updates": {
-                    "area": "auto",
+                    "area": "accident_disease",
                     "document_metadata": {"발급일": "2026-05-15", "의사명": "김의사"},
                 },
                 "unknown_slots": [],

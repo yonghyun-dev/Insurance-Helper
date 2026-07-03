@@ -17,7 +17,7 @@ from typing import Any
 
 from app.domains.rag.vector import VectorRetriever
 
-from tests.rag.conftest import make_auto_slot, make_empty_slot
+from tests.rag.conftest import make_accident_disease_slot, make_empty_slot
 
 # ---------------------------------------------------------------------------
 # 공통 fake adapter
@@ -78,7 +78,7 @@ class TestVectorRetrieverRetrieve:
         adapter = _FakeAdapter([_fake_result("c1"), _fake_result("c2")])
         retriever = VectorRetriever(adapter=adapter)
 
-        results = retriever.retrieve(make_auto_slot(), top_k=2)
+        results = retriever.retrieve(make_accident_disease_slot(), top_k=2)
 
         assert len(results) == 2
         for r in results:
@@ -88,7 +88,7 @@ class TestVectorRetrieverRetrieve:
         adapter = _FakeAdapter([_fake_result("chunk_x", score=0.9)])
         retriever = VectorRetriever(adapter=adapter)
 
-        results = retriever.retrieve(make_auto_slot(), top_k=1)
+        results = retriever.retrieve(make_accident_disease_slot(), top_k=1)
 
         assert results[0]["id"] == "chunk_x"
         assert results[0]["score"] == 0.9
@@ -98,17 +98,20 @@ class TestVectorRetrieverRetrieve:
     def test_retrieve_passes_correct_top_k(self):
         adapter = _FakeAdapter([])
         retriever = VectorRetriever(adapter=adapter)
-        retriever.retrieve(make_auto_slot(), top_k=5)
+        retriever.retrieve(make_accident_disease_slot(), top_k=5)
 
         assert adapter.captured["top_k"] == 5
 
     def test_retrieve_passes_filters_from_slots(self):
         adapter = _FakeAdapter([])
         retriever = VectorRetriever(adapter=adapter)
-        retriever.retrieve(make_auto_slot(), top_k=3)
+        retriever.retrieve(make_accident_disease_slot(), top_k=3)
 
-        # make_auto_slot() insurer="한화손해보험" → insurer_id "hanwha" 필터 포함
-        assert adapter.captured["filters"] == {"area": "auto", "insurer_id": "hanwha"}
+        # make_accident_disease_slot() insurer="현대해상" → insurer_id "hyundai" 필터 포함
+        assert adapter.captured["filters"] == {
+            "area": "accident_disease",
+            "insurer_id": "hyundai",
+        }
 
     def test_retrieve_empty_slot_passes_none_filters(self):
         adapter = _FakeAdapter([])
@@ -120,14 +123,14 @@ class TestVectorRetrieverRetrieve:
     def test_retrieve_returns_empty_when_search_empty(self):
         adapter = _FakeAdapter([])
         retriever = VectorRetriever(adapter=adapter)
-        results = retriever.retrieve(make_auto_slot(), top_k=8)
+        results = retriever.retrieve(make_accident_disease_slot(), top_k=8)
         assert results == []
 
     def test_retrieve_result_count_matches_raw(self):
         raw = [_fake_result(f"c{i}") for i in range(6)]
         adapter = _FakeAdapter(raw)
         retriever = VectorRetriever(adapter=adapter)
-        results = retriever.retrieve(make_auto_slot(), top_k=8)
+        results = retriever.retrieve(make_accident_disease_slot(), top_k=8)
         assert len(results) == 6
 
 
