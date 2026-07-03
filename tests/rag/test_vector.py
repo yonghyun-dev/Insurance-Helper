@@ -107,7 +107,8 @@ class TestVectorRetrieverRetrieve:
         retriever = VectorRetriever(adapter=adapter)
         retriever.retrieve(make_auto_slot(), top_k=3)
 
-        assert adapter.captured["filters"] == {"area": "auto"}
+        # make_auto_slot() insurer="한화손해보험" → insurer_id "hanwha" 필터 포함
+        assert adapter.captured["filters"] == {"area": "auto", "insurer_id": "hanwha"}
 
     def test_retrieve_empty_slot_passes_none_filters(self):
         adapter = _FakeAdapter([])

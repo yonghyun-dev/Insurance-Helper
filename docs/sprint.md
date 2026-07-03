@@ -13,47 +13,19 @@
 
 ---
 
-## ▶ 현재 작업 — Sprint 20~23: 프론트엔드 리디자인 통합 (REQ-15)
+## ▶ 현재 작업 — Sprint 28: 미정 (사용자 방향 대기)
 
-> 분석·결정 전체: `docs/pm/24_frontend-redesign-analysis.md` / 요구사항: `docs/requirements/15_*.md`
+Sprint 16·20~27 완료로 **국내화·실손 피벗·프론트 리디자인·에이전트 LangGraph 일원화**가 끝났다 (위 "스프린트 정보" 참조). **Sprint 28은 아직 정하지 않음.**
 
-- **목표**: 새 dfocus 디자인(목업)을 채택 + 기존 백엔드 연동 로직 이식 → "예쁘면서 동작하는" 프론트. 백엔드 없는 기능(서류체크리스트/청구요약/접수)은 신규 제작.
-- **확정 결정 (2026-06-15)**: ① 새 디자인+백엔드 이식 ② 전체 흐름(Welcome→Identity→Situation→Chat→Review) ③ 마이데이터/건강보험=받아온 가정(더미) ④ Identity=데모게이트+배경 자동로그인 ⑤ 서류체크리스트·청구요약=실 백엔드 신규 ⑥ 자동접수=가정 A(더미 접수완료) ⑦ frontend/ 교체 + frontend_legacy/ 백업
-- **소스**: 새 앱 `/home/edgar/dev/dfocus-frontend/insurance-helper-react` (clone 완료, gh: hypark-df)
-- **스프린트**: 20 골격이식+채팅 / 21 진입흐름+더미연동 / 22 백엔드신규+Review / 23 법적페이지+접근성+마무리
-- **현재 단계**: 분석 완료 → **설계 대기** (사용자 승인 후 진입)
-- **주의(채팅 모델 불일치)**: 새 디자인=시나리오 분기 / 백엔드=ask→assessment 루프 → ChatPage 재배선 필요 (하드코딩 scenarioMessages 제거)
+챔피언 제출 관점 후보 (감사 `docs/pm/23_champion-audit.md` + 제안서 미구현):
+- **데모 시연 안정화 + HTTPS** — 10 페르소나 데모 흐름 리허설·버그정리 + 라이브(http://20.249.12.56)에 TLS/도메인 (현재 HTTP)
+- **eval 정량 지표** — 심사용 "정확도 X%"(슬롯/응답유형/인용). 대조군 Bedrock LLM-as-judge (감사 H-2, 미완)
+- **제안서 미구현 차별화** — 준비도 스코어 시각화 + 구조화된 재청구 논리
+- **데이터/품질 잔여** — 감사 PM-23 Med 항목
 
----
+**시작 절차**: 방향 확정 → PM 분석문서 `docs/pm/32_*.md` → 작업 분해(T1~) → 구현.
 
-## ▷ 대기 작업 — Sprint 16: 국내 전용 LLM 마이그레이션
-
-> 빠른 파악용 요약은 루트 `CLAUDE.md` §3 참조. 인프라 접속·키는 `docs/infra/llm-access.md`.
-
-- **목표**: 핵심 추론·임베딩·OCR 을 **국내 AI 모델로 전환**한다.
-- **[하드 제약]** 제품·심사 전 영역 국내 모델만. OpenAI/AWS Bedrock 등 해외 모델 제품 배제 (Bedrock = 오프라인 eval 대조군만).
-- **확정 결정 (2026-06-14)**:
-  - 헤드라인 = **Upstage Solar (solar-pro2)** — Function Calling + strict JSON 라이브 검증 통과
-  - 임베딩 = **Upstage solar-embedding (4096-d)** — 현행 OpenAI 1536 대체
-  - 보조 = **EXAONE**(국내 추론), eval 대조군 = Bedrock Claude
-- **트랙 (순서대로)**:
-  - **1a LLM** — provider 추상화(Upstage base_url) + Solar 헤드라인 + OpenAI 호출 제거. **← 여기부터 시작**
-  - **1b 임베딩** — Upstage 4096-d + **전체 재인덱싱** + `vector(1536→4096)`/HNSW 재생성 + Chroma 재구축 + alembic (**최대 리스크**)
-  - **1c OCR** — `UpstageAdapter` stub→실구현
-- **완료 기준**:
-  1. `RAG_*`/provider env 토글로 Solar 가 핵심 추론(슬롯/질문/평가) 수행, OpenAI 호출 0 (제품 경로)
-  2. Upstage 임베딩으로 재인덱싱 완료 + 벡터 검색 정상 (스키마 `vector(4096)`)
-  3. OCR Upstage 전환 (또는 토글로 선택)
-  4. 회귀 0 (기존 1100 tests 통과 — mock 경계 갱신 포함)
-  5. eval 대조군(Bedrock) 분리 유지, 제품 경로 해외모델 0
-- **시작 절차**: PM 분석문서 `docs/pm/24_sprint16-*.md` 작성 → 1a 작업 분해(T1~) → 구현.
-- **손댈 핵심 파일** (현재 전부 `OpenAI(api_key=...)` base_url 없이 호출):
-  `app/sessions/llm.py` · `app/embeddings/service.py` · `app/rag/react.py` · `app/rag/graph.py` · `app/external/ocr/adapter.py`
-
-### 이후 우선순위 (감사 PM-23)
-2 데모 안정화(C-1 에이전트 기본 토글 / C-3 tool 예외 graceful) → 3 Frontend 로그인 UI(H-1) → 4 eval 정량화(H-2) → 5 데이터 품질(M-1/M-3). Sprint 19(약관 자동적재)는 후순위.
-
-> 완료된 과거 스프린트(1~18)의 단계·완료기준·검증결과는 아래 **스프린트 히스토리** 표에 정리되어 있다. Sprint 16 의 단계/완료기준은 위 "▶ 현재 작업" 절을 따른다.
+> 완료된 과거 스프린트(1~27)의 상세는 위 "스프린트 정보" 요약 + 아래 **스프린트 히스토리** 표 참조.
 
 ## 중간 추가 요청 (파킹랏)
 

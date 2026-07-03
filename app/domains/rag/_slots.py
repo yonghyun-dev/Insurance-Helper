@@ -14,12 +14,45 @@ from typing import Any
 from app.domains.sessions.schemas import SlotState
 
 
+# 한글 보험사명(및 흔한 변형) → data/raw 폴더 코드(insurer_id).
+# 벡터 메타의 insurer_id 와 일치시켜 "가입 보험사가 아닌 다른 보험사 약관 인용"을 차단한다.
+# 실손 전용 5개 손보사 (Sprint 27). 신규 보험사 적재 시 여기 추가.
+_INSURER_NAME_TO_CODE: dict[str, str] = {
+    "삼성화재": "samsung",
+    "현대해상": "hyundai",
+    "메리츠화재": "meritz",
+    "메리츠": "meritz",
+    "한화손해보험": "hanwha",
+    "한화손보": "hanwha",
+    "롯데손해보험": "lotte",
+    "롯데손보": "lotte",
+}
+
+
+def insurer_to_code(insurer: str | None) -> str | None:
+    """한글 보험사명 → insurer_id 코드. 매핑 실패 시 None (필터 미적용).
+
+    정확 매칭 우선, 실패 시 부분 매칭("삼성화재해상보험" → samsung).
+    """
+    if not insurer:
+        return None
+    name = insurer.strip()
+    if name in _INSURER_NAME_TO_CODE:
+        return _INSURER_NAME_TO_CODE[name]
+    for key, code in _INSURER_NAME_TO_CODE.items():
+        if key in name:
+            return code
+    return None
+
+
 def slots_to_query(slots: SlotState) -> str:
     """슬롯을 자연어 검색 쿼리로 변환.
 
     PoC: 단순 영역별 dump. Sprint 5+ 에서 LLM 으로 자연어 쿼리 합성 검토.
     """
     parts: list[str] = []
+    if slots.insurer:
+        parts.append(slots.insurer)
     if slots.area == "auto":
         parts.append(
             f"자동차 사고 {slots.incident_type or ''} {slots.damage_type or ''}".strip()
@@ -35,16 +68,17 @@ def slots_to_query(slots: SlotState) -> str:
 
 
 def slots_to_filters(slots: SlotState) -> dict[str, Any] | None:
-    """슬롯에서 Chroma where 필터 생성 (None 값 제외).
+    """슬롯에서 검색 where 필터 생성 (None 값 제외).
 
-    PoC 한계 — `insurer` 필터 미적용:
-        slots.insurer 는 LLM 이 사용자 자연어에서 추출한 한글 보험사명(예: "한화손해보험")이고,
-        Chroma 메타의 `insurer_id` 는 폴더명 코드(예: "hanwha") 라 그대로 매칭되지 않는다.
-        Sprint 5+ 에서 한글명↔코드 매핑 테이블 도입 시 본 함수에 `insurer_id` 필터 추가할 것.
+    area + insurer_id(코드) 로 필터. 다중 키가 될 수 있으므로, Chroma 어댑터는
+    2개 이상 키를 `$and` 로 감싸 처리한다 (search.service.similarity_search).
     """
     f: dict[str, Any] = {}
     if slots.area:
         f["area"] = slots.area
+    code = insurer_to_code(slots.insurer)
+    if code:
+        f["insurer_id"] = code
     return f or None
 
 

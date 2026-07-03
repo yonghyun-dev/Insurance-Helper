@@ -135,6 +135,19 @@ def delete_by_document(document_id: int) -> int:
         raise StorageError(f"Chroma 삭제 실패 (document_id={document_id}): {exc}") from exc
 
 
+def _to_chroma_where(filters: dict[str, Any] | None) -> dict[str, Any] | None:
+    """필터 dict → Chroma where. 키 2개 이상이면 `$and` 로 감싼다.
+
+    Chroma 0.5+ 는 where 에 연산자 1개만 허용하므로 {"area":..,"insurer_id":..}
+    같은 다중 키는 ValueError 가 난다. 단일 키는 그대로, 2개 이상은 $and 리스트로.
+    """
+    if not filters:
+        return None
+    if len(filters) == 1:
+        return filters
+    return {"$and": [{k: v} for k, v in filters.items()]}
+
+
 def similarity_search(
     query_text: str,
     top_k: int = 8,
@@ -145,7 +158,8 @@ def similarity_search(
     Args:
         query_text: 검색 자연어.
         top_k: 반환 개수.
-        filters: Chroma where 필터 (예: {"area": "auto"}).
+        filters: where 필터 (예: {"area": "auto"} 또는 {"area":.., "insurer_id":..}).
+            다중 키는 내부에서 Chroma `$and` 로 변환된다.
 
     Returns:
         결과 리스트. 각 항목은 {id, text, score, metadata}.
@@ -160,7 +174,7 @@ def similarity_search(
         result = collection.query(
             query_embeddings=[query_emb],
             n_results=top_k,
-            where=filters or None,
+            where=_to_chroma_where(filters),
             include=["documents", "metadatas", "distances"],
         )
     except Exception as exc:

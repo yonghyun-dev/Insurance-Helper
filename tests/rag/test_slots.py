@@ -127,16 +127,22 @@ class TestSlotsToFilters:
         filters = slots_to_filters(slots)
         assert filters is None
 
-    def test_insurer_not_included_in_filter(self):
-        """insurer 는 코드/한글 불일치 — 필터에 포함되지 않음."""
+    def test_insurer_mapped_to_code_in_filter(self):
+        """한글 보험사명은 insurer_id 코드로 매핑되어 필터에 포함된다 (타 보험사 약관 인용 차단)."""
         slots = make_auto_slot(insurer="한화손해보험")
         filters = slots_to_filters(slots)
-        assert "insurer" not in (filters or {})
-        assert "insurer_id" not in (filters or {})
+        assert filters is not None
+        assert filters["insurer_id"] == "hanwha"
 
-    def test_returns_dict_with_only_area_key(self):
-        """현재 구현은 area 만 필터링."""
-        slots = make_auto_slot()
+    def test_returns_area_and_insurer_id(self):
+        """area + insurer_id(코드) 를 함께 필터링."""
+        slots = make_auto_slot()  # insurer="한화손해보험"
+        filters = slots_to_filters(slots)
+        assert filters == {"area": "auto", "insurer_id": "hanwha"}
+
+    def test_unmapped_insurer_omits_insurer_id(self):
+        """매핑 안 되는 보험사명이면 insurer_id 미포함 (area 만)."""
+        slots = make_auto_slot(insurer="알수없는보험")
         filters = slots_to_filters(slots)
         assert filters == {"area": "auto"}
 

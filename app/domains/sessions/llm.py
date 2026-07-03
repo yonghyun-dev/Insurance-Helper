@@ -609,6 +609,39 @@ def _prepare_chunks(chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
+# 영문 슬롯 필드명 → 사용자 노출용 한글 라벨.
+# LLM 이 unsatisfied/next_steps 에 "policy_no을(를)..." 처럼 영문 필드명을 그대로
+# 적는 경우가 있어, 응답 텍스트에서 한글로 치환한다 (사용자 노출 품질).
+_SLOT_LABELS: dict[str, str] = {
+    "policy_no": "증권번호",
+    "claim_amount": "청구 금액",
+    "incident_location": "사고 장소",
+    "incident_date": "사고 발생일",
+    "diagnosis_code": "진단코드",
+    "diagnosis": "진단명",
+    "hospitalization_days": "입원 일수",
+    "outpatient_visits": "외래 진료 횟수",
+    "treatment_period": "치료 기간",
+    "hospital": "병원명",
+    "insurer": "보험사",
+    "product": "상품명",
+    "incident_type": "사고 유형",
+    "damage_type": "손해 유형",
+    "loss_type": "손해 종류",
+    "fault_ratio": "과실 비율",
+}
+# 긴 키 우선 치환 (diagnosis_code 를 diagnosis 보다 먼저) — 부분 치환 방지.
+_SLOT_LABELS_ORDERED: list[str] = sorted(_SLOT_LABELS, key=len, reverse=True)
+
+
+def _localize_slot_names(text: str) -> str:
+    """응답 문자열의 영문 슬롯 필드명을 한글 라벨로 치환."""
+    for key in _SLOT_LABELS_ORDERED:
+        if key in text:
+            text = text.replace(key, _SLOT_LABELS[key])
+    return text
+
+
 def _build_assessment(
     raw: dict[str, Any],
     *,
@@ -648,11 +681,11 @@ def _build_assessment(
             citations = _hydrate_citation_urls(citations, chunks)
         assessment = AssistantAssessment(
             likelihood=raw["likelihood"],
-            summary=raw["summary"],
-            satisfied=raw.get("satisfied", []),
-            unsatisfied=raw.get("unsatisfied", []),
+            summary=_localize_slot_names(raw["summary"]),
+            satisfied=[_localize_slot_names(s) for s in raw.get("satisfied", [])],
+            unsatisfied=[_localize_slot_names(s) for s in raw.get("unsatisfied", [])],
             citations=citations,
-            next_steps=raw.get("next_steps", []),
+            next_steps=[_localize_slot_names(s) for s in raw.get("next_steps", [])],
             confidence=raw.get("confidence", "full"),  # Sprint 6 — backward-compat default
             disclaimer=raw["disclaimer"],
         )
