@@ -123,6 +123,17 @@ export async function getSessionState(
   return api<SessionStateResponse>(`/sessions/${sessionId}`);
 }
 
+/** 구조화 슬롯 결정론 seed (PM-33). 마이데이터/건강보험 구조화 데이터를 자연어 왕복 없이 직접 세팅. */
+export async function seedSlots(
+  sessionId: string,
+  seed: Record<string, unknown>,
+): Promise<void> {
+  await api<unknown>(`/sessions/${sessionId}/slots`, {
+    method: 'POST',
+    body: JSON.stringify(seed),
+  });
+}
+
 export async function closeSession(sessionId: string): Promise<void> {
   await api<void>(`/sessions/${sessionId}`, { method: 'DELETE' });
 }

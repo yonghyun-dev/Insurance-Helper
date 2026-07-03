@@ -76,7 +76,9 @@ def slots_to_filters(slots: SlotState) -> dict[str, Any] | None:
     f: dict[str, Any] = {}
     if slots.area:
         f["area"] = slots.area
-    code = insurer_to_code(slots.insurer)
+    # 구조화 seed(마이데이터)가 insurer_id 를 직접 채웠으면 그대로 사용 — 매핑 불필요.
+    # 순수 자연어 흐름(한글명만)에선 name→code 폴백.
+    code = slots.insurer_id or insurer_to_code(slots.insurer)
     if code:
         f["insurer_id"] = code
     return f or None

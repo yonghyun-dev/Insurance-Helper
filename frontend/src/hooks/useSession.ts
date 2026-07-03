@@ -8,6 +8,7 @@ import {
   createSession,
   getSessionState,
   postMessage,
+  seedSlots,
   closeSession,
   uploadDocument,
 } from '../api/client';
@@ -141,7 +142,7 @@ export function useSession() {
   }, []);
 
   // ─── 메시지 전송 (자동 복구 포함) ───
-  const sendMessage = useCallback(async (text: string) => {
+  const sendMessage = useCallback(async (text: string, seed?: Record<string, unknown>) => {
     const trimmed = text.trim();
     if (!trimmed || isSending) return;
 
@@ -163,19 +164,32 @@ export function useSession() {
       let sid = sessionId ?? sessionStorage.getItem(STORAGE_KEY);
 
       if (!sid) {
-        // 세션 없음 → POST /sessions { initial_message: text }
-        const created = await createSession(trimmed);
-        sessionStorage.setItem(STORAGE_KEY, created.session_id);
-        setSessionId(created.session_id);
-        if (created.first_response) {
-          ingestResponse(created.first_response);
+        if (seed) {
+          // 구조화 seed 흐름(PM-33): 빈 세션 생성 → 슬롯 결정론 seed → 메시지.
+          // 마이데이터/건강보험 데이터를 자연어 왕복 없이 직접 세팅.
+          const created = await createSession();
+          sid = created.session_id;
+          sessionStorage.setItem(STORAGE_KEY, sid);
+          setSessionId(sid);
+          await seedSlots(sid, seed);
+          const r = await postMessage(sid, trimmed);
+          ingestResponse(r);
         } else {
-          // first_response 가 null 인 경우는 명세상 없지만 안전망
-          setMessages(prev => prev.filter(m => m.id !== loadingId));
+          // 세션 없음 → POST /sessions { initial_message: text }
+          const created = await createSession(trimmed);
+          sessionStorage.setItem(STORAGE_KEY, created.session_id);
+          setSessionId(created.session_id);
+          if (created.first_response) {
+            ingestResponse(created.first_response);
+          } else {
+            // first_response 가 null 인 경우는 명세상 없지만 안전망
+            setMessages(prev => prev.filter(m => m.id !== loadingId));
+          }
         }
       } else {
-        // 세션 있음 → POST /sessions/{id}/messages
+        // 세션 있음 → (seed 있으면 먼저 결정론 seed) → POST /sessions/{id}/messages
         try {
+          if (seed) await seedSlots(sid, seed);
           const r = await postMessage(sid, trimmed);
           ingestResponse(r);
         } catch (e) {

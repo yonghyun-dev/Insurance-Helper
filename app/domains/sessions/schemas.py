@@ -68,6 +68,9 @@ class SlotState(BaseModel):
     # 공통 (모든 영역)
     area: Area | None = None
     insurer: str | None = None
+    # 보험사 코드(예: "samsung"). 마이데이터/구조화 seed 가 채우면 검색이 한글명→코드
+    # 매핑 없이 이 값으로 직접 필터링한다. 순수 자연어 흐름에선 None (name→code 폴백).
+    insurer_id: str | None = Field(default=None, description="보험사 코드 (data/raw 폴더명)")
     product: str | None = None
     version: str | None = None
     incident_date: date | None = None
@@ -184,6 +187,40 @@ class MessageRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     text: str = Field(..., min_length=1, description="사용자 자연어 입력")
+
+
+class SlotSeedRequest(BaseModel):
+    """POST /sessions/{id}/slots 요청 — 구조화 슬롯 결정론 seed (PM-33 Track A).
+
+    마이데이터/건강보험/OCR 의 구조화 데이터를 자연어 왕복 없이 직접 세팅한다.
+    모든 필드 옵셔널. 값 있는 것만 병합. extra 는 무시(프론트 여유).
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    insurer: str | None = None
+    insurer_id: str | None = None
+    product: str | None = None
+    policy_no: str | None = None
+    area: Area | None = None
+    incident_date: date | None = None
+    diagnosis: str | None = None
+    diagnosis_code: str | None = None
+    hospital: str | None = None
+    hospitalization_days: int | None = None
+    outpatient_visits: int | None = None
+    treatment_period: str | None = None
+    claim_amount: int | None = None
+    incident_location: str | None = None
+
+
+class SlotSeedResponse(BaseModel):
+    """slots seed 결과 — 병합 후 슬롯 + 아직 부족한 필수 슬롯."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    slots: SlotState
+    missing: list[str]
 
 
 # ---------------------------------------------------------------------------

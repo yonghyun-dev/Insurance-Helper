@@ -31,6 +31,8 @@ from app.domains.sessions.schemas import (
     SessionCreate,
     SessionResponse,
     SessionStatus,
+    SlotSeedRequest,
+    SlotSeedResponse,
     SlotState,
 )
 from app.domains.sessions.service import SessionNotFoundError
@@ -155,6 +157,23 @@ def post_message(
     except LLMError as exc:
         logger.error("post_message LLM 실패: %s", exc)
         raise _error("LLM_UNAVAILABLE", _MSG_LLM_UNAVAILABLE, http=503) from exc
+
+
+@router.post("/{session_id}/slots", response_model=SlotSeedResponse)
+def seed_slots(
+    session_id: str,
+    payload: SlotSeedRequest,
+) -> SlotSeedResponse:
+    """구조화 슬롯 결정론 seed (PM-33 Track A).
+
+    마이데이터/건강보험/OCR 의 구조화 데이터(insurer_id·policy_no·진료내역)를 자연어
+    왕복 없이 직접 세션 슬롯에 병합한다. LLM 미거침 — 코드 유실·재질문·추출 변동성 제거.
+    비로그인 흐름에도 영향 없음(호출 안 하면 기존 동작).
+    """
+    try:
+        return service.seed_slots(session_id, payload.model_dump(exclude_none=True))
+    except SessionNotFoundError as exc:
+        raise _error("SESSION_NOT_FOUND", _MSG_SESSION_NOT_FOUND, http=404) from exc
 
 
 @router.get("/{session_id}", response_model=SessionStateResponse)

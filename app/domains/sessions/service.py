@@ -39,6 +39,7 @@ from app.domains.sessions.schemas import (
     Message,
     Session,
     SessionResponse,
+    SlotSeedResponse,
     SlotState,
 )
 from app.domains.sessions.store import get_session_store
@@ -351,6 +352,41 @@ def post_message(
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+def seed_slots(session_id: str, updates: dict[str, Any]) -> SlotSeedResponse:
+    """구조화 슬롯을 결정론적으로 세션에 병합한다 (LLM 미거침).
+
+    마이데이터/건강보험/OCR 처럼 이미 구조화된 데이터(insurer_id·policy_no·진료내역)를
+    자연어로 flatten → LLM 재추출 하지 않고 직접 슬롯에 세팅한다. 이로써 코드 유실·
+    재질문·추출 변동성을 근본 제거한다 (PM-33 Track A).
+
+    Args:
+        session_id: 기존 세션 id
+        updates: SlotState 필드명→값. 알 수 없는 키/빈 값은 무시(기존 값 보존).
+
+    Returns:
+        SlotSeedResponse — 병합 후 슬롯 + 아직 부족한 필수 슬롯
+
+    Raises:
+        SessionNotFoundError: 세션 없음/만료
+    """
+    store = get_session_store()
+    session = store.get(session_id)
+    if session is None:
+        raise SessionNotFoundError(f"세션 없음 또는 만료: {session_id}")
+
+    valid_fields = set(SlotState.model_fields)
+    clean = {
+        k: v
+        for k, v in updates.items()
+        if k in valid_fields and v not in (None, "", [])
+    }
+    if clean:
+        session.slots = _merge_slots(session.slots, clean)
+        logger.info("seed_slots: %d 필드 결정론 병합 (session=%s)", len(clean), session_id)
+    store.touch(session, status="gathering")
+    return SlotSeedResponse(slots=session.slots, missing=_compute_missing(session.slots))
 
 
 def _merge_slots(current: SlotState, updates: dict[str, Any]) -> SlotState:

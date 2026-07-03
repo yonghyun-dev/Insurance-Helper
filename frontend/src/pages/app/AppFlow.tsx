@@ -27,18 +27,29 @@ export default function AppFlow() {
     sentRef.current = true;
     void (async () => {
       let prefix = '';
+      let seed: Record<string, unknown> | undefined;
       try {
         await demoLogin(user.name, user.phone);
         const ins = await fetchInsurances();
         if (ins.length > 0) {
+          // PM-33: 구조화 데이터를 자연어로 왕복시키지 않고 seed 로 직접 전달.
+          // insurer_id/policy_no 가 유실 없이 슬롯에 세팅됨(검색 보험사 필터·재질문 제거).
+          const primary = ins[0];
+          seed = {
+            insurer_id: primary.insurer_id,
+            insurer: primary.insurer_name,
+            product: primary.product_name,
+            policy_no: primary.policy_no,
+            area: 'accident_disease',
+          };
           const names = ins.map((i) => `${i.insurer_name} ${i.product_name}`).join(', ');
-          prefix = `${names}에 가입되어 있어요. `;
+          prefix = `${names}에 가입되어 있어요. `; // 채팅 표시용 (슬롯은 seed 가 결정론 세팅)
           session.pushToast('info', `마이데이터에서 가입 보험 ${ins.length}건을 불러왔어요.`);
         }
       } catch {
         // 로그인/조회 실패 — 보험 컨텍스트 없이 진행(익명 흐름 정상).
       }
-      void session.sendMessage(prefix + situation.trim());
+      void session.sendMessage(prefix + situation.trim(), seed);
     })();
   }, [stage, situation, session, user]);
 
