@@ -261,14 +261,15 @@ export default function ChatPage({ user, session, onReset, onOpenReview }: ChatP
 
         <ChatStream ref={streamRef}>{messages.map(renderMessage)}</ChatStream>
 
-        {hasAssessment ? (
-          <button type="button" className={s.reviewCta} onClick={onOpenReview}>
-            청구 준비 화면으로 보기
-            <Icon name="arrow-right" size={16} />
-          </button>
-        ) : null}
-
-        <HealthHistoryPanel onSelect={handleSelectTreatment} pushToast={pushToast} />
+        <div className={s.actionBar}>
+          <HealthHistoryPanel onSelect={handleSelectTreatment} pushToast={pushToast} />
+          {hasAssessment ? (
+            <button type="button" className={s.reviewCta} onClick={onOpenReview}>
+              청구 준비 화면으로 보기
+              <Icon name="arrow-right" size={16} />
+            </button>
+          ) : null}
+        </div>
 
         <Composer
           onSend={(t) => void sendMessage(t)}

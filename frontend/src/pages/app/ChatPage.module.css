@@ -95,13 +95,21 @@
   color: var(--text-secondary);
 }
 
+/* 컴포저 바로 위 액션 바 — 진료내역(보조) 왼쪽 · 청구준비(주요) 오른쪽 한 줄 */
+.actionBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 2px 0 8px;
+}
+
 .reviewCta {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  align-self: flex-start;
-  margin-bottom: 10px;
-  padding: 10px 18px;
+  margin-left: auto;
+  padding: 9px 16px;
   border: none;
   border-radius: 999px;
   background: var(--blue-60);
@@ -109,6 +117,12 @@
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+  box-shadow: 0 2px 8px rgba(15, 98, 254, 0.28);
+  transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
+}
+
+.reviewCta:active {
+  transform: translateY(1px);
 }
 
 .reviewCta:hover {
