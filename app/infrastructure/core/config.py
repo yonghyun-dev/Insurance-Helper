@@ -135,10 +135,7 @@ class Settings(BaseSettings):
     prometheus_enabled: bool = Field(default=True)
 
     # Sprint 9 — 외부 API 어댑터 인증 (운영자 발급)
-    law_go_kr_oc: str = Field(
-        default="",
-        description="국가법령정보센터 OC (회원가입 + 신청 1~2일). 빈 값이면 lookup_law_clause 비활성",
-    )
+    # law_go_kr_oc 는 lookup_law_clause(auto 성격) 제거로 삭제(PM-34).
     data_go_kr_service_key: str = Field(
         default="",
         description="공공데이터포털 serviceKey (HIRA 진단코드 등). 빈 값이면 hira 비활성",

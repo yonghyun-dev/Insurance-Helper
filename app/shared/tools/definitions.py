@@ -6,7 +6,7 @@
 Sprint 11 ReAct 본격 활성화의 핵심 — LLM 이 본 정의를 받고 자가 라우팅.
 
 설계 참고:
-    - docs/design/agent-architecture.md § 3.3 tool 카탈로그 (8 tool)
+    - docs/design/agent-architecture.md § 3.3 tool 카탈로그 (실손 4 tool)
     - docs/design/external-apis.md § 1.5 / 2.4 / 3.3 / 4.2 (외부 tool 정의)
 
 구조:
@@ -62,31 +62,6 @@ SEARCH_TERMS: ToolDef = {
 # 외부 read-only tool (Sprint 9)
 # ---------------------------------------------------------------------------
 
-LOOKUP_LAW_CLAUSE: ToolDef = {
-    "type": "function",
-    "function": {
-        "name": "lookup_law_clause",
-        "description": (
-            "국가법령정보센터 (law.go.kr) 에서 법령 조항을 검색해 본문과 출처 URL 을 반환. "
-            "약관에 명시되지 않은 법적 권리 안내 시 호출. 모든 영역에서 권장."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "law_name": {
-                    "type": "string",
-                    "description": "법령명 (예: '보험업법', '상법', '자동차손해배상보장법')",
-                },
-                "keyword_or_article": {
-                    "type": "string",
-                    "description": "검색 키워드 또는 조항 번호 (예: '계약 해지' 또는 '제4조')",
-                },
-            },
-            "required": ["law_name", "keyword_or_article"],
-        },
-    },
-}
-
 GET_DISEASE_CODE: ToolDef = {
     "type": "function",
     "function": {
@@ -111,39 +86,6 @@ GET_DISEASE_CODE: ToolDef = {
 # ---------------------------------------------------------------------------
 # Deterministic Python tool (Sprint 10 — 이미 구현)
 # ---------------------------------------------------------------------------
-
-CALC_CLAIM_AMOUNT: ToolDef = {
-    "type": "function",
-    "function": {
-        "name": "calc_claim_amount",
-        "description": (
-            "보험금 deterministic 산정 = max(0, 손해액 × (1 - 과실비율/100) - 자기부담금). "
-            "LLM 산수 환각 회피. 청구 금액 산정이 필요할 때 호출."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "loss_amount": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "description": "손해액 (원)",
-                },
-                "fault_ratio": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 100,
-                    "description": "본인 과실비율 (0~100, 기본 0)",
-                },
-                "deductible": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "description": "자기부담금 (원, 기본 0)",
-                },
-            },
-            "required": ["loss_amount"],
-        },
-    },
-}
 
 VALIDATE_COVERAGE_PERIOD: ToolDef = {
     "type": "function",
@@ -208,12 +150,11 @@ FINISH: ToolDef = {
 # 전체 tool 카탈로그
 # ---------------------------------------------------------------------------
 
-# 실손 전용 피벗(PM-33) — auto/fire tool(get_fault_ratio_standard/get_product_meta) 제거.
+# 실손 전용 피벗 — auto/fire tool(get_fault_ratio_standard/get_product_meta) 제거(PM-33),
+# auto 성격 tool(lookup_law_clause[자동차손배법]·calc_claim_amount[과실모델]) 추가 제거(PM-34).
 ALL_TOOLS: list[ToolDef] = [
     SEARCH_TERMS,
-    LOOKUP_LAW_CLAUSE,
     GET_DISEASE_CODE,
-    CALC_CLAIM_AMOUNT,
     VALIDATE_COVERAGE_PERIOD,
     FINISH,
 ]
@@ -229,9 +170,7 @@ TOOLS_BY_AREA: dict[Area, dict[str, list[str]]] = {
     "accident_disease": {
         "mandatory": ["search_terms", "validate_coverage_period"],
         "recommended": [
-            "lookup_law_clause",
             "get_disease_code",
-            "calc_claim_amount",
         ],
     },
 }

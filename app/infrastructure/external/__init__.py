@@ -1,12 +1,15 @@
 """app.infrastructure.external
 
-Sprint 9~10 — 외부 read-only tool 어댑터 다발.
+외부 read-only tool 어댑터 다발 (실손 전용).
 
 도메인:
-    - law: 국가법령정보센터 (law.go.kr) — 보험업법·상법 조항 lookup
     - hira: 건강보험심사평가원 (HIRA, data.go.kr) — KCD 진단코드 변환
-    - kidi: 손해보험협회 (KIDI) — 표준 과실비율 정적 데이터셋
-    - fss: 금융감독원 공시실 — 보험상품 약관 PDF 크롤링 (Sprint 10)
+    - mydata: 마이데이터 (가입 보험 구조화 조회, 샘플)
+    - health_data: 건강보험공단 진료내역 (샘플)
+    - ocr: Upstage Document OCR (서류 파싱)
+
+참고: law(국가법령정보센터)·kidi(과실비율)·fss(상품공시)는 auto/fire 전용이라
+      실손 피벗에서 제거됨(PM-33/34).
 
 공통 정책:
     - httpx 직접 사용 (MCP 미사용)

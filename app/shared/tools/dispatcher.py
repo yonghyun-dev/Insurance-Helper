@@ -7,10 +7,9 @@
     - docs/design/agent-architecture.md § 3.2 ReAct loop
     - docs/design/external-apis.md (외부 API 어댑터 호출 패턴)
 
-단계적 활성화:
-    - Sprint 10 (현재): deterministic 2 tool (calc, validate) + search_terms (기존) 활성.
-      외부 tool 4종 (law/hira/kidi/fss) 은 stub — "not implemented" 반환
-    - Sprint 11: 외부 어댑터 실 구현 후 활성
+활성 tool (실손 전용, PM-34):
+    - search_terms (RAG 벡터검색) · validate_coverage_period (보장기간 검증, deterministic)
+    - get_disease_code (HIRA, serviceKey 발급 대기 → stub) · finish (ReAct 종료)
 
 호출 패턴 (Sprint 11 ReAct):
     tool_call = llm_response.choices[0].message.tool_calls[0]
@@ -25,7 +24,7 @@ from datetime import date
 from time import perf_counter
 from typing import Any
 
-from app.shared.tools.calc import calc_claim_amount, validate_coverage_period
+from app.shared.tools.calc import validate_coverage_period
 from app.shared.tools.definitions import tool_names
 
 logger = logging.getLogger(__name__)
@@ -77,15 +76,7 @@ def _dispatch(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
     if tool_name not in tool_names():
         raise ToolNotFoundError(f"정의되지 않은 tool: {tool_name}")
 
-    # Sprint 10 활성 — deterministic tools
-    if tool_name == "calc_claim_amount":
-        result = calc_claim_amount(
-            loss_amount=args["loss_amount"],
-            fault_ratio=args.get("fault_ratio", 0),
-            deductible=args.get("deductible", 0),
-        )
-        return result.model_dump()
-
+    # Sprint 10 활성 — deterministic tool
     if tool_name == "validate_coverage_period":
         result = validate_coverage_period(
             incident_date=_parse_iso_date(args["incident_date"]),
@@ -116,17 +107,9 @@ def _dispatch(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
         ]
         return {"chunks": compact, "count": len(compact)}
 
-    # 외부 어댑터 — law / hira 는 어댑터 골격만(OC/serviceKey 발급 대기 → NotConfiguredError).
-    # (get_fault_ratio_standard[KIDI]·get_product_meta[fss] 는 auto/fire 전용이라 PM-33 에서 제거)
-    if tool_name == "lookup_law_clause":
-        from app.infrastructure.external.law import LawNotConfiguredError, lookup_clause
-
-        try:
-            result = lookup_clause(args["law_name"], args["keyword_or_article"])
-        except LawNotConfiguredError as exc:
-            raise ToolNotImplementedError(str(exc)) from exc
-        return result.model_dump() if result else {"matched": False}
-
+    # 외부 어댑터 — hira 는 어댑터 골격만(serviceKey 발급 대기 → NotConfiguredError).
+    # (auto/fire 전용 tool: get_fault_ratio_standard[KIDI]·get_product_meta[fss] PM-33 제거,
+    #  lookup_law_clause[law]·calc_claim_amount PM-34 제거 — 실손 무관)
     if tool_name == "get_disease_code":
         from app.infrastructure.external.hira import HiraNotConfiguredError, lookup_by_name
 

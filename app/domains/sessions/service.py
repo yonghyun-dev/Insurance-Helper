@@ -54,9 +54,8 @@ class SessionNotFoundError(Exception):
 
 
 # 외부 공공 API 어댑터에 연결된 tool — audit.external_api_calls trace 분류용.
-_EXTERNAL_API_TOOLS: frozenset[str] = frozenset(
-    {"lookup_law_clause", "get_disease_code", "get_fault_ratio_standard", "get_product_meta"}
-)
+# 실손 전용: HIRA 진단코드만 유지 (law/kidi/fss auto tool 은 PM-33/34 제거).
+_EXTERNAL_API_TOOLS: frozenset[str] = frozenset({"get_disease_code"})
 
 
 # ---------------------------------------------------------------------------

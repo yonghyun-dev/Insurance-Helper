@@ -6,8 +6,10 @@
 Sprint 10 신규 — 뉴로심볼릭 아키텍처의 symbolic 부분.
 
 주요 함수:
-    - calc_claim_amount(loss_amount, fault_ratio, deductible) -> ClaimAmountResult
     - validate_coverage_period(incident_date, policy_start, policy_end) -> CoverageValidation
+
+참고: calc_claim_amount(과실비율 기반 산정)은 실손 전용 피벗에서 제거됨(PM-34).
+      실손은 과실 개념이 없고 급여/비급여 자기부담률 구조라 자동차 과실모델과 무관.
 
 설계 참고:
     - docs/design/agent-architecture.md § 3.3 tool 카탈로그
@@ -25,84 +27,6 @@ from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
-
-# ---------------------------------------------------------------------------
-# calc_claim_amount
-# ---------------------------------------------------------------------------
-
-
-class ClaimAmountResult(BaseModel):
-    """보험금 산정 결과.
-
-    공식: paid_amount = max(0, loss_amount * (1 - fault_ratio/100) - deductible)
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    paid_amount: int = Field(ge=0, description="지급 보험금 (원)")
-    loss_amount: int = Field(ge=0, description="입력 손해액 (원)")
-    fault_ratio: int = Field(ge=0, le=100, description="입력 과실비율 (0~100)")
-    deductible: int = Field(ge=0, description="입력 자기부담금 (원)")
-    formula: str = Field(description="적용한 산정 공식 (사용자에게 표시)")
-    note: str | None = Field(
-        default=None, description="특이사항 (예: 자기부담금이 더 커서 지급 0)"
-    )
-
-
-def calc_claim_amount(
-    loss_amount: int,
-    fault_ratio: int = 0,
-    deductible: int = 0,
-) -> ClaimAmountResult:
-    """보험금 deterministic 산정.
-
-    Args:
-        loss_amount: 손해액 (원, ≥0)
-        fault_ratio: 본인 과실비율 (0~100). 기본 0 (피보험자 무과실)
-        deductible: 자기부담금 (원, ≥0). 기본 0
-
-    Returns:
-        ClaimAmountResult — paid_amount + 산정 내역
-
-    Raises:
-        pydantic ValidationError: 입력 범위 위반
-
-    예시:
-        >>> r = calc_claim_amount(2_000_000, fault_ratio=25, deductible=100_000)
-        >>> r.paid_amount
-        1400000  # = 2000000 * 0.75 - 100000
-    """
-    # pydantic 으로 입력 검증 (negative / >100 등 차단)
-    _Input(loss_amount=loss_amount, fault_ratio=fault_ratio, deductible=deductible)
-
-    base = loss_amount * (100 - fault_ratio) // 100
-    paid = max(0, base - deductible)
-
-    note: str | None = None
-    if paid == 0 and base > 0:
-        note = "자기부담금이 손해액 부담분보다 커서 지급액 0원"
-    elif fault_ratio == 100:
-        note = "본인 과실 100% — 지급액 0원"
-
-    return ClaimAmountResult(
-        paid_amount=paid,
-        loss_amount=loss_amount,
-        fault_ratio=fault_ratio,
-        deductible=deductible,
-        formula=f"{loss_amount:,} × (1 - {fault_ratio}/100) - {deductible:,} = {paid:,}원",
-        note=note,
-    )
-
-
-class _Input(BaseModel):
-    """calc_claim_amount 입력 검증 내부 모델."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    loss_amount: int = Field(ge=0)
-    fault_ratio: int = Field(ge=0, le=100)
-    deductible: int = Field(ge=0)
-
 
 # ---------------------------------------------------------------------------
 # validate_coverage_period

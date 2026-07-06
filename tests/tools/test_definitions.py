@@ -3,9 +3,9 @@
 app/tools/definitions.py 단위 테스트.
 
 테스트 대상:
-    - ALL_TOOLS 6개 — OpenAI Function Calling 스키마 준수 (type/function/name/description/parameters)
+    - ALL_TOOLS 4개 — OpenAI Function Calling 스키마 준수 (type/function/name/description/parameters)
     - TOOLS_BY_AREA 실손 1 영역 — mandatory/recommended 키 + 값이 tool_names() 안에 있는지
-    - tool_names() 헬퍼 — 6개 이름 반환
+    - tool_names() 헬퍼 — 4개 이름 반환
     - tools_for_area() 헬퍼 — 각 영역 dict 반환
 
 mock 정책:
@@ -17,10 +17,8 @@ from __future__ import annotations
 import pytest
 from app.shared.tools.definitions import (
     ALL_TOOLS,
-    CALC_CLAIM_AMOUNT,
     FINISH,
     GET_DISEASE_CODE,
-    LOOKUP_LAW_CLAUSE,
     SEARCH_TERMS,
     TOOLS_BY_AREA,
     VALIDATE_COVERAGE_PERIOD,
@@ -28,12 +26,10 @@ from app.shared.tools.definitions import (
     tools_for_area,
 )
 
-# 예상 tool 이름 6개 (실손 전용, PM-33 — auto/fire tool 제거)
+# 예상 tool 이름 4개 (실손 전용 — law/calc tool 제거)
 EXPECTED_TOOL_NAMES = {
     "search_terms",
-    "lookup_law_clause",
     "get_disease_code",
-    "calc_claim_amount",
     "validate_coverage_period",
     "finish",
 }
@@ -47,8 +43,8 @@ EXPECTED_TOOL_NAMES = {
 class TestAllToolsCount:
     """ALL_TOOLS 개수 및 기본 구조 검증."""
 
-    def test_all_tools_has_8_items(self):
-        assert len(ALL_TOOLS) == 6
+    def test_all_tools_has_4_items(self):
+        assert len(ALL_TOOLS) == 4
 
     def test_all_tools_is_list(self):
         assert isinstance(ALL_TOOLS, list)
@@ -118,18 +114,9 @@ class TestIndividualToolRequired:
         params = SEARCH_TERMS["function"]["parameters"]
         assert "query" in params["required"]
 
-    def test_lookup_law_clause_requires_law_name_and_keyword(self):
-        params = LOOKUP_LAW_CLAUSE["function"]["parameters"]
-        assert "law_name" in params["required"]
-        assert "keyword_or_article" in params["required"]
-
     def test_get_disease_code_requires_diagnosis_korean(self):
         params = GET_DISEASE_CODE["function"]["parameters"]
         assert "diagnosis_korean" in params["required"]
-
-    def test_calc_claim_amount_requires_loss_amount(self):
-        params = CALC_CLAIM_AMOUNT["function"]["parameters"]
-        assert "loss_amount" in params["required"]
 
     def test_validate_coverage_period_requires_all_three_dates(self):
         params = VALIDATE_COVERAGE_PERIOD["function"]["parameters"]
@@ -209,9 +196,9 @@ class TestToolNamesHelper:
         result = tool_names()
         assert isinstance(result, list)
 
-    def test_tool_names_has_8_items(self):
+    def test_tool_names_has_4_items(self):
         result = tool_names()
-        assert len(result) == 6
+        assert len(result) == 4
 
     def test_tool_names_all_strings(self):
         result = tool_names()

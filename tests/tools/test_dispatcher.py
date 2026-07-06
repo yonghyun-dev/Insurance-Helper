@@ -3,8 +3,8 @@
 app/tools/dispatcher.py 단위 테스트.
 
 테스트 대상:
-    - invoke(): 정상 라우팅 (calc_claim_amount / validate_coverage_period / finish)
-    - invoke(): 미구현 stub (search_terms / lookup_law_clause / get_disease_code)
+    - invoke(): 정상 라우팅 (validate_coverage_period / finish)
+    - invoke(): 미구현 stub (get_disease_code)
                               → ToolNotImplementedError
     - invoke(): 정의되지 않은 tool → ToolNotFoundError
     - _parse_iso_date(): ISO 문자열 → date / date 객체 직접 전달
@@ -27,64 +27,6 @@ from app.shared.tools.dispatcher import (
     invoke,
     serialize_for_llm,
 )
-
-# ===========================================================================
-# invoke() — 정상 라우팅: calc_claim_amount
-# ===========================================================================
-
-
-class TestInvokeCalcClaimAmount:
-    """invoke('calc_claim_amount', ...) 정상 라우팅 검증."""
-
-    def test_basic_calc_returns_dict(self):
-        # Arrange
-        args = {"loss_amount": 1_000_000}
-        # Act
-        result = invoke("calc_claim_amount", args)
-        # Assert
-        assert isinstance(result, dict)
-
-    def test_calc_paid_amount_correct(self):
-        args = {"loss_amount": 2_000_000, "fault_ratio": 25, "deductible": 100_000}
-        result = invoke("calc_claim_amount", args)
-        assert result["paid_amount"] == 1_400_000
-
-    def test_calc_result_contains_required_fields(self):
-        args = {"loss_amount": 1_000_000}
-        result = invoke("calc_claim_amount", args)
-        assert "paid_amount" in result
-        assert "loss_amount" in result
-        assert "fault_ratio" in result
-        assert "deductible" in result
-        assert "formula" in result
-
-    def test_calc_fault_ratio_default_zero(self):
-        # fault_ratio 미제공 → 기본값 0
-        result = invoke("calc_claim_amount", {"loss_amount": 1_000_000})
-        assert result["fault_ratio"] == 0
-
-    def test_calc_deductible_default_zero(self):
-        # deductible 미제공 → 기본값 0
-        result = invoke("calc_claim_amount", {"loss_amount": 1_000_000})
-        assert result["deductible"] == 0
-
-    def test_calc_full_fault_ratio_100(self):
-        # 전과실 → paid = 0
-        result = invoke("calc_claim_amount", {"loss_amount": 1_000_000, "fault_ratio": 100})
-        assert result["paid_amount"] == 0
-
-    def test_calc_note_when_deductible_exceeds_base(self):
-        # 부담금 > 손해 부담분 → note 포함
-        result = invoke("calc_claim_amount", {"loss_amount": 100_000, "deductible": 500_000})
-        assert result["note"] is not None
-
-    def test_calc_paid_amount_never_negative(self):
-        result = invoke(
-            "calc_claim_amount",
-            {"loss_amount": 100_000, "fault_ratio": 50, "deductible": 1_000_000},
-        )
-        assert result["paid_amount"] >= 0
-
 
 # ===========================================================================
 # invoke() — 정상 라우팅: validate_coverage_period
@@ -206,10 +148,6 @@ class TestInvokeNotImplementedStubs:
         assert len(result["chunks"]) == 2
         assert result["chunks"][0]["id"] == "c1"
 
-    def test_lookup_law_clause_raises_not_implemented(self):
-        with pytest.raises(ToolNotImplementedError):
-            invoke("lookup_law_clause", {"law_name": "보험업법", "keyword_or_article": "제4조"})
-
     def test_get_disease_code_raises_not_implemented(self):
         with pytest.raises(ToolNotImplementedError):
             invoke("get_disease_code", {"diagnosis_korean": "발목 골절"})
@@ -218,7 +156,6 @@ class TestInvokeNotImplementedStubs:
         "tool_name,args",
         [
             # Sprint 11: search_terms 도 활성 (vector 직접) — 제외
-            ("lookup_law_clause", {"law_name": "상법", "keyword_or_article": "제1조"}),
             ("get_disease_code", {"diagnosis_korean": "뇌졸중"}),
         ],
     )
@@ -227,12 +164,12 @@ class TestInvokeNotImplementedStubs:
             invoke(tool_name, args)
 
     def test_not_implemented_error_is_not_not_found_error(self):
-        # Sprint 11: search_terms 활성화로 인해 lookup_law_clause 로 변경 (key 미설정 시 NotImplemented)
+        # get_disease_code 는 미구현 stub (NotImplemented)
         with pytest.raises(ToolNotImplementedError):
-            invoke("lookup_law_clause", {"law_name": "test", "keyword_or_article": "test"})
+            invoke("get_disease_code", {"diagnosis_korean": "test"})
         # ToolNotFoundError 가 아님을 확인
         try:
-            invoke("lookup_law_clause", {"law_name": "test", "keyword_or_article": "test"})
+            invoke("get_disease_code", {"diagnosis_korean": "test"})
         except ToolNotImplementedError:
             pass
         except ToolNotFoundError:
@@ -372,13 +309,18 @@ class TestSerializeForLlm:
         parsed = json.loads(result)
         assert parsed["note"] is None
 
-    def test_calc_result_dict_roundtrip(self):
-        # calc 결과를 직렬화 후 역직렬화 → 동일 값 보장
-        args = {"loss_amount": 2_000_000, "fault_ratio": 25, "deductible": 100_000}
-        calc_result = invoke("calc_claim_amount", args)
-        serialized = serialize_for_llm(calc_result)
+    def test_tool_result_dict_roundtrip(self):
+        # tool 결과를 직렬화 후 역직렬화 → 동일 값 보장
+        args = {
+            "incident_date": "2026-05-15",
+            "policy_start_date": "2026-01-01",
+            "policy_end_date": "2026-12-31",
+        }
+        tool_result = invoke("validate_coverage_period", args)
+        serialized = serialize_for_llm(tool_result)
         parsed = json.loads(serialized)
-        assert parsed["paid_amount"] == 1_400_000
+        assert parsed["valid"] is True
+        assert parsed["reason"] == "in_period"
 
     def test_korean_in_formula_not_escaped(self):
         # formula 의 '원' 문자가 이스케이프되지 않음
