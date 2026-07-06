@@ -571,14 +571,26 @@ def generate_assessment(
 
 
 def _prepare_chunks(chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """RAG 청크를 LLM 입력 포맷으로 정제 (text + 메타만)."""
+    """RAG 청크를 LLM 입력 포맷으로 정제 (text + 메타만).
+
+    인용 카드 표시 품질: 적재 메타의 insurer_name/product_name 이 코드로 저장돼 있어
+    (감사 M-3), 여기서 한글명으로 교정한다. 실손 상품(*_silson)은 '실손의료보험'.
+    """
+    from app.domains.rag._slots import insurer_display_name
+
     out: list[dict[str, Any]] = []
     for c in chunks:
         meta = c.get("metadata") or {}
+        product_id = meta.get("product_id") or ""
+        product = (
+            "실손의료보험"
+            if str(product_id).endswith("_silson")
+            else (meta.get("product_name") or product_id or "")
+        )
         out.append({
             "chunk_id": c.get("id"),
-            "insurer": meta.get("insurer_name") or meta.get("insurer_id") or "",
-            "product": meta.get("product_name") or meta.get("product_id") or "",
+            "insurer": insurer_display_name(meta.get("insurer_id"), meta.get("insurer_name")),
+            "product": product,
             "version": meta.get("version_label") or "",
             "doc_type": meta.get("doc_type") or "terms",
             "clause": meta.get("clause_no") or "",

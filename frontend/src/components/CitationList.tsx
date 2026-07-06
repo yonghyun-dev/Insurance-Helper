@@ -9,16 +9,16 @@ import type { Citation } from '../types/api';
 import s from './CitationList.module.css';
 
 function CitationCard({ c }: { c: Citation }) {
-  const clauseLabel = c.clause + (c.sub_no ? ` ${c.sub_no}` : '');
+  // 조항번호(clause)가 없는 청크(별표 등)면 해당 조각을 생략해 " · " 잔존 방지.
+  const clauseLabel = [c.clause, c.sub_no].filter(Boolean).join(' ');
+  const sourceLabel = [c.insurer, c.product, clauseLabel].filter(Boolean).join(' · ');
   const pdfHref = c.pdf_url ? `${c.pdf_url}#page=${c.page}` : null;
   const imgHref = pdfHref ?? c.page_image_url ?? undefined;
 
   return (
     <li className={s.card}>
       <div className={s.head}>
-        <span className={s.source}>
-          {c.insurer} · {c.product} · {clauseLabel}
-        </span>
+        <span className={s.source}>{sourceLabel}</span>
         {pdfHref ? (
           <a className={s.pdfLink} href={pdfHref} target="_blank" rel="noopener noreferrer">
             <Icon name="document" size={14} /> 원본 PDF

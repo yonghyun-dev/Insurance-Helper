@@ -13,7 +13,6 @@ from typing import Any
 
 from app.domains.sessions.schemas import SlotState
 
-
 # 한글 보험사명(및 흔한 변형) → data/raw 폴더 코드(insurer_id).
 # 벡터 메타의 insurer_id 와 일치시켜 "가입 보험사가 아닌 다른 보험사 약관 인용"을 차단한다.
 # 실손 전용 5개 손보사 (Sprint 27). 신규 보험사 적재 시 여기 추가.
@@ -43,6 +42,24 @@ def insurer_to_code(insurer: str | None) -> str | None:
         if key in name:
             return code
     return None
+
+
+# insurer_id 코드 → 대표 한글명. 적재 메타(insurer_name)가 코드로 저장돼 있어
+# 인용 카드에 코드가 노출되던 문제(감사 M-3)를 표시 시점에 교정한다.
+_INSURER_CODE_TO_NAME: dict[str, str] = {
+    "samsung": "삼성화재",
+    "hyundai": "현대해상",
+    "meritz": "메리츠화재",
+    "hanwha": "한화손해보험",
+    "lotte": "롯데손해보험",
+}
+
+
+def insurer_display_name(insurer_id: str | None, fallback: str | None = None) -> str:
+    """insurer_id 코드 → 한글 보험사명. 매핑 실패 시 fallback(코드가 아닌 한글이면) 또는 코드."""
+    if insurer_id and insurer_id in _INSURER_CODE_TO_NAME:
+        return _INSURER_CODE_TO_NAME[insurer_id]
+    return (fallback or insurer_id or "").strip()
 
 
 def slots_to_query(slots: SlotState) -> str:

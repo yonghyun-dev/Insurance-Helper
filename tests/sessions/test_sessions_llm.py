@@ -103,27 +103,28 @@ def _make_raw_assessment(
 class TestPrepareChunks:
     """_prepare_chunks 메타 매핑 검증."""
 
-    def test_insurer_name_preferred_over_insurer_id(self):
-        # insurer_name 이 있으면 insurer_name 사용
-        chunks = [_make_chunk(insurer_name="한화손해보험", insurer_id="hanwha")]
+    def test_insurer_code_mapped_to_korean_name(self):
+        # insurer_id 코드는 한글 보험사명으로 교정 (감사 M-3). name 이 코드여도 코드→한글.
+        chunks = [_make_chunk(insurer_name="hanwha", insurer_id="hanwha")]
         result = _prepare_chunks(chunks)
         assert result[0]["insurer"] == "한화손해보험"
 
-    def test_insurer_id_used_when_name_missing(self):
-        # insurer_name 없으면 insurer_id 폴백
-        chunks = [_make_chunk(insurer_name=None, insurer_id="hanwha")]
+    def test_insurer_id_mapped_when_name_missing(self):
+        # insurer_name 없어도 insurer_id 코드 → 한글명
+        chunks = [_make_chunk(insurer_name=None, insurer_id="samsung")]
         result = _prepare_chunks(chunks)
-        assert result[0]["insurer"] == "hanwha"
+        assert result[0]["insurer"] == "삼성화재"
 
-    def test_product_name_preferred_over_product_id(self):
-        chunks = [_make_chunk(product_name="개인용자동차보험", product_id="hanwha_auto")]
+    def test_silson_product_id_maps_to_korean(self):
+        # 실손 상품 코드(*_silson) → '실손의료보험'
+        chunks = [_make_chunk(product_name="hanwha_silson", product_id="hanwha_silson")]
         result = _prepare_chunks(chunks)
-        assert result[0]["product"] == "개인용자동차보험"
+        assert result[0]["product"] == "실손의료보험"
 
-    def test_product_id_used_when_name_missing(self):
-        chunks = [_make_chunk(product_name=None, product_id="hanwha_auto")]
+    def test_non_silson_product_falls_back_to_name(self):
+        chunks = [_make_chunk(product_name="어떤상품", product_id="x_other")]
         result = _prepare_chunks(chunks)
-        assert result[0]["product"] == "hanwha_auto"
+        assert result[0]["product"] == "어떤상품"
 
     def test_chunk_id_mapped_correctly(self):
         chunks = [_make_chunk(chunk_id="abc-123")]
