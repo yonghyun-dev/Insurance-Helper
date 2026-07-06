@@ -51,7 +51,7 @@ class Message(BaseModel):
     role: Literal["user", "assistant"]
     content: str = Field(..., min_length=1)
     created_at: datetime
-    response_type: Literal["ask", "assessment"] | None = Field(
+    response_type: Literal["ask", "assessment", "answer"] | None = Field(
         default=None,
         description="assistant 메시지만 채워진다. 감사 추적용",
     )
@@ -270,6 +270,27 @@ class AssistantAssessment(BaseModel):
     )
 
 
+class AssistantAnswer(BaseModel):
+    """answer 모드 — 실손 도메인 일반 질문에 약관 근거로 답하는 자유 질의응답(PM-34).
+
+    진단(assessment) 과 달리 가능성 등급/충족·미충족이 없다. 슬롯 없이도 동작하나
+    citations 는 여전히 최소 1건 강제(환각 차단 원칙).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["answer"] = "answer"
+    message: str = Field(..., min_length=10)
+    citations: list[Citation] = Field(..., min_length=1)
+    related_questions: list[str] = Field(default_factory=list, max_length=4)
+    # 정확한 답에 가입 약관이 필요하면 True → 프론트가 청구 진단 유도 CTA 표시
+    needs_policy: bool = False
+    disclaimer: str = Field(
+        default="본 안내는 일반적인 실손의료보험 표준약관 기준 참고용이며, "
+        "정확한 판단은 가입하신 약관과 보험사 심사에 따릅니다."
+    )
+
+
 # ---------------------------------------------------------------------------
 # 통합 응답 (POST /sessions/{id}/messages)
 # ---------------------------------------------------------------------------
@@ -278,15 +299,15 @@ class AssistantAssessment(BaseModel):
 class SessionResponse(BaseModel):
     """POST /sessions/{id}/messages 응답.
 
-    `assistant` 는 AssistantAsk 또는 AssistantAssessment 중 하나.
-    Sprint 2 PoC 에서는 단일 직렬화 + discriminator(`type`) 으로 클라이언트 분기.
+    `assistant` 는 AssistantAsk / AssistantAssessment / AssistantAnswer 중 하나.
+    단일 직렬화 + discriminator(`type`) 으로 클라이언트 분기.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     session_id: str
     turn: int = Field(..., ge=1, description="이번 메시지가 몇 번째 대화 턴인지")
-    assistant: AssistantAsk | AssistantAssessment = Field(
+    assistant: AssistantAsk | AssistantAssessment | AssistantAnswer = Field(
         ..., discriminator="type"
     )
     slots: SlotState

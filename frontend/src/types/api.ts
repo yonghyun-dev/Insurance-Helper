@@ -118,7 +118,17 @@ export type AssistantAssessment = {
   disclaimer: string;
 };
 
-export type Assistant = AssistantAsk | AssistantAssessment;
+// 자유 질의응답(PM-34) — 실손 일반 질문에 약관 근거로 답. 가능성 등급 없음.
+export type AssistantAnswer = {
+  type: 'answer';
+  message: string;
+  citations: Citation[];        // minItems=1 보장 (환각 차단)
+  related_questions: string[];  // 후속 질문 제안 (최대 4)
+  needs_policy: boolean;        // true → 가입 약관 확인 유도 CTA
+  disclaimer: string;
+};
+
+export type Assistant = AssistantAsk | AssistantAssessment | AssistantAnswer;
 
 // === 응답 envelope ===
 export type SessionResponse = {
@@ -140,7 +150,7 @@ export type Message = {
   role: 'user' | 'assistant';
   content: string;
   created_at: string;
-  response_type: 'ask' | 'assessment' | null;
+  response_type: 'ask' | 'assessment' | 'answer' | null;
 };
 
 export type SessionStateResponse = {
@@ -189,5 +199,6 @@ export type ChatMessage =
   | { id: string; role: 'user'; content: string; created_at: string; attachment?: { dataUrl: string; filename: string } }
   | { id: string; role: 'assistant'; type: 'ask'; payload: AssistantAsk; created_at: string }
   | { id: string; role: 'assistant'; type: 'assessment'; payload: AssistantAssessment; created_at: string }
+  | { id: string; role: 'assistant'; type: 'answer'; payload: AssistantAnswer; created_at: string }
   | { id: string; role: 'assistant'; type: 'loading'; created_at: string }
   | { id: string; role: 'assistant'; type: 'error'; code: string; message: string; retryText: string; created_at: string };

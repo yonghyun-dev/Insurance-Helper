@@ -30,6 +30,7 @@ from openai import OpenAI
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from app.domains.sessions.schemas import (
+    AssistantAnswer,
     AssistantAsk,
     AssistantAssessment,
     Citation,
@@ -755,6 +756,207 @@ def _hydrate_citation_urls(
             cite.model_copy(update={"page_image_url": page_url, "pdf_url": pdf_link})
         )
     return hydrated
+
+
+# ---------------------------------------------------------------------------
+# 3.5 자유 질의응답 (PM-34) — 의도 분류 + 실손 약관 근거 설명
+# ---------------------------------------------------------------------------
+
+_INTENT_SYSTEM = (
+    "너는 실손의료보험 청구 어시스턴트의 라우터다. 사용자 입력을 아래 3가지 의도 중 "
+    "하나로 분류하고 반드시 classify 함수를 호출한다.\n"
+    "- claim_diagnosis: 본인의 구체적 청구 상황 서술/진단 요청 "
+    "(예: '충수염으로 3일 입원했는데 청구돼?', '삼성화재 실손인데 도수치료 받았어'). "
+    "본인 상황·사고·증상을 말하면 이것.\n"
+    "- general_qa: 실손 제도·약관·보장에 대한 일반 지식 질문 "
+    "(예: '실손이 뭐야?', '비급여 자기부담률 얼마야?', '도수치료 보장돼?', '실손에서 안 되는 게 뭐야?'). "
+    "본인 상황 서술이 아니라 정보를 묻는 것.\n"
+    "- out_of_domain: 실손·보험과 무관 (예: '파이썬 코드 짜줘', '오늘 날씨').\n"
+    "애매하면 claim_diagnosis 로 분류한다(보수적 폴백)."
+)
+
+
+def _classify_intent_tool() -> dict[str, Any]:
+    return {
+        "name": "classify",
+        "description": "사용자 입력의 의도를 3분류",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "intent": {
+                    "type": "string",
+                    "enum": ["claim_diagnosis", "general_qa", "out_of_domain"],
+                    "description": "분류 결과",
+                },
+            },
+            "required": ["intent"],
+        },
+    }
+
+
+def classify_intent(text: str, slots: SlotState) -> str:
+    """사용자 입력 의도 3분류. 실패/애매 시 'claim_diagnosis'(기존 진단 흐름) 폴백.
+
+    규칙 프리필터: 구체 상황 슬롯(진단명·입원·외래)이 이미 채워졌으면 LLM 호출 없이
+    진단 흐름 확정 — 진행 중 대화를 QA 로 이탈시키지 않는다.
+    """
+    if slots.diagnosis or slots.hospitalization_days or slots.outpatient_visits:
+        return "claim_diagnosis"
+
+    client = _get_client()
+    user_msg = (
+        f"현재 슬롯: {slots.model_dump_json(exclude_none=True)}\n사용자 입력: {text}"
+    )
+    messages = _messages_for_llm(
+        history=[], system_prompt=_INTENT_SYSTEM, new_user_msg=user_msg
+    )
+    try:
+        args = _call_with_tool(
+            client, model=get_chat_model(), messages=messages,
+            tool_def=_classify_intent_tool(), temperature=0.0,
+        )
+        intent = args.get("intent")
+        if intent in ("claim_diagnosis", "general_qa", "out_of_domain"):
+            logger.info("classify_intent: %s", intent)
+            return intent
+    except Exception as exc:
+        logger.warning("classify_intent 실패 → claim_diagnosis 폴백: %s", exc)
+    return "claim_diagnosis"
+
+
+_EXPLANATION_SYSTEM = (
+    "당신은 실손의료보험 안내 어시스턴트다. 사용자의 일반 질문에 대해, 제공된 약관 청크를 "
+    "근거로 설명한다.\n\n"
+    "규칙:\n"
+    "1. citations 는 입력된 청크의 chunk_id/메타를 그대로 인용 (최소 1건). 인용 없는 단정 금지.\n"
+    "2. 약관 청크에서 확인되는 범위로만 답한다. 청크에 없는 내용은 추측하지 않는다.\n"
+    "3. 단정 금지 — '~로 안내드립니다', '일반적으로 ~입니다' 어시스턴트 톤. 존댓말.\n"
+    "4. message 는 2~5문장 한국어. 특정 가입 보험(insurer)이 확인되지 않으면 "
+    "   '일반적인 실손의료보험 표준약관 기준'임을 밝힌다.\n"
+    "5. related_questions: 사용자가 이어서 물어볼 만한 실손 관련 질문 최대 4개 (없으면 빈 배열).\n"
+    "6. needs_policy: 정확한 답에 가입 약관 확인이 필요하면 true.\n"
+)
+
+# citations 항목 스키마는 assessment 와 동일 (약관 인용 포맷 공유).
+_EXPLANATION_RESPONSE_SCHEMA = {
+    "name": "silson_explanation",
+    "schema": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["message", "citations", "related_questions", "needs_policy"],
+        "properties": {
+            "message": {"type": "string", "minLength": 10},
+            "citations": _ASSESSMENT_RESPONSE_SCHEMA["schema"]["properties"]["citations"],
+            "related_questions": {
+                "type": "array",
+                "items": {"type": "string"},
+                "maxItems": 4,
+            },
+            "needs_policy": {"type": "boolean"},
+        },
+    },
+    "strict": True,
+}
+
+
+def generate_explanation(
+    question: str,
+    chunks: list[dict[str, Any]],
+) -> AssistantAnswer:
+    """실손 일반 질문 + RAG 청크로 약관 근거 설명(AssistantAnswer) 생성.
+
+    generate_assessment 와 동일한 인용 검증/hydrate 방어를 적용하되, 가능성 등급 없이
+    설명 텍스트 + 인용 + 후속 질문을 반환한다.
+
+    Raises:
+        LLMError: chunks 비어있음 / 호출 실패
+        SchemaViolationError: 재시도 후에도 스키마 불일치
+    """
+    if not chunks:
+        raise LLMError("generate_explanation: chunks 가 비어있음 (RAG 검색 결과 없음)")
+
+    client = _get_client()
+    chunks_for_llm = _prepare_chunks(chunks)
+    valid_chunk_ids = {c["chunk_id"] for c in chunks_for_llm if c["chunk_id"]}
+    user_payload = json.dumps(
+        {"question": question, "chunks": chunks_for_llm}, ensure_ascii=False
+    )
+
+    last_error: SchemaViolationError | None = None
+    for attempt in (1, 2):
+        system = _EXPLANATION_SYSTEM
+        if attempt == 2:
+            system += (
+                "\n\n[재시도] 이전 응답이 스키마를 위반했습니다. citations.chunk_id 는 "
+                "입력된 청크에 존재하는 값만 사용하고 최소 1건을 포함하세요."
+            )
+        messages = _messages_for_llm(
+            history=[], system_prompt=system, new_user_msg=user_payload
+        )
+        try:
+            raw = _call_structured(
+                client, model=get_chat_model(), messages=messages,
+                response_schema=_EXPLANATION_RESPONSE_SCHEMA, temperature=0.2,
+            )
+        except SchemaViolationError as exc:
+            last_error = exc
+            logger.warning("generate_explanation schema 위반 (attempt %d): %s", attempt, exc)
+            continue
+        except LLMError:
+            raise
+        except Exception as exc:
+            raise LLMError(f"generate_explanation 호출 실패: {exc}") from exc
+
+        try:
+            return _build_answer(raw, valid_chunk_ids=valid_chunk_ids, chunks=chunks)
+        except SchemaViolationError as exc:
+            last_error = exc
+            logger.warning("generate_explanation 결과 검증 실패 (attempt %d): %s", attempt, exc)
+            continue
+
+    raise last_error or SchemaViolationError("generate_explanation: 알 수 없는 schema 위반")
+
+
+def _build_answer(
+    raw: dict[str, Any],
+    *,
+    valid_chunk_ids: set[str],
+    chunks: list[dict[str, Any]] | None = None,
+) -> AssistantAnswer:
+    """LLM 응답 dict → AssistantAnswer + 방어(환각 chunk_id 필터 + URL hydrate)."""
+    raw_citations = raw.get("citations") or []
+    filtered = [c for c in raw_citations if c.get("chunk_id") in valid_chunk_ids]
+    dropped = len(raw_citations) - len(filtered)
+    if dropped > 0:
+        logger.warning(
+            "generate_explanation: 입력에 없는 chunk_id 인용 %d건 제거 (남은 %d건)",
+            dropped, len(filtered),
+        )
+    if not filtered:
+        raise SchemaViolationError(
+            "generate_explanation: citations 가 모두 입력 청크에 없는 chunk_id (환각)"
+        )
+
+    try:
+        citations = [Citation.model_validate(c) for c in filtered]
+        if chunks:
+            citations = _hydrate_citation_urls(citations, chunks)
+        answer = AssistantAnswer(
+            message=raw["message"],
+            citations=citations,
+            related_questions=raw.get("related_questions", [])[:4],
+            needs_policy=bool(raw.get("needs_policy", False)),
+        )
+    except Exception as exc:
+        raise SchemaViolationError(
+            f"generate_explanation 응답이 AssistantAnswer 와 불일치: {exc}"
+        ) from exc
+
+    logger.info(
+        "generate_explanation: citations=%d related=%d needs_policy=%s",
+        len(answer.citations), len(answer.related_questions), answer.needs_policy,
+    )
+    return answer
 
 
 # ---------------------------------------------------------------------------

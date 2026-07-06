@@ -34,6 +34,7 @@ from app.domains.rag import service as rag_service
 from app.domains.search import service as search_service  # noqa: F401
 from app.domains.sessions import llm
 from app.domains.sessions.schemas import (
+    AssistantAnswer,
     AssistantAsk,
     AssistantAssessment,
     Message,
@@ -244,6 +245,20 @@ def post_message(
             )
             return _build_response(session, ask)
 
+        # 1.6) 의도 분류 (PM-34) — 일반 지식 질문/도메인 이탈은 슬롯 깔때기 대신 별도 처리.
+        # 진행 중 대화(구체 상황 슬롯 존재)는 classify_intent 프리필터가 진단으로 확정.
+        intent = llm.classify_intent(text, session.slots)
+        if intent == "general_qa":
+            return _answer_general_qa(session, text, audit_ctx)
+        if intent == "out_of_domain":
+            ask = _build_out_of_domain_ask()
+            _append_assistant(session, ask.message, response_type="ask")
+            store.touch(session, status="gathering")
+            audit.complete(
+                audit_ctx, assistant_response_type="ask", assistant_message=ask.message
+            )
+            return _build_response(session, ask)
+
         # 2) LLM 슬롯 추출 + merge (validator 거치기 위해 model_validate)
         updates = llm.extract_slots(session.history[:-1], text, session.slots)
         if updates:
@@ -400,7 +415,7 @@ def _merge_slots(current: SlotState, updates: dict[str, Any]) -> SlotState:
 
 
 def _append_assistant(
-    session: Session, content: str, *, response_type: Literal["ask", "assessment"]
+    session: Session, content: str, *, response_type: Literal["ask", "assessment", "answer"]
 ) -> None:
     """assistant 메시지를 history 에 append."""
     session.history.append(
@@ -434,6 +449,56 @@ def _build_no_match_ask(slots: SlotState) -> AssistantAsk:
     )
 
 
+def _build_out_of_domain_ask() -> AssistantAsk:
+    """실손·보험과 무관한 입력에 대한 정중한 도메인 안내(PM-34)."""
+    return AssistantAsk(
+        type="ask",
+        message=(
+            "저는 실손의료보험 청구를 도와드리는 어시스턴트예요. "
+            "실손 보장·청구가 궁금하시거나 어떤 청구 상황인지 말씀해 주시면 "
+            "약관을 근거로 안내드릴게요."
+        ),
+        expected_slots=["area"],
+        options=[],
+    )
+
+
+def _answer_general_qa(session: Session, text: str, audit_ctx: Any) -> SessionResponse:
+    """실손 일반 질문 → 슬롯 무관 광역 약관 RAG + 설명 응답(PM-34).
+
+    가입 보험 필터 없이 실손 표준약관 전체에서 검색해 약관 근거로 설명한다.
+    인용 강제(환각 차단)는 generate_explanation 이 담당. 검색 0건이면 정직한 재질문.
+    """
+    from app.domains.rag.vectorstore import get_vector_store
+    from app.shared import audit
+
+    store = get_session_store()
+    chunks = get_vector_store().query(text, top_k=8)
+    if not chunks:
+        ask = AssistantAsk(
+            type="ask",
+            message=(
+                "말씀하신 내용을 실손 약관에서 바로 확인하기 어렵네요. 조금 더 구체적으로 "
+                "여쭤봐 주시겠어요? (예: 도수치료 보장 여부, 비급여 자기부담률, 입원 보장 한도 등)"
+            ),
+            expected_slots=["diagnosis"],
+            options=[],
+        )
+        _append_assistant(session, ask.message, response_type="ask")
+        store.touch(session, status="gathering")
+        audit.complete(audit_ctx, assistant_response_type="ask", assistant_message=ask.message)
+        return _build_response(session, ask)
+
+    answer = llm.generate_explanation(text, chunks)
+    audit_ctx.retrieved_chunk_ids = [c.chunk_id for c in answer.citations]
+    _append_assistant(session, answer.message, response_type="answer")
+    store.touch(session, status="answered")
+    audit.complete(
+        audit_ctx, assistant_response_type="answer", assistant_message=answer.message
+    )
+    return _build_response(session, answer)
+
+
 def _search_chunks(slots: SlotState, top_k: int = 8) -> list[dict[str, Any]]:
     """RAG 검색 thin wrapper (단순 retrieve 경로).
 
@@ -456,7 +521,8 @@ from app.domains.rag._slots import slots_to_query as _slots_to_query  # noqa: E4
 
 
 def _build_response(
-    session: Session, assistant: AssistantAsk | AssistantAssessment
+    session: Session,
+    assistant: AssistantAsk | AssistantAssessment | AssistantAnswer,
 ) -> SessionResponse:
     """SessionResponse 생성. turn = 유저 메시지 개수."""
     turn = sum(1 for m in session.history if m.role == "user")

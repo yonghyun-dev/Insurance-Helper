@@ -21,6 +21,7 @@ import CitationList from '../../components/CitationList';
 import ImageLightbox from '../../components/ImageLightbox';
 import HealthHistoryPanel from '../../components/HealthHistoryPanel';
 import type {
+  AssistantAnswer,
   AssistantAsk,
   AssistantAssessment,
   ChatMessage,
@@ -141,6 +142,40 @@ function renderAssessment(a: AssistantAssessment): ReactNode {
   );
 }
 
+function renderAnswer(a: AssistantAnswer, onPick: (text: string) => void): ReactNode {
+  return (
+    <div className={s.assessment}>
+      <p className={s.askMsg}>{a.message}</p>
+
+      <CitationList citations={a.citations} />
+
+      {a.related_questions.length > 0 ? (
+        <div>
+          <h4 className={s.checkTitle}>이어서 물어보기</h4>
+          <div className={s.relatedChips}>
+            {a.related_questions.map((q) => (
+              <button key={q} type="button" className={s.relatedChip} onClick={() => onPick(q)}>
+                {q}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {a.needs_policy ? (
+        <p className={s.needsPolicy}>
+          <Icon name="information" size={15} />
+          가입하신 보험사·상품을 알려주시면 해당 약관 기준으로 더 정확히 안내드릴 수 있어요.
+        </p>
+      ) : null}
+
+      <p className={s.disclaimer} role="note">
+        {a.disclaimer}
+      </p>
+    </div>
+  );
+}
+
 export default function ChatPage({ user, session, onReset, onOpenReview }: ChatPageProps) {
   const {
     messages,
@@ -207,6 +242,8 @@ export default function ChatPage({ user, session, onReset, onOpenReview }: ChatP
       body = renderAsk(m.payload, (t) => void sendMessage(t));
     } else if (m.type === 'assessment') {
       body = renderAssessment(m.payload);
+    } else if (m.type === 'answer') {
+      body = renderAnswer(m.payload, (t) => void sendMessage(t));
     } else {
       body = (
         <StateCard

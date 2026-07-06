@@ -95,6 +95,42 @@
   color: var(--text-secondary);
 }
 
+/* 자유 질의(answer) — 후속 질문 칩 */
+.relatedChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.relatedChip {
+  padding: 7px 12px;
+  border: 1px solid var(--gray-30);
+  border-radius: 999px;
+  background: var(--gray-10);
+  font-size: 12px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.relatedChip:hover {
+  background: var(--gray-20);
+  border-color: var(--blue-60);
+}
+
+.needsPolicy {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--blue-10, #edf5ff);
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--text-secondary);
+}
+
 /* 컴포저 바로 위 액션 바 — 진료내역(보조) 왼쪽 · 청구준비(주요) 오른쪽 한 줄 */
 .actionBar {
   display: flex;

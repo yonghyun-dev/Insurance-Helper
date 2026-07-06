@@ -40,6 +40,9 @@ function historyToMessages(history: SessionStateResponse['history']): ChatMessag
       if (parsed.type === 'assessment') {
         return { id: uid(), role: 'assistant', type: 'assessment', payload: parsed, created_at: m.created_at };
       }
+      if (parsed.type === 'answer') {
+        return { id: uid(), role: 'assistant', type: 'answer', payload: parsed, created_at: m.created_at };
+      }
     } catch { /* fall through */ }
     // fallback: 평문 메시지를 ask 메시지로 감싸 노출
     return {
@@ -90,6 +93,8 @@ export function useSession() {
       }
       if (r.assistant.type === 'ask') {
         next.push({ id: uid(), role: 'assistant', type: 'ask', payload: r.assistant, created_at: now() });
+      } else if (r.assistant.type === 'answer') {
+        next.push({ id: uid(), role: 'assistant', type: 'answer', payload: r.assistant, created_at: now() });
       } else {
         next.push({ id: uid(), role: 'assistant', type: 'assessment', payload: r.assistant, created_at: now() });
       }
