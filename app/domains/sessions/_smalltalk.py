@@ -51,11 +51,11 @@ def is_smalltalk(text: str) -> bool:
 # 응답
 # ---------------------------------------------------------------------------
 
-# 친근하고 짧게. 두 단락으로 호흡. options 는 area 4개 (영문 X — 사용자가 보는 한글).
+# 친근하고 짧게. 두 단락으로 호흡. 실손 전용(Sprint 27) — options 는 5개 손보사(한글).
 _GREETING_MESSAGE = (
     "안녕하세요!\n\n"
     "어떤 청구 상황이신지 자유롭게 말씀해 주세요.\n"
-    "사고 분야(자동차·화재·상해)나 보험사 이름을 함께 알려주시면 더 정확하게 도와드릴 수 있어요."
+    "가입하신 보험사와 상황(진단명·입원/통원 등)을 함께 알려주시면 더 정확하게 도와드릴 수 있어요."
 )
 
 
@@ -64,8 +64,8 @@ def make_smalltalk_ask() -> AssistantAsk:
     return AssistantAsk(
         type="ask",
         message=_GREETING_MESSAGE,
-        expected_slots=["area"],
-        options=["자동차", "화재", "사고질병", "모르겠습니다"],
+        expected_slots=["insurer"],
+        options=["삼성화재", "현대해상", "메리츠화재", "한화손해보험", "롯데손해보험"],
     )
 
 

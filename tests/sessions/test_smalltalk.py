@@ -61,14 +61,15 @@ class TestShouldApply:
 
 
 class TestMakeSmalltalkAsk:
-    def test_returns_greeting_with_area_options(self):
+    def test_returns_greeting_with_insurer_options(self):
         ask = _smalltalk.make_smalltalk_ask()
         assert ask.type == "ask"
         assert "안녕하세요" in ask.message
         assert "\n\n" in ask.message  # 문단 호흡
-        assert ask.expected_slots == ["area"]
-        assert "자동차" in ask.options
-        assert "모르겠습니다" in ask.options
+        assert ask.expected_slots == ["insurer"]
+        # 실손 전용 — 5개 손보사 (자동차/화재 없음)
+        assert "삼성화재" in ask.options
+        assert "자동차" not in ask.options and "화재" not in ask.options
 
 
 class TestPostMessageSmalltalkGuard:

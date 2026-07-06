@@ -369,17 +369,17 @@ class TestBuildNoMatchAsk:
         ask = _build_no_match_ask(slots)
         assert "안내드리겠습니다" in ask.message
 
-    def test_message_contains_example_hanwha_auto(self):
-        # Sprint 7 톤: 예시 멘트 "한화손해보험 자동차보험" 포함
+    def test_message_contains_example_samsung_silson(self):
+        # 실손 전용 피벗(Sprint 27): 예시 멘트 "삼성화재 실손의료보험" 포함
         slots = SlotState()
         ask = _build_no_match_ask(slots)
-        assert "한화손해보험 자동차보험" in ask.message
+        assert "삼성화재 실손의료보험" in ask.message
 
-    def test_message_contains_example_samsung_fire(self):
-        # Sprint 7 톤: 예시 멘트 "삼성화재 주택화재보험" 포함
+    def test_message_contains_example_hyundai_silson(self):
+        # 실손 전용 피벗(Sprint 27): 예시 멘트 "현대해상 실손의료보험" 포함
         slots = SlotState()
         ask = _build_no_match_ask(slots)
-        assert "삼성화재 주택화재보험" in ask.message
+        assert "현대해상 실손의료보험" in ask.message
 
     def test_message_does_not_contain_old_reconfirm_phrase(self):
         # Sprint 7 톤: 구 책임 떠넘기기 문구 "다시 한 번 정확히 확인" 부재

@@ -301,8 +301,8 @@ def _next_question_tool() -> dict[str, Any]:
                     "items": {"type": "string"},
                     "description": (
                         "선택지가 명확하면 제공. 반드시 사용자가 읽을 한국어 라벨. "
-                        "예: area 면 ['자동차','화재','사고질병']. "
-                        "영문 코드(auto/fire/accident_disease) 사용 금지. "
+                        "예: insurer 면 ['삼성화재','현대해상','메리츠화재','한화손해보험','롯데손해보험']. "
+                        "영문 코드(samsung/hyundai 등) 사용 금지. "
                         "없으면 빈 리스트."
                     ),
                 },

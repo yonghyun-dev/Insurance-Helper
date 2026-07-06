@@ -427,7 +427,7 @@ def _build_no_match_ask(slots: SlotState) -> AssistantAsk:
         message=(
             "정확한 청구 가능성 판단에는 가입하신 보험사·상품 정보가 필요합니다. "
             "알고 계신 정보가 있다면 알려주시면 정확하게 안내드리겠습니다. "
-            "(예: 한화손해보험 자동차보험, 삼성화재 주택화재보험 등) "
+            "(예: 삼성화재 실손의료보험, 현대해상 실손의료보험 등) "
             f"— 현재 보유한 정보: 보험사 {insurer_label} · 상품 {product_label}"
         ),
         expected_slots=["insurer", "product"],

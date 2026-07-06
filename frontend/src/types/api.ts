@@ -4,7 +4,8 @@
 // ============================================================
 
 // === 기본 ===
-export type Area = 'auto' | 'fire' | 'accident_disease';
+// 실손 전용 피벗(Sprint 27) — 백엔드 Area = Literal["accident_disease"] 단일.
+export type Area = 'accident_disease';
 export type SessionStatus = 'gathering' | 'analyzing' | 'answered' | 'closed';
 export type LikelihoodLevel = '높음' | '중간' | '낮음';
 export type DocType = 'summary' | 'business' | 'terms';

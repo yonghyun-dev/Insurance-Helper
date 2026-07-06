@@ -11,7 +11,7 @@
 
 설계 참고:
     - docs/design/data-model.md `documents` 테이블 섹션
-    - area 코드: auto / accident_disease / fire — 실데이터(주택화재) 반영해 fire 추가
+    - area 코드: accident_disease (실손 전용 피벗, Sprint 27)
     - doc_type CHECK: summary / business / terms
 """
 

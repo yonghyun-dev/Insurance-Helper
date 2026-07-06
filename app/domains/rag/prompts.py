@@ -29,16 +29,16 @@ MATCH (c:Clause {clause_no: '제6조'})-[:HAS_SUBCLAUSE*1..3]->(s:SubClause)
 RETURN c.chunk_id, c.clause_no, s.chunk_id, s.sub_no, s.text, s.page_start
 ORDER BY s.page_start;
 
-# 예시 3 — 영역별 적재된 보험사/상품 목록
-질문: 자동차 영역에 어떤 보험사와 상품이 있어?
+# 예시 3 — 적재된 보험사/상품 목록 (실손 전용)
+질문: 실손 약관은 어떤 보험사와 상품이 있어?
 Cypher:
-MATCH (i:Insurer)-[:SELLS]->(p:Product {area: 'auto'})
+MATCH (i:Insurer)-[:SELLS]->(p:Product {area: 'accident_disease'})
 RETURN DISTINCT i.id AS insurer_id, i.name AS insurer, p.id AS product_id, p.name AS product;
 
-# 예시 4 — 화재 약관에서 면책 / 손해 키워드
-질문: 화재 약관에서 면책 또는 손해 관련 조항은?
+# 예시 4 — 실손 약관에서 면책 / 손해 키워드
+질문: 실손 약관에서 면책 또는 보상하지 않는 손해 조항은?
 Cypher:
-MATCH (p:Product {area: 'fire'})-[:HAS_VERSION]->(v:Version {is_active: true})
+MATCH (p:Product {area: 'accident_disease'})-[:HAS_VERSION]->(v:Version {is_active: true})
       -[:HAS_DOCUMENT]->(d:Document)-[:CONTAINS]->(c:Clause)
 WHERE c.text CONTAINS '면책' OR c.text CONTAINS '손해'
 RETURN c.chunk_id, c.clause_no, c.text, c.page_start

@@ -11,7 +11,7 @@ Sprint 11 ReAct 본격 활성화의 핵심 — LLM 이 본 정의를 받고 자�
 
 구조:
     - ALL_TOOLS: 모든 tool 의 Function Calling 정의 list
-    - TOOLS_BY_AREA: 영역별 (auto/fire/accident_disease) 의무·권장 tool 매핑
+    - TOOLS_BY_AREA: 영역별 (accident_disease 단일, 실손 전용) 의무·권장 tool 매핑
     - 각 tool 의 실 구현은 app.shared.tools.dispatcher 가 라우팅
 
 Sprint 11 단계적 활성화:
