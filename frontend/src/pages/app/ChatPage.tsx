@@ -1,6 +1,6 @@
 // Sprint 20 — ChatPage 재배선: 하드코딩 scenarioMessages 제거, useSession 의
 // ask→assessment 멀티턴 루프를 새 디자인 패턴으로 구동한다. (설계: docs/design/frontend-chat-rewiring.md)
-import { useRef, useState, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import AppShell from '../../design-system/patterns/chat/AppShell';
 import BrandMark from '../../design-system/patterns/chat/BrandMark';
 import StepNavigator, { type StepItem } from '../../design-system/patterns/chat/StepNavigator';
@@ -8,7 +8,7 @@ import UserPill from '../../design-system/patterns/chat/UserPill';
 import ChatHead from '../../design-system/patterns/chat/ChatHead';
 import ChatStream from '../../design-system/patterns/chat/ChatStream';
 import MessageBubble from '../../design-system/patterns/chat/MessageBubble';
-import TypingBubble from '../../design-system/patterns/chat/TypingBubble';
+import StatusBubble from '../../components/StatusBubble';
 import Composer from '../../design-system/patterns/chat/Composer';
 import StateCard, { type StateKind } from '../../design-system/patterns/chat/StateCard';
 import ActionCard, { ActionCards } from '../../design-system/patterns/chat/ActionCard';
@@ -20,11 +20,13 @@ import { koTime } from '../../lib/time';
 import CitationList from '../../components/CitationList';
 import ImageLightbox from '../../components/ImageLightbox';
 import HelpLauncher from '../../components/HelpLauncher';
+import Markdown from '../../components/Markdown';
 import type {
   AssistantAnswer,
   AssistantAsk,
   AssistantAssessment,
   ChatMessage,
+  Citation,
   LikelihoodLevel,
   TreatmentCard,
 } from '../../types/api';
@@ -75,7 +77,7 @@ function deriveRail(status: string | null, hasAssessment: boolean): StepItem[] {
 function renderAsk(payload: AssistantAsk, onPick: (text: string) => void): ReactNode {
   return (
     <>
-      <p className={s.askMsg}>{payload.message}</p>
+      <div className={s.askMsg}><Markdown>{payload.message}</Markdown></div>
       {payload.options.length > 0 ? (
         <ActionCards columns={payload.options.length <= 2 ? 2 : 1}>
           {payload.options.map((opt) => (
@@ -87,51 +89,78 @@ function renderAsk(payload: AssistantAsk, onPick: (text: string) => void): React
   );
 }
 
-function renderAssessment(a: AssistantAssessment): ReactNode {
+function AssessmentBody({ a }: { a: AssistantAssessment }): ReactNode {
+  const [open, setOpen] = useState(false);
+  const hasDetail = a.satisfied.length > 0 || a.unsatisfied.length > 0 || a.next_steps.length > 0;
+
   return (
     <div className={s.assessment}>
-      <StateCard kind={LIKELIHOOD_KIND[a.likelihood]} title={`청구 가능성: ${a.likelihood}`}>
-        {a.summary}
-      </StateCard>
+      {/* 대화형: 가능성 한 줄 + 요약 프로즈 (카드 박스 대신) */}
+      <div className={s.likeLine} data-kind={LIKELIHOOD_KIND[a.likelihood]}>
+        <span className={s.likeDot} />
+        청구 가능성 <strong>{a.likelihood}</strong>
+      </div>
+      <div className={s.summaryProse}>
+        <Markdown>{a.summary}</Markdown>
+      </div>
 
-      {a.satisfied.length > 0 ? (
-        <div>
-          <h4 className={s.checkTitle}>충족 항목</h4>
-          <ul className={s.checkList}>
-            {a.satisfied.map((t, i) => (
-              <li key={i}>
-                <Icon name="checkmark" size={16} className={s.iconOk} />
-                <span>{t}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+      <CitationList citations={a.citations} compact />
 
-      {a.unsatisfied.length > 0 ? (
-        <div>
-          <h4 className={s.checkTitle}>미충족·확인 필요 항목</h4>
-          <ul className={s.checkList}>
-            {a.unsatisfied.map((t, i) => (
-              <li key={i}>
-                <Icon name="warning-filled" size={16} className={s.iconWarn} />
-                <span>{t}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+      {/* 상세(충족·미충족·다음단계)는 하단에 접어서 — 필요할 때만 펼침 */}
+      {hasDetail ? (
+        <div className={s.detailWrap}>
+          <button
+            type="button"
+            className={s.detailToggle}
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
+          >
+            {open ? '자세한 판단 근거 접기' : '자세한 판단 근거 보기'}
+            <Icon name={open ? 'chevron-up' : 'chevron-down'} size={16} />
+          </button>
 
-      <CitationList citations={a.citations} />
+          {open ? (
+            <div className={s.detailBox}>
+              {a.satisfied.length > 0 ? (
+                <div>
+                  <h4 className={s.checkTitle}>충족 항목</h4>
+                  <ul className={s.checkList}>
+                    {a.satisfied.map((t, i) => (
+                      <li key={i}>
+                        <Icon name="checkmark" size={16} className={s.iconOk} />
+                        <span>{t}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
 
-      {a.next_steps.length > 0 ? (
-        <div>
-          <h4 className={s.checkTitle}>다음 단계</h4>
-          <ol className={s.steps}>
-            {a.next_steps.map((t, i) => (
-              <li key={i}>{t}</li>
-            ))}
-          </ol>
+              {a.unsatisfied.length > 0 ? (
+                <div>
+                  <h4 className={s.checkTitle}>미충족·확인 필요 항목</h4>
+                  <ul className={s.checkList}>
+                    {a.unsatisfied.map((t, i) => (
+                      <li key={i}>
+                        <Icon name="warning-filled" size={16} className={s.iconWarn} />
+                        <span>{t}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {a.next_steps.length > 0 ? (
+                <div>
+                  <h4 className={s.checkTitle}>다음 단계</h4>
+                  <ol className={s.steps}>
+                    {a.next_steps.map((t, i) => (
+                      <li key={i}>{t}</li>
+                    ))}
+                  </ol>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -145,9 +174,9 @@ function renderAssessment(a: AssistantAssessment): ReactNode {
 function renderAnswer(a: AssistantAnswer, onPick: (text: string) => void): ReactNode {
   return (
     <div className={s.assessment}>
-      <p className={s.askMsg}>{a.message}</p>
+      <div className={s.askMsg}><Markdown>{a.message}</Markdown></div>
 
-      <CitationList citations={a.citations} />
+      <CitationList citations={a.citations} compact />
 
       {a.related_questions.length > 0 ? (
         <div>
@@ -176,6 +205,63 @@ function renderAnswer(a: AssistantAnswer, onPick: (text: string) => void): React
   );
 }
 
+// 인용된 약관 원문을 왼쪽에 크게 보여주는 프리뷰 패널(사람이 읽을 수 있도록).
+function DocPreview({
+  citation,
+  onZoom,
+}: {
+  citation: Citation;
+  onZoom: (src: string, alt: string, highlights?: Citation['highlights']) => void;
+}) {
+  const title = [citation.insurer, citation.product, citation.clause, citation.sub_no]
+    .filter(Boolean)
+    .join(' · ');
+  const pdfHref = citation.pdf_url
+    ? `${citation.pdf_url}#page=${citation.page}`
+    : (citation.page_image_url ?? undefined);
+  return (
+    <aside className={s.docPanel} aria-label="인용 약관 원문">
+      <div className={s.docHead}>
+        <span className={s.docTitle}>{title}</span>
+        {pdfHref ? (
+          <a className={s.docLink} href={pdfHref} target="_blank" rel="noopener noreferrer">
+            <Icon name="document" size={14} /> 원본 PDF
+          </a>
+        ) : null}
+      </div>
+      <div className={s.docScroll}>
+        {citation.page_image_url ? (
+          <button
+            type="button"
+            className={s.docImgWrap}
+            onClick={() =>
+              onZoom(citation.page_image_url!, `${title} (p.${citation.page})`, citation.highlights)
+            }
+            aria-label="현재 약관 페이지 크게 보기"
+          >
+            <img className={s.docImg} src={citation.page_image_url} alt={`약관 ${citation.page}페이지`} />
+            {(citation.highlights ?? []).map((hl, i) => (
+              <span
+                key={i}
+                className={s.docHl}
+                style={{
+                  left: `${hl.x * 100}%`,
+                  top: `${hl.y * 100}%`,
+                  width: `${hl.w * 100}%`,
+                  height: `${hl.h * 100}%`,
+                }}
+              />
+            ))}
+          </button>
+        ) : (
+          <p className={s.docText}>{citation.text}</p>
+        )}
+        <div className={s.docPage}>p.{citation.page}</div>
+      </div>
+    </aside>
+  );
+}
+
 export default function ChatPage({ user, session, onReset, onOpenReview }: ChatPageProps) {
   const {
     messages,
@@ -192,11 +278,32 @@ export default function ChatPage({ user, session, onReset, onOpenReview }: ChatP
 
   const streamRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
+  const [lightbox, setLightbox] = useState<{
+    src: string;
+    alt: string;
+    highlights?: Citation['highlights'];
+  } | null>(null);
 
-  useAutoScroll(streamRef, [messages.length, isSending]);
+  const lastMsg = messages[messages.length - 1];
+  const streamingLen =
+    lastMsg && lastMsg.role === 'assistant' && lastMsg.type === 'streaming'
+      ? lastMsg.text.length
+      : 0;
+  useAutoScroll(streamRef, [messages.length, isSending, streamingLen]);
 
   const hasAssessment = messages.some((m) => m.role === 'assistant' && m.type === 'assessment');
+
+  // 가장 최근 답변/진단의 페이지 이미지 인용 → 왼쪽 프리뷰 패널에 크게 표시.
+  const activeCitation = useMemo<Citation | null>(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.role === 'assistant' && (m.type === 'assessment' || m.type === 'answer')) {
+        const c = m.payload.citations?.find((x) => x.page_image_url);
+        if (c) return c;
+      }
+    }
+    return null;
+  }, [messages]);
   const rail = deriveRail(status, hasAssessment);
   const st = STATUS_TEXT[status ?? 'gathering'] ?? STATUS_TEXT.gathering;
 
@@ -237,11 +344,19 @@ export default function ChatPage({ user, session, onReset, onOpenReview }: ChatP
         </>
       );
     } else if (m.type === 'loading') {
-      body = <TypingBubble />;
+      body = <StatusBubble />;
+    } else if (m.type === 'streaming') {
+      // SSE 실시간 텍스트 — 부분 마크다운 깨짐 방지 위해 평문 + 커서. 완료 시 full 렌더로 교체.
+      body = (
+        <p className={s.streamingText}>
+          {m.text}
+          <span className={s.caret} />
+        </p>
+      );
     } else if (m.type === 'ask') {
       body = renderAsk(m.payload, (t) => void sendMessage(t));
     } else if (m.type === 'assessment') {
-      body = renderAssessment(m.payload);
+      body = <AssessmentBody a={m.payload} />;
     } else if (m.type === 'answer') {
       body = renderAnswer(m.payload, (t) => void sendMessage(t));
     } else {
@@ -296,20 +411,31 @@ export default function ChatPage({ user, session, onReset, onOpenReview }: ChatP
           ]}
         />
 
-        <ChatStream ref={streamRef}>{messages.map(renderMessage)}</ChatStream>
+        <div className={s.body}>
+          {activeCitation ? (
+            <DocPreview
+              citation={activeCitation}
+              onZoom={(src, alt, highlights) => setLightbox({ src, alt, highlights })}
+            />
+          ) : null}
+          <div className={s.chatCol}>
+            <ChatStream ref={streamRef} className={s.streamFlex}>
+              {messages.map(renderMessage)}
+            </ChatStream>
+            <Composer
+              onSend={(t) => void sendMessage(t)}
+              onAttach={() => fileInputRef.current?.click()}
+              disabled={isSending || isRestoring}
+              placeholder="청구 상황을 자유롭게 알려주세요."
+            />
+          </div>
+        </div>
 
         <HelpLauncher
           onSelectTreatment={handleSelectTreatment}
           pushToast={pushToast}
           hasAssessment={hasAssessment}
           onOpenReview={onOpenReview}
-        />
-
-        <Composer
-          onSend={(t) => void sendMessage(t)}
-          onAttach={() => fileInputRef.current?.click()}
-          disabled={isSending || isRestoring}
-          placeholder="청구 상황을 자유롭게 알려주세요."
         />
         <input
           ref={fileInputRef}
@@ -344,6 +470,7 @@ export default function ChatPage({ user, session, onReset, onOpenReview }: ChatP
           src={lightbox.src}
           alt={lightbox.alt}
           filename={lightbox.alt}
+          highlights={lightbox.highlights}
           onClose={() => setLightbox(null)}
         />
       ) : null}

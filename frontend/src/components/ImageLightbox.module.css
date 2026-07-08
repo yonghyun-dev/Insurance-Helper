@@ -32,12 +32,28 @@
   display: inline-flex;
 }
 
+.imgWrap {
+  position: relative;
+  display: inline-flex;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
 .img {
   max-width: 90vw;
   max-height: 80vh;
   object-fit: contain;
-  border-radius: 8px;
+  display: block;
   background: #fff;
+}
+
+/* 인용 근거 강조 — DocPreview 하이라이트와 동일 톤 (확대 시에도 유지). */
+.hl {
+  position: absolute;
+  background: rgba(255, 214, 0, 0.38);
+  border-radius: 2px;
+  pointer-events: none;
+  mix-blend-mode: multiply;
 }
 
 .caption {

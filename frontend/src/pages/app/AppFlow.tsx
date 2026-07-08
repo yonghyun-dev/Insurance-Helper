@@ -53,9 +53,12 @@ export default function AppFlow() {
     })();
   }, [stage, situation, session, user]);
 
-  // Loading → Chat: 실제 첫 응답(ask/assessment)이 도착하면 전환.
+  // Loading → Chat: 실제 첫 응답(ask/assessment/answer)이 도착하면 전환.
+  // PM-34 자유질의(answer) 누락 시 첫 메시지가 일반질문이면 로딩에서 멈추던 버그 수정.
   const firstResponseReady = session.messages.some(
-    (m) => m.role === 'assistant' && (m.type === 'ask' || m.type === 'assessment'),
+    (m) =>
+      m.role === 'assistant' &&
+      (m.type === 'ask' || m.type === 'assessment' || m.type === 'answer'),
   );
 
   function reset() {

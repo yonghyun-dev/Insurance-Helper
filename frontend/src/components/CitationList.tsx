@@ -8,7 +8,19 @@ import { Icon } from '../design-system/components/Icon';
 import type { Citation } from '../types/api';
 import s from './CitationList.module.css';
 
-function CitationCard({ c }: { c: Citation }) {
+// 약관 청크는 Document Parse 가 마크다운 표(| a | b |)로 파싱했는데 줄바꿈이 평탄화되어
+// GFM 표로 렌더되지 않는다. 파이프/구분선을 가독 구분점으로 정리해 원본 노출을 막는다.
+function cleanClauseText(t: string): string {
+  return t
+    .replace(/\|(?:\s*:?-{2,}:?\s*\|)+/g, ' ') // 표 구분선 셀(| --- | --- |) 제거
+    .replace(/\s*\|\s*/g, ' · ') // 남은 셀 파이프 → 구분점
+    .replace(/(?:\s*·\s*){2,}/g, ' · ') // 연속 구분점 축약
+    .replace(/^\s*·\s*|\s*·\s*$/g, '') // 앞뒤 구분점 제거
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function CitationCard({ c, hideThumb }: { c: Citation; hideThumb?: boolean }) {
   // 조항번호(clause)가 없는 청크(별표 등)면 해당 조각을 생략해 " · " 잔존 방지.
   const clauseLabel = [c.clause, c.sub_no].filter(Boolean).join(' ');
   const sourceLabel = [c.insurer, c.product, clauseLabel].filter(Boolean).join(' · ');
@@ -26,7 +38,8 @@ function CitationCard({ c }: { c: Citation }) {
         ) : null}
       </div>
 
-      {c.page_image_url ? (
+      {/* hideThumb: 메인 채팅은 왼쪽 프리뷰 패널이 원문을 크게 보여주므로 카드 썸네일 생략 */}
+      {c.page_image_url && !hideThumb ? (
         <a
           className={s.thumb}
           href={imgHref}
@@ -40,23 +53,77 @@ function CitationCard({ c }: { c: Citation }) {
       ) : null}
 
       <blockquote className={s.text} cite={pdfHref ?? undefined}>
-        {c.text}
-        {!c.page_image_url ? ` — p.${c.page}` : ''}
+        {cleanClauseText(c.text)}
+        {!c.page_image_url || hideThumb ? (
+          <span className={s.pageSuffix}> p.{c.page}</span>
+        ) : null}
       </blockquote>
     </li>
   );
 }
 
-export default function CitationList({ citations }: { citations: Citation[] }) {
+// 컴팩트(대화형) 출처 링크 1건 — 박스/원문 없이 "📄 보험사·상품·조항". 원문은 왼쪽 패널.
+function SourceLink({ c }: { c: Citation }) {
+  const clauseLabel = [c.clause, c.sub_no].filter(Boolean).join(' ');
+  const label = [c.insurer, c.product, clauseLabel].filter(Boolean).join(' · ');
+  const href = c.pdf_url ? `${c.pdf_url}#page=${c.page}` : (c.page_image_url ?? undefined);
+  return (
+    <a
+      className={s.sourceLink}
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      title="원본 PDF 보기"
+    >
+      <Icon name="document" size={13} />
+      <span>{label}</span>
+    </a>
+  );
+}
+
+export default function CitationList({
+  citations,
+  hideThumb,
+  compact,
+}: {
+  citations: Citation[];
+  hideThumb?: boolean;
+  compact?: boolean;
+}) {
   const [expanded, setExpanded] = useState(false);
   if (!citations || citations.length === 0) return null;
   const [first, ...rest] = citations;
 
+  // 대화형(compact): 근거 약관을 작은 출처 링크로만. 원문·하이라이트는 왼쪽 패널이 담당.
+  if (compact) {
+    const shown = expanded ? citations : [first];
+    return (
+      <div className={s.sources}>
+        <span className={s.sourcesLabel}>근거 약관</span>
+        {shown.map((c) => (
+          <SourceLink key={c.chunk_id} c={c} />
+        ))}
+        {rest.length > 0 ? (
+          <button
+            type="button"
+            className={s.sourcesToggle}
+            aria-expanded={expanded}
+            onClick={() => setExpanded((v) => !v)}
+          >
+            {expanded ? '접기' : `+${rest.length}`}
+          </button>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <section className={s.wrap} role="region" aria-label="약관 인용">
       <ul className={s.list}>
-        <CitationCard c={first} />
-        {expanded ? rest.map((c) => <CitationCard key={c.chunk_id} c={c} />) : null}
+        <CitationCard c={first} hideThumb={hideThumb} />
+        {expanded
+          ? rest.map((c) => <CitationCard key={c.chunk_id} c={c} hideThumb={hideThumb} />)
+          : null}
       </ul>
       {rest.length > 0 ? (
         <button

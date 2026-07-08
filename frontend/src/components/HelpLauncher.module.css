@@ -188,6 +188,28 @@
   border-color: var(--blue-60);
 }
 
+/* 답변 하단 후속 질문(related_questions) 칩 */
+.related {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.relatedChip {
+  padding: 6px 11px;
+  border: 1px solid var(--gray-30);
+  border-radius: 999px;
+  background: var(--background, #fff);
+  font-size: 12px;
+  color: var(--blue-70, #0043ce);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.relatedChip:hover {
+  background: var(--blue-10, #edf5ff);
+  border-color: var(--blue-60);
+}
+
 .actions {
   display: flex;
   flex-direction: column;

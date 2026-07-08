@@ -249,11 +249,35 @@
 
 /* messages */
 .bubble {
-  display: grid;
-  grid-template-columns: 36px 1fr;
-  gap: 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
   opacity: 1;
   animation: msgIn var(--dur-moderate-01) var(--ease-productive-entrance);
+}
+/* 사람 메시지 = 우측 정렬 (아바타 없음, 말풍선) */
+.bubble--user {
+  justify-content: flex-end;
+}
+.bubble__col {
+  min-width: 0;
+  max-width: 100%;
+}
+.bubble--user .bubble__col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: 78%;
+}
+.bubble--user .bubble__head {
+  justify-content: flex-end;
+}
+/* 사람 말풍선 배경 */
+.bubble--user .bubble__body {
+  padding: 10px 14px;
+  border-radius: 16px 16px 4px 16px;
+  background: var(--blue-10, #edf5ff);
+  color: var(--text-primary);
 }
 @keyframes msgIn {
   from { opacity: 0; transform: translateY(4px); }

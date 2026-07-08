@@ -5,6 +5,7 @@
 import type {
   ApiErrorCode,
   ApiValidationError,
+  Citation,
   HealthHistoryResponse,
   InsurerRead,
   ProductRead,
@@ -117,10 +118,72 @@ export async function postMessage(
   });
 }
 
+// 도움 챗봇('무엇이든 물어보세요') 전용 — RAG 근거 일반 QA(사용법 질문이면 citations 빈 배열).
+export interface HelpAnswer {
+  message: string;
+  citations: Citation[];
+  related_questions: string[];
+}
+export async function helpAsk(text: string): Promise<HelpAnswer> {
+  return api<HelpAnswer>('/sessions/help', {
+    method: 'POST',
+    body: JSON.stringify({ text }),
+  });
+}
+
 export async function getSessionState(
   sessionId: string,
 ): Promise<SessionStateResponse> {
   return api<SessionStateResponse>(`/sessions/${sessionId}`);
+}
+
+export interface StreamHandlers {
+  onDelta: (text: string) => void;
+  onFinal: (r: SessionResponse) => void;
+  onError: (err: { code: string; message: string }) => void;
+}
+
+/** SSE 스트리밍 메시지 — 답변 텍스트를 생성되는 대로(delta) 수신, 완료 시(final) 전체 응답. */
+export async function streamMessage(
+  sessionId: string,
+  text: string,
+  h: StreamHandlers,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/sessions/${sessionId}/messages/stream`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  });
+  if (!res.ok || !res.body) {
+    h.onError({ code: 'HTTP', message: `스트리밍 실패 (${res.status})` });
+    return;
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let sep: number;
+    while ((sep = buf.indexOf('\n\n')) >= 0) {
+      const raw = buf.slice(0, sep);
+      buf = buf.slice(sep + 2);
+      const ev = raw.match(/^event: (.+)$/m)?.[1]?.trim();
+      const dataLine = raw.match(/^data: (.+)$/m)?.[1];
+      if (!ev || !dataLine) continue;
+      let data: unknown;
+      try {
+        data = JSON.parse(dataLine);
+      } catch {
+        continue;
+      }
+      if (ev === 'delta') h.onDelta((data as { text?: string }).text ?? '');
+      else if (ev === 'final') h.onFinal(data as SessionResponse);
+      else if (ev === 'error') h.onError(data as { code: string; message: string });
+    }
+  }
 }
 
 /** 구조화 슬롯 결정론 seed (PM-33). 마이데이터/건강보험 구조화 데이터를 자연어 왕복 없이 직접 세팅. */

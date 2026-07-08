@@ -2,11 +2,12 @@
 // 두 뷰: menu(자주 묻는 질문·빠른 작업) → 대화 시작 시 chat(전체 챗봇 화면)으로 전환.
 // chat 뷰에는 뒤로 가기 + 크게 보기(확대 창) 컨트롤. 답변은 팝업 자체 세션으로 약관 근거 응답.
 import { useEffect, useRef, useState } from 'react';
-import { createSession, postMessage } from '../api/client';
+import { helpAsk } from '../api/client';
 import { Icon } from '../design-system/components/Icon';
 import type { Citation, TreatmentCard } from '../types/api';
 import CitationList from './CitationList';
 import HealthHistoryPanel from './HealthHistoryPanel';
+import StreamedText from './StreamedText';
 import s from './HelpLauncher.module.css';
 
 const FAQS = [
@@ -21,6 +22,7 @@ interface MiniMsg {
   role: 'user' | 'bot';
   text: string;
   citations?: Citation[];
+  related?: string[];
 }
 
 interface Props {
@@ -45,7 +47,6 @@ export default function HelpLauncher({
   const [msgs, setMsgs] = useState<MiniMsg[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
-  const sidRef = useRef<string | null>(null);
   const threadRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -60,16 +61,12 @@ export default function HelpLauncher({
     setMsgs((m) => [...m, { id: nextId(), role: 'user', text: q }]);
     setSending(true);
     try {
-      if (!sidRef.current) {
-        const created = await createSession();
-        sidRef.current = created.session_id;
-      }
-      const r = await postMessage(sidRef.current, q);
-      const a = r.assistant;
-      const botText =
-        'message' in a ? a.message : 'summary' in a ? a.summary : '답변을 준비했어요.';
-      const citations = 'citations' in a ? a.citations : undefined;
-      setMsgs((m) => [...m, { id: nextId(), role: 'bot', text: botText, citations }]);
+      // 도움 챗봇은 메인 상담과 분리 — RAG 근거 일반 QA(청구 판정 X). 사용법 질문은 인용 없음.
+      const r = await helpAsk(q);
+      setMsgs((m) => [
+        ...m,
+        { id: nextId(), role: 'bot', text: r.message, citations: r.citations, related: r.related_questions },
+      ]);
     } catch {
       setMsgs((m) => [
         ...m,
@@ -204,9 +201,35 @@ export default function HelpLauncher({
               <div className={s.thread} ref={threadRef}>
                 {msgs.map((m) => (
                   <div key={m.id} className={m.role === 'user' ? s.bubbleUser : s.bubbleBot}>
-                    <p className={s.bubbleText}>{m.text}</p>
+                    <div className={s.bubbleText}>
+                      {m.role === 'bot' ? (
+                        <StreamedText
+                          text={m.text}
+                          markdown
+                          onTick={() =>
+                            threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight })
+                          }
+                        />
+                      ) : (
+                        m.text
+                      )}
+                    </div>
                     {m.citations && m.citations.length > 0 ? (
-                      <CitationList citations={m.citations} />
+                      <CitationList citations={m.citations} compact />
+                    ) : null}
+                    {m.related && m.related.length > 0 ? (
+                      <div className={s.related}>
+                        {m.related.map((q) => (
+                          <button
+                            key={q}
+                            type="button"
+                            className={s.relatedChip}
+                            onClick={() => void ask(q)}
+                          >
+                            {q}
+                          </button>
+                        ))}
+                      </div>
                     ) : null}
                   </div>
                 ))}

@@ -7,7 +7,7 @@ import {
   IcaApiError,
   createSession,
   getSessionState,
-  postMessage,
+  streamMessage,
   seedSlots,
   closeSession,
   uploadDocument,
@@ -85,8 +85,10 @@ export function useSession() {
   // 응답을 메시지 큐에 반영
   const ingestResponse = useCallback((r: SessionResponse, alsoUser?: { id: string; text: string }) => {
     setMessages(prev => {
-      // loading 메시지 제거
-      const cleaned = prev.filter(m => !(m.role === 'assistant' && m.type === 'loading'));
+      // loading/streaming 임시 메시지 제거
+      const cleaned = prev.filter(
+        m => !(m.role === 'assistant' && (m.type === 'loading' || m.type === 'streaming')),
+      );
       const next = [...cleaned];
       if (alsoUser) {
         next.push({ id: alsoUser.id, role: 'user', content: alsoUser.text, created_at: now() });
@@ -165,6 +167,45 @@ export function useSession() {
       { id: loadingId, role: 'assistant', type: 'loading', created_at: now() },
     ]);
 
+    // SSE 스트리밍 — 답변 텍스트를 생성되는 대로 loading→streaming 으로 갱신, 완료 시 full 렌더.
+    const streamInto = async (sid: string, msg: string) => {
+      let started = false;
+      let acc = '';
+      let streamErr: { code: string; message: string } | null = null;
+      await streamMessage(sid, msg, {
+        onDelta: (t) => {
+          acc += t;
+          setMessages(prev => {
+            if (!started) {
+              started = true;
+              return prev.map(m =>
+                m.id === loadingId
+                  ? { id: loadingId, role: 'assistant', type: 'streaming', text: acc, created_at: now() }
+                  : m,
+              );
+            }
+            return prev.map(m =>
+              m.id === loadingId && m.role === 'assistant' && m.type === 'streaming'
+                ? { ...m, text: acc }
+                : m,
+            );
+          });
+        },
+        onFinal: (r) => ingestResponse(r),
+        onError: (e) => {
+          streamErr = e;
+        },
+      });
+      if (streamErr) {
+        const err: { code: string; message: string } = streamErr;
+        throw new IcaApiError(
+          (err.code as never) ?? 'UNKNOWN',
+          err.message ?? '스트리밍 오류가 발생했습니다.',
+          0,
+        );
+      }
+    };
+
     try {
       let sid = sessionId ?? sessionStorage.getItem(STORAGE_KEY);
 
@@ -177,8 +218,7 @@ export function useSession() {
           sessionStorage.setItem(STORAGE_KEY, sid);
           setSessionId(sid);
           await seedSlots(sid, seed);
-          const r = await postMessage(sid, trimmed);
-          ingestResponse(r);
+          await streamInto(sid, trimmed);
         } else {
           // 세션 없음 → POST /sessions { initial_message: text }
           const created = await createSession(trimmed);
@@ -195,8 +235,7 @@ export function useSession() {
         // 세션 있음 → (seed 있으면 먼저 결정론 seed) → POST /sessions/{id}/messages
         try {
           if (seed) await seedSlots(sid, seed);
-          const r = await postMessage(sid, trimmed);
-          ingestResponse(r);
+          await streamInto(sid, trimmed);
         } catch (e) {
           // 404 SESSION_NOT_FOUND → 자동 복구 (ui-states.md § 4)
           if (e instanceof IcaApiError && e.code === 'SESSION_NOT_FOUND') {

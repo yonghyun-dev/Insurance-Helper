@@ -13,24 +13,17 @@ export interface MessageBubbleProps {
   children: ReactNode;
 }
 
-export default function MessageBubble({
-  role,
-  name,
-  time,
-  initial,
-  children,
-}: MessageBubbleProps) {
+// 사람 = 우측(말풍선), Agent = 좌측(아바타 + 대화형 텍스트). ChatGPT/Claude 스타일.
+export default function MessageBubble({ role, name, time, children }: MessageBubbleProps) {
+  const isUser = role === 'user';
   return (
-    <div className={s.bubble}>
-      <div
-        className={clsx(
-          s.bubble__avatar,
-          role === 'bot' ? s['bubble__avatar--bot'] : s['bubble__avatar--user'],
-        )}
-      >
-        {role === 'bot' ? <Icon name="bot" size={18} /> : initial}
-      </div>
-      <div style={{ minWidth: 0 }}>
+    <div className={clsx(s.bubble, isUser && s['bubble--user'])}>
+      {!isUser ? (
+        <div className={clsx(s.bubble__avatar, s['bubble__avatar--bot'])}>
+          <Icon name="bot" size={18} />
+        </div>
+      ) : null}
+      <div className={s.bubble__col}>
         <div className={s.bubble__head}>
           <span className={s.bubble__name}>{name}</span>
           <span className={s.bubble__time}>{time}</span>

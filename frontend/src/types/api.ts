@@ -105,6 +105,8 @@ export type Citation = {
   // Sprint 5 backend hydrate — PDF 페이지 캡처 썸네일 + 원본 PDF URL
   page_image_url?: string | null;
   pdf_url?: string | null;
+  // 인용 조항의 페이지 내 위치(정규화 0~1 박스) — 프리뷰 이미지 위 하이라이트용
+  highlights?: { x: number; y: number; w: number; h: number }[];
 };
 
 export type AssistantAssessment = {
@@ -201,4 +203,5 @@ export type ChatMessage =
   | { id: string; role: 'assistant'; type: 'assessment'; payload: AssistantAssessment; created_at: string }
   | { id: string; role: 'assistant'; type: 'answer'; payload: AssistantAnswer; created_at: string }
   | { id: string; role: 'assistant'; type: 'loading'; created_at: string }
+  | { id: string; role: 'assistant'; type: 'streaming'; text: string; created_at: string }
   | { id: string; role: 'assistant'; type: 'error'; code: string; message: string; retryText: string; created_at: string };
