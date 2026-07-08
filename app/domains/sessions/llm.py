@@ -22,6 +22,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from datetime import date
 from typing import Any
 
@@ -444,7 +445,8 @@ _ASSESSMENT_SYSTEM = (
     "가능성 등급(높음/중간/낮음) + 충족·미충족 항목 + 근거 약관 조항 인용을 응답한다.\n\n"
     "규칙:\n"
     "1. 단정적 판단 금지 — '~가능성이 있습니다', '~로 추정됩니다' 등 어시스턴트 톤\n"
-    "2. citations 는 입력된 청크의 chunk_id / 메타를 그대로 인용 (text 는 청크 본문 원본)\n"
+    "2. citations 는 입력된 청크의 chunk_id / 메타를 그대로 인용 (text 는 청크 본문 원본). "
+    "   단 summary/satisfied/unsatisfied/next_steps 등 **본문 텍스트에는 chunk_id·내부 식별자·'청크' 표현 금지**\n"
     "3. citations.minItems=1 — 인용 없는 응답 금지\n"
     "4. disclaimer 는 정해진 면책 문구 사용\n"
     "5. summary 는 1~2 문장의 한국어 요약\n"
@@ -489,6 +491,83 @@ _DEFAULT_DISCLAIMER = (
     retry=retry_if_exception_type(_RETRYABLE_EXC),
     reraise=True,
 )
+def _partial_json_string(content: str, field: str) -> str | None:
+    """스트리밍 중 누적된 JSON content 에서 특정 문자열 필드의 값을 '지금까지' 디코드한다.
+
+    닫는 따옴표가 아직 안 왔으면 현재까지의 값을 반환(스트리밍 미리보기용). 없으면 None.
+    """
+    marker = f'"{field}"'
+    i = content.find(marker)
+    if i < 0:
+        return None
+    j = content.find(":", i + len(marker))
+    if j < 0:
+        return None
+    k = content.find('"', j + 1)
+    if k < 0:
+        return None
+    out: list[str] = []
+    idx = k + 1
+    n = len(content)
+    while idx < n:
+        ch = content[idx]
+        if ch == "\\" and idx + 1 < n:
+            nxt = content[idx + 1]
+            out.append({"n": "\n", "t": "\t", '"': '"', "\\": "\\", "/": "/", "r": "\r"}.get(nxt, nxt))
+            idx += 2
+            continue
+        if ch == '"':
+            break  # 값 종료
+        out.append(ch)
+        idx += 1
+    return "".join(out)
+
+
+def _call_structured_stream(
+    client: OpenAI,
+    *,
+    model: str,
+    messages: list[dict[str, str]],
+    response_schema: dict[str, Any],
+    temperature: float,
+    on_delta: Callable[[str], None],
+    stream_field: str,
+) -> dict[str, Any]:
+    """Structured Outputs 스트리밍 호출. stream_field 값이 늘어나는 만큼 on_delta 로 흘린다.
+
+    실패 시 비스트리밍 _call_structured 로 폴백(부분 파싱 실패 방어).
+    """
+    try:
+        stream = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            response_format={"type": "json_schema", "json_schema": response_schema},
+            temperature=temperature,
+            stream=True,
+        )
+        content = ""
+        sent = 0
+        for chunk in stream:
+            choices = getattr(chunk, "choices", None)
+            if not choices:
+                continue
+            delta = getattr(choices[0].delta, "content", None) or ""
+            if not delta:
+                continue
+            content += delta
+            val = _partial_json_string(content, stream_field)
+            if val is not None and len(val) > sent:
+                on_delta(val[sent:])
+                sent = len(val)
+        return json.loads(content)
+    except Exception as exc:  # noqa: BLE001 — 폴백 보장(부분 파싱/스트림 오류)
+        logger.warning("스트리밍 구조화 호출 실패 → 비스트리밍 폴백: %s", exc)
+        return _call_structured(
+            client, model=model, messages=messages,
+            response_schema=response_schema, temperature=temperature,
+        )
+
+
 def _call_structured(
     client: OpenAI,
     *,
@@ -517,6 +596,7 @@ def generate_assessment(
     slots: SlotState,
     chunks: list[dict[str, Any]],
     coverage: dict[str, Any] | None = None,
+    on_delta: Callable[[str], None] | None = None,
 ) -> AssistantAssessment:
     """슬롯 + RAG 청크(+ 결정론 보장 판정)로 가능성 등급 + 인용 응답 생성.
 
@@ -562,10 +642,18 @@ def generate_assessment(
             )
         messages = _messages_for_llm(history=[], system_prompt=system, new_user_msg=user_payload)
         try:
-            raw = _call_structured(
-                client, model=get_chat_model(), messages=messages,
-                response_schema=_ASSESSMENT_RESPONSE_SCHEMA, temperature=0.2,
-            )
+            # 첫 시도 + on_delta 있으면 스트리밍(summary 를 실시간 전송). 재시도는 비스트리밍.
+            if on_delta is not None and attempt == 1:
+                raw = _call_structured_stream(
+                    client, model=get_chat_model(), messages=messages,
+                    response_schema=_ASSESSMENT_RESPONSE_SCHEMA, temperature=0.2,
+                    on_delta=on_delta, stream_field="summary",
+                )
+            else:
+                raw = _call_structured(
+                    client, model=get_chat_model(), messages=messages,
+                    response_schema=_ASSESSMENT_RESPONSE_SCHEMA, temperature=0.2,
+                )
         except SchemaViolationError as exc:
             last_error = exc
             logger.warning("generate_assessment schema 위반 (attempt %d): %s", attempt, exc)
@@ -633,6 +721,12 @@ _SLOT_LABELS: dict[str, str] = {
     "hospital": "병원명",
     "insurer": "보험사",
     "product": "상품명",
+    "treatment_type": "치료 유형",
+    "benefit_type": "급여 구분",
+    "purpose": "청구 목적",
+    "generation": "실손 세대",
+    "benefit_split": "급여/비급여 구분",
+    "area": "보험 영역",
 }
 # 긴 키 우선 치환 (diagnosis_code 를 diagnosis 보다 먼저) — 부분 치환 방지.
 _SLOT_LABELS_ORDERED: list[str] = sorted(_SLOT_LABELS, key=len, reverse=True)
@@ -767,8 +861,25 @@ def _hydrate_citation_urls(
             )
 
         pdf_link = pdf_service.pdf_url(file_path)
+
+        # 인용 조항의 페이지 내 위치 하이라이트(정규화 박스). 이미지가 있을 때만.
+        highlights: list[dict[str, float]] = []
+        if page_url:
+            try:
+                from app.infrastructure.pdfimage import highlight as hl
+
+                highlights = hl.find_highlights(file_path, cite.page, cite.text, cite.clause)
+            except Exception as exc:
+                logger.warning("Citation hydrate — 하이라이트 실패 chunk=%s: %s", cite.chunk_id, exc)
+
         hydrated.append(
-            cite.model_copy(update={"page_image_url": page_url, "pdf_url": pdf_link})
+            cite.model_copy(
+                update={
+                    "page_image_url": page_url,
+                    "pdf_url": pdf_link,
+                    "highlights": highlights,
+                }
+            )
         )
     return hydrated
 
@@ -850,6 +961,8 @@ _EXPLANATION_SYSTEM = (
     "   '일반적인 실손의료보험 표준약관 기준'임을 밝힌다.\n"
     "5. related_questions: 사용자가 이어서 물어볼 만한 실손 관련 질문 최대 4개 (없으면 빈 배열).\n"
     "6. needs_policy: 정확한 답에 가입 약관 확인이 필요하면 true.\n"
+    "7. **금지**: message 본문에 chunk_id·내부 식별자·'청크'/'청크_id' 같은 표현을 절대 쓰지 말 것. "
+    "   근거는 citations 로만 제시하고, 본문은 사람이 읽는 자연어만.\n"
 )
 
 # citations 항목 스키마는 assessment 와 동일 (약관 인용 포맷 공유).
@@ -877,6 +990,7 @@ _EXPLANATION_RESPONSE_SCHEMA = {
 def generate_explanation(
     question: str,
     chunks: list[dict[str, Any]],
+    on_delta: Callable[[str], None] | None = None,
 ) -> AssistantAnswer:
     """실손 일반 질문 + RAG 청크로 약관 근거 설명(AssistantAnswer) 생성.
 
@@ -909,10 +1023,17 @@ def generate_explanation(
             history=[], system_prompt=system, new_user_msg=user_payload
         )
         try:
-            raw = _call_structured(
-                client, model=get_chat_model(), messages=messages,
-                response_schema=_EXPLANATION_RESPONSE_SCHEMA, temperature=0.2,
-            )
+            if on_delta is not None and attempt == 1:
+                raw = _call_structured_stream(
+                    client, model=get_chat_model(), messages=messages,
+                    response_schema=_EXPLANATION_RESPONSE_SCHEMA, temperature=0.2,
+                    on_delta=on_delta, stream_field="message",
+                )
+            else:
+                raw = _call_structured(
+                    client, model=get_chat_model(), messages=messages,
+                    response_schema=_EXPLANATION_RESPONSE_SCHEMA, temperature=0.2,
+                )
         except SchemaViolationError as exc:
             last_error = exc
             logger.warning("generate_explanation schema 위반 (attempt %d): %s", attempt, exc)
@@ -957,7 +1078,7 @@ def _build_answer(
         if chunks:
             citations = _hydrate_citation_urls(citations, chunks)
         answer = AssistantAnswer(
-            message=raw["message"],
+            message=_localize_slot_names(raw["message"]),
             citations=citations,
             related_questions=raw.get("related_questions", [])[:4],
             needs_policy=bool(raw.get("needs_policy", False)),
@@ -1048,6 +1169,106 @@ _CLASSIFY_DOCUMENT_TOOL: dict[str, Any] = {
         "required": ["doc_type", "confidence", "reason"],
     },
 }
+
+
+_HELP_SYSTEM = (
+    "당신은 '보험길잡이' 서비스의 도움말·상담 안내원입니다. 두 가지 일을 합니다:\n"
+    "  (A) 서비스 사용법 안내,  (B) 실손보험·약관에 대한 일반 질문(QA) 답변.\n\n"
+    "[참고 자료] 사용자 질문과 함께 실손 표준약관에서 검색된 참고 청크가 제공됩니다. "
+    "이 청크는 질문과 무관할 수도 있으니, 관련될 때만 근거로 씁니다.\n\n"
+    "[역할 경계 — 반드시 지킬 것]\n"
+    "- 당신은 **특정인의 청구 가능성을 '높음/중간/낮음' 으로 판정하지 않습니다.** "
+    "그 일은 메인 상담(본인 확인 → 상황 입력 → 보험 확인 → 맞춤 안내)이 담당합니다.\n"
+    "- 사용자가 '내 경우 청구 되나요?' 처럼 **본인의 구체 사례 판단**을 물으면, 일반 원칙만 짧게 "
+    "설명하고 '상황을 입력하시면 가입 약관을 근거로 맞춤 안내를 도와드려요' 라고 메인 흐름으로 "
+    "안내하세요. 이때 citations 는 빈 배열로 둡니다.\n\n"
+    "[답변 규칙]\n"
+    "1. 실손보험·약관 관련 **사실 질문**이고 참고 청크가 관련되면, 그 청크를 근거로 답하고 "
+    "   citations 에 사용한 chunk_id 를 담습니다 (환각 금지 — 제공된 chunk_id 만 사용).\n"
+    "2. **서비스 사용법·조작 질문**이거나 참고 청크가 질문과 무관하면, 아는 범위에서 쉽게 답하고 "
+    "   citations 는 빈 배열로 둡니다.\n"
+    "3. 청크에 없는 약관 세부 수치·조건을 지어내지 않습니다. 특정 가입 보험이 확인되지 않으면 "
+    "   '일반적인 실손 표준약관 기준' 임을 밝힙니다.\n"
+    "4. 단정 금지, 어시스턴트 존댓말, 2~4문장으로 간결하게(어르신도 이해하도록). "
+    "   message 본문에 chunk_id·'청크' 같은 내부 표현을 절대 쓰지 않습니다.\n"
+    "5. related_questions: 이어서 물어볼 만한 질문 최대 4개(없으면 빈 배열). "
+    "   needs_policy: 정확한 답에 가입 약관 확인이 필요하면 true.\n"
+)
+
+# 응답 스키마는 explanation 과 동일 포맷을 공유하되, citations 는 0건 허용(사용법 질문).
+_HELP_RESPONSE_SCHEMA = {
+    "name": "help_answer",
+    "schema": _EXPLANATION_RESPONSE_SCHEMA["schema"],
+    "strict": True,
+}
+
+
+def generate_help_answer(
+    question: str, chunks: list[dict[str, Any]] | None = None
+) -> AssistantAnswer:
+    """도움 챗봇('무엇이든 물어보세요') 전용 — RAG 근거 일반 QA + 사용법 안내.
+
+    메인 상담(generate_assessment)과 달리 **청구 가능성 판정을 하지 않는다.** 대신:
+      - 실손·약관 사실 질문이면 검색 청크를 근거로 답하고 citations 를 담는다(compact 출처).
+      - 사용법/무관 질문이면 citations 없이 쉽게 답한다.
+      - 본인 사례 판단 요청은 메인 흐름으로 안내(citations 빈 배열).
+
+    generate_explanation 과 달리 citations 최소 1건을 강제하지 않으며(사용법 질문),
+    스키마 위반 시에도 plain 텍스트로 graceful fallback 하여 도움 챗봇이 하드 실패하지 않는다.
+    """
+    client = _get_client()
+    chunks = chunks or []
+    chunks_for_llm = _prepare_chunks(chunks)
+    valid_chunk_ids = {c["chunk_id"] for c in chunks_for_llm if c["chunk_id"]}
+    user_payload = json.dumps(
+        {"question": question.strip(), "chunks": chunks_for_llm}, ensure_ascii=False
+    )
+    messages = _messages_for_llm(
+        history=[], system_prompt=_HELP_SYSTEM, new_user_msg=user_payload
+    )
+    try:
+        raw = _call_structured(
+            client, model=get_chat_model(), messages=messages,
+            response_schema=_HELP_RESPONSE_SCHEMA, temperature=0.3,
+        )
+    except Exception as exc:  # noqa: BLE001 — 외부 LLM/스키마 방어 → plain fallback
+        logger.warning("generate_help_answer 구조화 호출 실패, plain fallback: %s", exc)
+        return _help_plain_answer(client, question)
+
+    # citations 는 있으면 검증/hydrate, 없으면 그대로 빈 배열 (사용법 질문).
+    raw_citations = [c for c in (raw.get("citations") or []) if c.get("chunk_id") in valid_chunk_ids]
+    citations: list[Citation] = []
+    if raw_citations:
+        try:
+            citations = _hydrate_citation_urls(
+                [Citation.model_validate(c) for c in raw_citations], chunks
+            )
+        except Exception as exc:  # noqa: BLE001 — 인용 하이드레이트 실패는 무시(본문은 유효)
+            logger.warning("generate_help_answer citation hydrate 실패: %s", exc)
+            citations = []
+    return AssistantAnswer(
+        message=_localize_slot_names(raw.get("message", "").strip()),
+        citations=citations,
+        related_questions=(raw.get("related_questions") or [])[:4],
+        needs_policy=bool(raw.get("needs_policy", False)),
+    )
+
+
+def _help_plain_answer(client: OpenAI, question: str) -> AssistantAnswer:
+    """구조화 호출 실패 시 plain 텍스트 폴백 (인용 없이 본문만)."""
+    messages = _messages_for_llm(
+        history=[], system_prompt=_HELP_SYSTEM, new_user_msg=question.strip()
+    )
+    try:
+        response = client.chat.completions.create(
+            model=get_chat_model(), messages=messages, temperature=0.3,
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise LLMError(f"generate_help_answer 폴백 호출 실패: {exc}") from exc
+    return AssistantAnswer(
+        message=(response.choices[0].message.content or "").strip(),
+        citations=[], related_questions=[], needs_policy=False,
+    )
 
 
 def _classify_document_system() -> str:

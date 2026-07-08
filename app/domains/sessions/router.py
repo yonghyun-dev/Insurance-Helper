@@ -15,10 +15,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.domains.auth.deps import get_current_user_optional
@@ -26,6 +27,7 @@ from app.domains.claims import service as claims_service
 from app.domains.claims.schemas import ClaimChecklist, ClaimReceipt, ClaimSummary
 from app.domains.sessions import service
 from app.domains.sessions.schemas import (
+    Citation,
     Message,
     MessageRequest,
     SessionCreate,
@@ -78,6 +80,24 @@ class SessionStateResponse(BaseModel):
     history: list[Message] = Field(default_factory=list)
 
 
+class HelpRequest(BaseModel):
+    """POST /sessions/help 요청 — 도움 챗봇 일반 질문."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    text: str = Field(min_length=1, max_length=1000)
+
+
+class HelpResponse(BaseModel):
+    """POST /sessions/help 응답 — RAG 근거 일반 QA(사용법 질문이면 citations 빈 배열)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    message: str
+    citations: list[Citation] = Field(default_factory=list)
+    related_questions: list[str] = Field(default_factory=list)
+
+
 # ---------------------------------------------------------------------------
 # 내부 헬퍼 — 표준 에러 응답
 # ---------------------------------------------------------------------------
@@ -97,6 +117,25 @@ _MSG_LLM_UNAVAILABLE = "LLM 서비스가 일시적으로 응답하지 않습니�
 # ---------------------------------------------------------------------------
 # 엔드포인트
 # ---------------------------------------------------------------------------
+
+
+@router.post("/help", response_model=HelpResponse)
+def help_answer(payload: HelpRequest) -> HelpResponse:
+    """도움 챗봇('무엇이든 물어보세요') 전용 — 세션·인용·판정 없는 일반 도움말.
+
+    메인 상담(POST /sessions/{id}/messages)과 역할이 분리된다. 여기서는 서비스 사용법과
+    보험 기본 개념만 쉬운 말로 답하고, 약관 인용·청구 가능성 판정은 하지 않는다.
+    """
+    try:
+        answer = service.answer_help(payload.text)
+    except LLMError as exc:
+        logger.error("help_answer LLM 오류: %s", exc)
+        raise _error("LLM_UNAVAILABLE", _MSG_LLM_UNAVAILABLE, http=503) from exc
+    return HelpResponse(
+        message=answer.message,
+        citations=answer.citations,
+        related_questions=answer.related_questions,
+    )
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=SessionCreateResponse)
@@ -157,6 +196,62 @@ def post_message(
     except LLMError as exc:
         logger.error("post_message LLM 실패: %s", exc)
         raise _error("LLM_UNAVAILABLE", _MSG_LLM_UNAVAILABLE, http=503) from exc
+
+
+@router.post("/{session_id}/messages/stream")
+def stream_message(
+    session_id: str,
+    payload: MessageRequest,
+    current_user: User | None = Depends(get_current_user_optional),  # noqa: B008
+) -> StreamingResponse:
+    """SSE 스트리밍 — 답변 텍스트를 생성되는 대로 delta 로 흘리고, 완료 시 full 응답을 final 로.
+
+    threaded-queue 브리지: post_message(기존 로직·감사·저장 그대로)를 워커 스레드에서 돌리고,
+    generate_* 의 on_delta 콜백이 summary/message 증가분을 큐로 밀어 SSE 로 전달한다.
+    이벤트: `delta`(텍스트 조각) / `final`(SessionResponse JSON) / `error`.
+    """
+    import json as _json
+    from queue import Queue
+    from threading import Thread
+
+    user_id = current_user.id if current_user else None
+
+    def event_stream() -> Iterator[str]:
+        q: Queue = Queue()
+
+        def on_delta(text: str) -> None:
+            q.put(("delta", {"text": text}))
+
+        def run() -> None:
+            try:
+                resp = service.post_message(
+                    session_id, payload.text, user_id=user_id, on_delta=on_delta
+                )
+                q.put(("final", resp.model_dump(mode="json")))
+            except SessionNotFoundError:
+                q.put(("error", {"code": "SESSION_NOT_FOUND", "message": _MSG_SESSION_NOT_FOUND}))
+            except (LLMError, SchemaViolationError) as exc:
+                logger.error("stream_message LLM 실패: %s", exc)
+                q.put(("error", {"code": "LLM_UNAVAILABLE", "message": _MSG_LLM_UNAVAILABLE}))
+            except Exception as exc:  # noqa: BLE001
+                logger.error("stream_message 예외: %s", exc)
+                q.put(("error", {"code": "INTERNAL", "message": "일시적인 오류가 발생했습니다."}))
+            finally:
+                q.put(None)
+
+        Thread(target=run, daemon=True).start()
+        while True:
+            item = q.get()
+            if item is None:
+                break
+            event, data = item
+            yield f"event: {event}\ndata: {_json.dumps(data, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.post("/{session_id}/slots", response_model=SlotSeedResponse)

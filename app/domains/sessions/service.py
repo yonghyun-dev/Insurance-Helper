@@ -23,6 +23,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any, Literal
 
@@ -72,11 +73,13 @@ version 은 누락 시 active 자동 선택이라 필수 아님.
 """
 
 _AREA_REQUIRED: dict[str, tuple[str, ...]] = {
-    # 실손 전용(PM-33). auto/fire 폐기.
-    # outpatient_visits 는 data-model 표 상 O 지만 _is_empty 가 0 을 유효로 보므로
-    # 0 회 통원 환자도 충족 처리됨. 명시 누락 시 LLM 이 안 물어볼 위험이 있어 포함.
-    "accident_disease": ("diagnosis", "hospitalization_days", "outpatient_visits"),
+    # 실손 전용(PM-33). auto/fire 폐기. 진단명만 개별 필수.
+    "accident_disease": ("diagnosis",),
 }
+
+# 입원일수·외래횟수는 OR 그룹 — 하나라도 채워지면 나머지는 0 으로 간주한다.
+# (통원만 한 사람은 입원일수가 영원히 안 채워지는 무한 재질문 버그 방지 — 청구는 입원 또는 통원)
+_VOLUME_GROUP: tuple[str, ...] = ("hospitalization_days", "outpatient_visits")
 
 
 def _compute_missing(slots: SlotState) -> list[str]:
@@ -101,6 +104,13 @@ def _compute_missing(slots: SlotState) -> list[str]:
         for field in _AREA_REQUIRED[slots.area]:
             if field not in unknown and _is_empty(getattr(slots, field, None)):
                 missing.append(field)
+
+    # accident_disease: 치료량(입원일수/외래횟수) OR 그룹 — 하나라도 있으면 충족.
+    if slots.area == "accident_disease":
+        vol_filled = any(not _is_empty(getattr(slots, f, None)) for f in _VOLUME_GROUP)
+        vol_all_unknown = all(f in unknown for f in _VOLUME_GROUP)
+        if not vol_filled and not vol_all_unknown:
+            missing.append("outpatient_visits")  # 대표(입원/통원 여부 질문 트리거)
 
     return missing
 
@@ -195,6 +205,7 @@ def post_message(
     text: str,
     *,
     user_id: int | None = None,
+    on_delta: Callable[[str], None] | None = None,
 ) -> SessionResponse:
     """사용자 메시지를 받아 어시스턴트 응답 (ask 또는 assessment) 을 반환한다.
 
@@ -249,7 +260,7 @@ def post_message(
         # 진행 중 대화(구체 상황 슬롯 존재)는 classify_intent 프리필터가 진단으로 확정.
         intent = llm.classify_intent(text, session.slots)
         if intent == "general_qa":
-            return _answer_general_qa(session, text, audit_ctx)
+            return _answer_general_qa(session, text, audit_ctx, on_delta=on_delta)
         if intent == "out_of_domain":
             ask = _build_out_of_domain_ask()
             _append_assistant(session, ask.message, response_type="ask")
@@ -343,7 +354,8 @@ def post_message(
 
         coverage_result = evaluate_coverage(build_facts_from_slots(session.slots))
         assessment = llm.generate_assessment(
-            session.slots, chunks, coverage=coverage_result.model_dump(mode="json")
+            session.slots, chunks,
+            coverage=coverage_result.model_dump(mode="json"), on_delta=on_delta,
         )
         # audit 에 인용한 chunk_id + confidence 기록 (분쟁 시 재현)
         audit_ctx.retrieved_chunk_ids = [c.chunk_id for c in assessment.citations]
@@ -471,7 +483,13 @@ def _build_out_of_domain_ask() -> AssistantAsk:
     )
 
 
-def _answer_general_qa(session: Session, text: str, audit_ctx: Any) -> SessionResponse:
+def _answer_general_qa(
+    session: Session,
+    text: str,
+    audit_ctx: Any,
+    *,
+    on_delta: Callable[[str], None] | None = None,
+) -> SessionResponse:
     """실손 일반 질문 → 슬롯 무관 광역 약관 RAG + 설명 응답(PM-34).
 
     가입 보험 필터 없이 실손 표준약관 전체에서 검색해 약관 근거로 설명한다.
@@ -497,7 +515,7 @@ def _answer_general_qa(session: Session, text: str, audit_ctx: Any) -> SessionRe
         audit.complete(audit_ctx, assistant_response_type="ask", assistant_message=ask.message)
         return _build_response(session, ask)
 
-    answer = llm.generate_explanation(text, chunks)
+    answer = llm.generate_explanation(text, chunks, on_delta=on_delta)
     audit_ctx.retrieved_chunk_ids = [c.chunk_id for c in answer.citations]
     _append_assistant(session, answer.message, response_type="answer")
     store.touch(session, status="answered")
@@ -505,6 +523,25 @@ def _answer_general_qa(session: Session, text: str, audit_ctx: Any) -> SessionRe
         audit_ctx, assistant_response_type="answer", assistant_message=answer.message
     )
     return _build_response(session, answer)
+
+
+def answer_help(text: str) -> AssistantAnswer:
+    """도움 챗봇('무엇이든 물어보세요') 전용 — RAG 근거 일반 QA + 사용법 안내.
+
+    메인 상담(post_message)과 역할을 분리한다:
+      - 메인: 가입 약관 필터 + 청구 가능성 '높음/중간/낮음' 판정.
+      - 도움: 실손 표준약관 전체에서 RAG 검색 → 일반 QA(근거 인용). **판정은 하지 않음.**
+
+    사용법 질문/무관 질문은 인용 없이 답하고, 본인 사례 판단은 메인 흐름으로 안내한다.
+    """
+    from app.domains.rag.vectorstore import get_vector_store
+
+    try:
+        chunks = get_vector_store().query(text, top_k=6)
+    except Exception as exc:  # noqa: BLE001 — 검색 실패해도 사용법 답변은 가능
+        logger.warning("answer_help RAG 검색 실패, 무근거 답변으로 진행: %s", exc)
+        chunks = []
+    return llm.generate_help_answer(text, chunks)
 
 
 def _search_chunks(slots: SlotState, top_k: int = 8) -> list[dict[str, Any]]:

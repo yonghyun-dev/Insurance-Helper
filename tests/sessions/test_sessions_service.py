@@ -193,7 +193,7 @@ class TestComputeMissing:
         assert missing == []
 
     def test_accident_disease_area_specific_slots_required(self):
-        # area=accident_disease + 공통 채움 → 전용 슬롯 missing
+        # area=accident_disease + 공통 채움 → 진단명 + 치료량(입원/통원) 질문 필요
         slots = SlotState(
             area="accident_disease",
             insurer="한화생명",
@@ -202,8 +202,21 @@ class TestComputeMissing:
         )
         missing = _compute_missing(slots)
         assert "diagnosis" in missing
-        assert "hospitalization_days" in missing
+        # 입원일수/외래횟수는 OR 그룹 — 대표 하나(outpatient_visits)만 물어봄(둘 다 필수 아님).
         assert "outpatient_visits" in missing
+        assert "hospitalization_days" not in missing
+
+    def test_accident_disease_volume_group_or_satisfied(self):
+        # 통원만 채워도(입원일수 None) 치료량 그룹 충족 → 무한 재질문 방지
+        slots = SlotState(
+            area="accident_disease",
+            insurer="한화생명",
+            product="상해보험",
+            incident_date=date(2026, 3, 1),
+            diagnosis="손목터널증후군",
+            outpatient_visits=3,  # 통원만, 입원일수는 None
+        )
+        assert _compute_missing(slots) == []
 
     def test_zero_value_slots_not_in_missing(self):
         # 0 값은 채워진 것으로 처리 → missing 에 포함 안 됨
@@ -661,10 +674,10 @@ class TestComputeMissingUnknownSlots:
             incident_date=date(2026, 3, 15),
         )
         missing = _compute_missing(slots)
-        # accident_disease 영역 전용 슬롯은 missing
+        # accident_disease 전용: 진단명 + 치료량 대표(outpatient_visits) missing
         assert "diagnosis" in missing
-        assert "hospitalization_days" in missing
         assert "outpatient_visits" in missing
+        assert "hospitalization_days" not in missing  # OR 그룹 — 대표만 물음
 
     def test_unknown_area_specific_slot_excluded(self):
         # area=accident_disease + diagnosis 가 unknown → diagnosis missing 에서 제외
@@ -1069,7 +1082,7 @@ class TestPostMessageRagReact:
         assessment = _make_assessment()
         captured_chunks = {}
 
-        def fake_generate_assessment(slots, chunks, coverage=None):
+        def fake_generate_assessment(slots, chunks, coverage=None, on_delta=None):
             captured_chunks["chunks"] = chunks
             return assessment
 

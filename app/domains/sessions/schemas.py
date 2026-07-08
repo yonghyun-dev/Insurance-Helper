@@ -239,6 +239,17 @@ class AssistantAsk(BaseModel):
     options: list[str] = Field(default_factory=list)
 
 
+class HighlightBox(BaseModel):
+    """페이지 이미지 위 하이라이트 박스 — 페이지 크기 대비 정규화(0~1)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
+    w: float = Field(ge=0, le=1)
+    h: float = Field(ge=0, le=1)
+
+
 class Citation(BaseModel):
     """assessment 응답의 인용 1건. chunks/schemas.py Chunk 와 필드 동기화."""
 
@@ -262,6 +273,9 @@ class Citation(BaseModel):
         default=None,
         description="/static/raw/<insurer>/<area>/.../<doc_type>.pdf (#page=N 점프)",
     )
+    # PM — 인용 조항의 페이지 내 위치(정규화 0~1 박스). backend 가 search_for 로 계산,
+    # 프론트가 원본 이미지 위에 하이라이트 오버레이. LLM 미관여.
+    highlights: list[HighlightBox] = Field(default_factory=list)
 
 
 class AssistantAssessment(BaseModel):
