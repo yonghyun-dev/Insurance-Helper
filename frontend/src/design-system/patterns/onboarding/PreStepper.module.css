@@ -52,13 +52,16 @@
 }
 
 .line {
-  flex: 0 0 40px;
+  flex: 1 1 auto;
+  min-width: 16px;
   height: 1px;
   background: var(--border-subtle-01);
 }
 .line--done { background: var(--blue-60); }
 
+/* 스텝 라벨이 줄바꿈으로 흐트러지지 않게 */
+.item span:last-child { white-space: nowrap; }
+
 @media (max-width: 640px) {
-  .line { flex-basis: 16px; }
   .item { font-size: 12px; }
 }

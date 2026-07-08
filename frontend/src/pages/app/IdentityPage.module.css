@@ -62,10 +62,15 @@
 
 .fieldRow {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: 8px;
 }
 .fieldRow > div:first-child { flex: 1; }
+/* 본인 인증 버튼을 라벨 높이만큼 내려 입력창(input) 상단에 맞춘다(헬퍼 때문에 처지지 않게). */
+.fieldRow > button {
+  margin-top: calc(1rem + var(--space-03));
+  flex-shrink: 0;
+}
 
 .consents {
   display: flex;

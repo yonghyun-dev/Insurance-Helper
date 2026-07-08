@@ -56,6 +56,7 @@ export default function IdentityPage({ initial, onSubmit }: IdentityPageProps) {
           <h1 className={s.title}>본인 확인이 필요합니다</h1>
           <p className={s.sub}>
             가입한 보험을 안전하게 확인하기 위해 기본 정보와 동의를 받습니다.
+            <br />
             입력하신 정보는 청구 안내 외 용도로 사용되지 않습니다.
           </p>
 
