@@ -1,0 +1,316 @@
+/* 우측 하단 플로팅 도움 챗봇 — 런처(아래) + 위로 열리는 팝업. menu/chat 두 뷰. */
+.wrap {
+  position: fixed;
+  right: 24px;
+  bottom: 22px;
+  z-index: 50;
+}
+
+.launcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 22px;
+  border: none;
+  border-radius: 999px;
+  background: var(--blue-60);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(15, 98, 254, 0.4);
+  transition: background 0.15s, transform 0.1s;
+}
+
+.launcher:hover {
+  background: var(--blue-70, #0353e9);
+}
+
+.launcher:active {
+  transform: translateY(1px);
+}
+
+/* 확대(크게 보기) 시 배경 딤 */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 60;
+}
+
+/* 팝업 — 런처 위로 열리는 앵커 팝업. menu·chat 모두 동일한 큰 사이즈. */
+.panel {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 12px);
+  display: flex;
+  flex-direction: column;
+  width: min(420px, 92vw);
+  height: min(600px, 78vh);
+  padding: 16px 16px 14px;
+  background: #fff;
+  border: 1px solid var(--gray-20);
+  border-radius: 18px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.22);
+}
+
+/* menu 뷰에서 입력창을 하단에 붙이는 여백 */
+.spacer {
+  flex: 1;
+  min-height: 8px;
+}
+
+/* 크게 보기 — 화면 중앙 대형 창(새 창처럼) */
+.panelExpanded {
+  position: fixed;
+  right: auto;
+  bottom: auto;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(760px, 94vw);
+  height: min(88vh, 900px);
+  max-height: 92vh;
+  z-index: 61;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.headRight {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.iconBtn {
+  display: inline-flex;
+  padding: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.iconBtn:hover {
+  color: var(--text-primary);
+}
+
+/* 뒤로 가기 — 아이콘 + 텍스트 (노인 명료성) */
+.backBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px 6px 6px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.backBtn:hover {
+  background: var(--gray-10);
+}
+
+/* 크게 보기 / 작게 보기 — 텍스트 버튼 */
+.textBtn {
+  padding: 6px 12px;
+  border: 1px solid var(--gray-30);
+  border-radius: 999px;
+  background: var(--gray-10);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.textBtn:hover {
+  background: var(--blue-10, #edf5ff);
+  border-color: var(--blue-60);
+}
+
+/* 이전 대화 이어보기 (menu 뷰, 대화가 있을 때만) */
+.resume {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  margin: 4px 0 2px;
+  padding: 8px 14px;
+  border: 1px solid var(--blue-60);
+  border-radius: 999px;
+  background: var(--blue-10, #edf5ff);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--blue-60);
+  cursor: pointer;
+}
+
+.section {
+  margin: 12px 0 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  padding: 8px 12px;
+  border: 1px solid var(--gray-30);
+  border-radius: 999px;
+  background: var(--gray-10);
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.chip:hover {
+  background: var(--blue-10, #edf5ff);
+  border-color: var(--blue-60);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 11px 14px;
+  border: 1px solid var(--gray-30);
+  border-radius: 12px;
+  background: var(--gray-10);
+  font-size: 15px;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.item:hover {
+  background: var(--blue-10, #edf5ff);
+  border-color: var(--blue-60);
+}
+
+.itemIcon {
+  flex-shrink: 0;
+  color: var(--blue-60);
+}
+
+/* 대화 스레드 — 남는 공간을 채우고 스크롤 */
+.thread {
+  flex: 1;
+  min-height: 120px;
+  margin-top: 8px;
+  padding: 10px;
+  overflow-y: auto;
+  background: #fafbfc; /* 거의 흰색에 가까운 옅은 회색 */
+  border: 1px solid var(--gray-20);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bubbleUser {
+  align-self: flex-end;
+  max-width: 85%;
+  padding: 9px 13px;
+  border-radius: 14px 14px 4px 14px;
+  background: var(--blue-60);
+  color: #fff;
+}
+
+.bubbleBot {
+  align-self: flex-start;
+  max-width: 92%;
+  padding: 10px 13px;
+  border-radius: 14px 14px 14px 4px;
+  background: #fff;
+  border: 1px solid var(--gray-20);
+  color: var(--text-primary);
+}
+
+.bubbleText {
+  margin: 0;
+  font-size: 15px;
+  line-height: 21px;
+  white-space: pre-wrap;
+}
+
+.typing {
+  align-self: flex-start;
+  margin: 0;
+  padding: 4px 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.inputRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.input {
+  flex: 1;
+  min-height: 46px;
+  padding: 10px 14px;
+  border: 1px solid var(--gray-30);
+  border-radius: 999px;
+  font-size: 15px;
+  color: var(--text-primary);
+  outline: none;
+}
+
+.input:focus {
+  border-color: var(--blue-60);
+}
+
+.send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--blue-60);
+  color: #fff;
+  cursor: pointer;
+}
+
+.send:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.send:not(:disabled):hover {
+  background: var(--blue-70, #0353e9);
+}

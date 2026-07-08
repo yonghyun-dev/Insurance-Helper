@@ -19,16 +19,27 @@ export interface IdentityPageProps {
 
 export default function IdentityPage({ initial, onSubmit }: IdentityPageProps) {
   const [name, setName] = useState(initial?.name ?? '');
-  const [dob, setDob] = useState(initial?.dob ?? '');
-  const [phone, setPhone] = useState(initial?.phone ?? '');
+  const [dob, setDob] = useState((initial?.dob ?? '').replace(/\D/g, '').slice(0, 8));
+  const [phone, setPhone] = useState(formatPhone(initial?.phone ?? ''));
   const [verified, setVerified] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [consents, setConsents] = useState({ mydata: false, privacy: false });
 
-  const canSubmit = verified && consents.mydata && consents.privacy && name && dob && phone;
+  // 입력 검증 — 한글/영문 이름, 8자리 생년월일, 010 휴대폰.
+  const nameOk = /^[가-힣a-zA-Z][가-힣a-zA-Z\s]*$/.test(name.trim()) && name.trim().length >= 2;
+  const dobOk = isValidDob(dob);
+  const phoneDigits = phone.replace(/\D/g, '');
+  const phoneOk = /^01[0-9]{8,9}$/.test(phoneDigits);
+  const basicsOk = nameOk && dobOk && phoneOk;
+
+  const nameError = name && !nameOk ? '이름을 한글 또는 영문으로 정확히 입력해 주세요.' : undefined;
+  const dobError = dob && !dobOk ? '생년월일 8자리를 정확히 입력해 주세요. (예: 19850412)' : undefined;
+  const phoneError = phone && !phoneOk ? '휴대폰 번호를 정확히 입력해 주세요. (예: 010-1234-5678)' : undefined;
+
+  const canSubmit = verified && consents.mydata && consents.privacy && basicsOk;
 
   function startVerify() {
-    if (!name || !dob || !phone) return;
+    if (!basicsOk) return;
     setVerifying(true);
     window.setTimeout(() => {
       setVerifying(false);
@@ -57,23 +68,32 @@ export default function IdentityPage({ initial, onSubmit }: IdentityPageProps) {
                 onChange={(e) => setName(e.target.value)}
                 placeholder="홍길동"
                 disabled={verified}
+                error={nameError}
+                autoComplete="name"
               />
               <Field
                 label="생년월일"
                 value={dob}
-                onChange={(e) => setDob(e.target.value)}
-                placeholder="예) 1985.04.12"
+                onChange={(e) => setDob(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                placeholder="예) 19850412"
+                helper="점(.) 없이 숫자 8자리로 입력해 주세요."
+                inputMode="numeric"
+                maxLength={8}
                 disabled={verified}
+                error={dobError}
               />
               <div>
                 <div className={s.fieldRow}>
                   <Field
                     label="휴대폰 번호"
                     type="tel"
+                    inputMode="numeric"
+                    maxLength={13}
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="010-0000-0000"
+                    onChange={(e) => setPhone(formatPhone(e.target.value))}
+                    placeholder="010-1234-5678"
                     disabled={verified}
+                    error={phoneError}
                     helper={
                       verified
                         ? '본인 명의의 휴대폰으로 인증되었습니다.'
@@ -89,7 +109,7 @@ export default function IdentityPage({ initial, onSubmit }: IdentityPageProps) {
                       variant="tertiary"
                       size="lg"
                       onClick={startVerify}
-                      disabled={verifying || !phone}
+                      disabled={verifying || !basicsOk}
                     >
                       {verifying ? '인증 중…' : '본인 인증'}
                     </Button>
@@ -187,4 +207,24 @@ function ConsentItem({ checked, onToggle, required, title, desc }: ConsentItemPr
       </button>
     </Tile>
   );
+}
+
+// 휴대폰 번호 자동 하이픈 포맷 (숫자만 추출, 최대 11자리 → 010-1234-5678).
+function formatPhone(v: string): string {
+  const d = v.replace(/\D/g, '').slice(0, 11);
+  if (d.length < 4) return d;
+  if (d.length < 8) return `${d.slice(0, 3)}-${d.slice(3)}`;
+  return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
+}
+
+// 생년월일 8자리(YYYYMMDD) 검증 — 연도 1900~올해, 월 1~12, 일 1~31.
+function isValidDob(s: string): boolean {
+  if (!/^\d{8}$/.test(s)) return false;
+  const y = Number(s.slice(0, 4));
+  const m = Number(s.slice(4, 6));
+  const d = Number(s.slice(6, 8));
+  if (y < 1900 || y > new Date().getFullYear()) return false;
+  if (m < 1 || m > 12) return false;
+  if (d < 1 || d > 31) return false;
+  return true;
 }

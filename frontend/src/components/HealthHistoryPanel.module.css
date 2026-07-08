@@ -2,21 +2,27 @@
   position: relative;
 }
 
+/* HelpLauncher 패널 안의 큰 행 버튼과 통일 (노인 접근성 — 큰 터치 영역). */
 .trigger {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  padding: 12px 14px;
   border: 1px solid var(--gray-30);
-  border-radius: 999px;
+  border-radius: 12px;
   background: var(--gray-10);
-  font-size: 13px;
+  font-size: 15px;
   color: var(--text-primary);
+  text-align: left;
   cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
 }
 
 .trigger:hover {
-  background: var(--gray-20);
+  background: var(--blue-10, #edf5ff);
+  border-color: var(--blue-60);
 }
 
 .trigger:disabled {
