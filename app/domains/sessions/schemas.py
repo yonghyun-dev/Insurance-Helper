@@ -120,6 +120,19 @@ class SlotState(BaseModel):
         default=None, description="사고 발생 장소 (경찰 신고서)"
     )
 
+    # PM-35 — 보장 판정(coverage 룰 엔진) 사실. purpose 는 extract_slots(뉴럴)가 분류,
+    # generation 은 마이데이터 seed 가 채운다. coverage.build_facts_from_slots 가 소비.
+    generation: Annotated[int, Field(ge=1, le=4)] | None = Field(
+        default=None, description="실손 세대(1~4). 마이데이터 seed 로 채움"
+    )
+    purpose: str | None = Field(
+        default=None,
+        description=(
+            "청구 목적 — treatment/cosmetic/preventive/pregnancy/self_harm/crime_war. "
+            "면책 판정 핵심. 미상이면 None(치료 목적으로 간주)."
+        ),
+    )
+
     # Sprint 17 — 자유 메타데이터. 청구 가능성 판단 미사용 — UI 확인 카드 노출 전용.
     # OCR 추출 시 SlotState 매핑 외 정보 (서류 발급일/연락처/병원 주소 등) 보관.
     document_metadata: dict[str, str] = Field(

@@ -1069,7 +1069,7 @@ class TestPostMessageRagReact:
         assessment = _make_assessment()
         captured_chunks = {}
 
-        def fake_generate_assessment(slots, chunks):
+        def fake_generate_assessment(slots, chunks, coverage=None):
             captured_chunks["chunks"] = chunks
             return assessment
 

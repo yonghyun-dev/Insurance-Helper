@@ -464,6 +464,15 @@ _ASSESSMENT_SYSTEM = (
     "- confidence='partial' 인 경우 summary 첫 문장: \"정확한 답변에는 {부족 슬롯} 정보가 더 있으면 좋겠으나, "
     "  현재 정보로 일반적인 약관 기준에 따라 안내드리겠습니다.\" 식. 그리고 unsatisfied 의 첫 항목에 부족 슬롯을 "
     "  \"{슬롯명}을(를) 알려주시면 더 정확하게 안내드릴 수 있습니다\" 식으로 부드럽게 적어라.\n"
+    "\n"
+    "**결정론 판정(coverage_decision) 준수 (강제, PM-35)**: 입력에 coverage_decision 이 있으면 이는 "
+    "약관 규칙에 근거한 결정론 판정이다. LLM 은 이를 **뒤집지 못하며** 자연어로 설명만 한다.\n"
+    "- outcome='excluded': likelihood='낮음'. summary 에 hits[].rationale 를 반영하고, unsatisfied 에 "
+    "  면책 사유를 적는다. 가능하면 hits[].clause_ref 에 해당하는 약관 조항을 citations 로 인용.\n"
+    "- outcome='covered': likelihood='높음'(정보 충분) 또는 '중간'(일부 부족). deductible 이 있으면 "
+    "  next_steps 나 summary 에 예상 자기부담·청구가능액을 반영한다.\n"
+    "- outcome='insufficient_info': likelihood='중간' 이하로, missing 항목을 unsatisfied 에 안내한다.\n"
+    "- needs_generation=true: '가입 세대에 따라 보장이 다를 수 있어 확인이 필요합니다' 취지를 unsatisfied 에 넣는다.\n"
 )
 
 _DEFAULT_DISCLAIMER = (
@@ -507,8 +516,9 @@ def _call_structured(
 def generate_assessment(
     slots: SlotState,
     chunks: list[dict[str, Any]],
+    coverage: dict[str, Any] | None = None,
 ) -> AssistantAssessment:
-    """슬롯 + RAG 청크로 가능성 등급 + 인용 응답 생성.
+    """슬롯 + RAG 청크(+ 결정론 보장 판정)로 가능성 등급 + 인용 응답 생성.
 
     schema-violation 발생 시 1회 재시도 (Structured Outputs strict=True 가 보통 막아주지만
     드물게 통과하는 케이스를 대비한 방어). 두 번째 시도에 더 강한 reminder 를 system 에 추가.
@@ -516,6 +526,8 @@ def generate_assessment(
     Args:
         slots: 충족된 SlotState
         chunks: search.service.similarity_search 결과 (id/text/score/metadata 포함)
+        coverage: 심볼릭 룰 엔진(coverage.evaluate)의 결정론 판정(dict). 주어지면 LLM 은
+            이 판정을 뒤집지 못하고 자연어로 설명만 한다(PM-35 뉴로심볼릭 grounding).
 
     Returns:
         AssistantAssessment pydantic 모델 (disclaimer 자동 부착, 가짜 chunk_id 자동 제거)
@@ -530,11 +542,14 @@ def generate_assessment(
     client = _get_client()
     chunks_for_llm = _prepare_chunks(chunks)
     valid_chunk_ids = {c["chunk_id"] for c in chunks_for_llm if c["chunk_id"]}
+    payload: dict[str, Any] = {
+        "slots": slots.model_dump(mode="json", exclude_none=True),
+        "chunks": chunks_for_llm,
+    }
+    if coverage is not None:
+        payload["coverage_decision"] = coverage
     # mode='json' 으로 date → ISO 문자열 직렬화 (json.dumps 가 date 를 모르기 때문)
-    user_payload = json.dumps(
-        {"slots": slots.model_dump(mode="json", exclude_none=True), "chunks": chunks_for_llm},
-        ensure_ascii=False,
-    )
+    user_payload = json.dumps(payload, ensure_ascii=False)
 
     last_error: SchemaViolationError | None = None
     for attempt in (1, 2):

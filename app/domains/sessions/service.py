@@ -336,7 +336,15 @@ def post_message(
             )
             return _build_response(session, ask)
 
-        assessment = llm.generate_assessment(session.slots, chunks)
+        # PM-35 — 심볼릭 보장 판정(결정론)을 먼저 산정해 LLM 에 grounding 으로 주입.
+        # LLM 은 이 판정을 뒤집지 못하고 자연어로 설명만 한다(뉴로심볼릭: 심볼릭이 판단, 뉴럴이 설명).
+        from app.domains.coverage import build_facts_from_slots
+        from app.domains.coverage import evaluate as evaluate_coverage
+
+        coverage_result = evaluate_coverage(build_facts_from_slots(session.slots))
+        assessment = llm.generate_assessment(
+            session.slots, chunks, coverage=coverage_result.model_dump(mode="json")
+        )
         # audit 에 인용한 chunk_id + confidence 기록 (분쟁 시 재현)
         audit_ctx.retrieved_chunk_ids = [c.chunk_id for c in assessment.citations]
         # Sprint 22 — 청구 요약/체크리스트 집계용으로 전체 assessment 보관
