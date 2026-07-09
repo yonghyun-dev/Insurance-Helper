@@ -79,3 +79,6 @@ frontend/2*/
 infra/azure/.secrets*.env
 infra/azure/.deploy_key*
 /coverage-*.png
+
+# IE 열화 벤치 fixture (생성기가 원천 — python -m eval.ie_bench.generate)
+eval/ie_bench/fixtures/
