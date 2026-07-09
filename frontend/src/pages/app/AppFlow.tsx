@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { EnrolledInsurance } from '../../api/client';
+import HelpLauncher from '../../components/HelpLauncher';
 import WelcomePage from './WelcomePage';
 import IdentityPage, { type UserInput } from './IdentityPage';
 import InsuranceStatusPage from './InsuranceStatusPage';
@@ -9,12 +10,14 @@ import ChatPage from './ChatPage';
 import ReviewPage from './ReviewPage';
 import { useSession } from '../../hooks/useSession';
 
-type Stage = 'welcome' | 'identity' | 'coverage' | 'situation' | 'loading' | 'chat' | 'review';
+type Stage =
+  | 'welcome' | 'identity' | 'coverage' | 'situation' | 'anon-situation'
+  | 'loading' | 'chat' | 'review';
 
 export default function AppFlow() {
   const [stage, setStage] = useState<Stage>('welcome');
   const [user, setUser] = useState<UserInput>({ name: '', dob: '', phone: '' });
-  const [selected, setSelected] = useState<EnrolledInsurance | null>(null);
+  const [selected, setSelected] = useState<EnrolledInsurance[]>([]);
   const [situation, setSituation] = useState('');
   const sentRef = useRef(false);
 
@@ -28,17 +31,21 @@ export default function AppFlow() {
     if (stage !== 'loading' || sentRef.current || !situation.trim()) return;
     sentRef.current = true;
     let prefix = '';
-    let seed: Record<string, unknown> | undefined;
-    if (selected) {
-      // PM-33: 구조화 데이터를 자연어로 왕복시키지 않고 seed 로 직접 전달.
-      seed = {
-        insurer_id: selected.insurer_id,
-        insurer: selected.insurer_name,
-        product: selected.product_name,
-        policy_no: selected.policy_no,
-        area: 'accident_disease',
-      };
-      prefix = `${selected.insurer_name} ${selected.product_name} 기준으로 봐주세요. `;
+    // 실손 도메인만 결정론 seed(개인정보 아님). insurer 미상이면 백엔드가 표준약관 모드로 판정.
+    const seed: Record<string, unknown> = { area: 'accident_disease' };
+    if (selected.length > 0) {
+      // PM-33/Sprint33: 구조화 데이터를 seed 로 직접 전달. policies 배열이 다중판정을 결정.
+      seed.policies = selected.map((s) => ({
+        insurer_id: s.insurer_id,
+        insurer: s.insurer_name,
+        product: s.product_name,
+        policy_no: s.policy_no,
+        generation: s.generation ?? null,
+      }));
+      prefix =
+        selected.length >= 2
+          ? `${selected.map((s) => s.insurer_name).join(', ')} 실손을 비교해 주세요. `
+          : `${selected[0].insurer_name} ${selected[0].product_name} 기준으로 봐주세요. `;
     }
     void session.sendMessage(prefix + situation.trim(), seed);
   }, [stage, situation, session, selected]);
@@ -48,22 +55,29 @@ export default function AppFlow() {
   const firstResponseReady = session.messages.some(
     (m) =>
       m.role === 'assistant' &&
-      (m.type === 'ask' || m.type === 'assessment' || m.type === 'answer'),
+      (m.type === 'ask' || m.type === 'assessment' || m.type === 'answer' || m.type === 'comparison'),
   );
 
   function reset() {
     void session.startNewSession();
     setSituation('');
-    setSelected(null);
+    setSelected([]);
     sentRef.current = false;
     setStage('welcome');
   }
 
+  let page: ReactNode;
   switch (stage) {
     case 'welcome':
-      return <WelcomePage onStart={() => setStage('identity')} />;
+      page = (
+        <WelcomePage
+          onStart={() => setStage('identity')}
+          onAnonymous={() => setStage('anon-situation')}
+        />
+      );
+      break;
     case 'identity':
-      return (
+      page = (
         <IdentityPage
           initial={user}
           onSubmit={(u) => {
@@ -72,8 +86,9 @@ export default function AppFlow() {
           }}
         />
       );
+      break;
     case 'coverage':
-      return (
+      page = (
         <InsuranceStatusPage
           user={user}
           onConfirm={(sel) => {
@@ -82,8 +97,9 @@ export default function AppFlow() {
           }}
         />
       );
+      break;
     case 'situation':
-      return (
+      page = (
         <SituationPage
           onSubmit={(text) => {
             setSituation(text);
@@ -91,10 +107,24 @@ export default function AppFlow() {
           }}
         />
       );
+      break;
+    case 'anon-situation':
+      // Sprint 34 — 로그인·마이데이터 건너뛴 익명 상담. 표준약관 기준.
+      page = (
+        <SituationPage
+          anonymous
+          onSubmit={(text) => {
+            setSituation(text);
+            setStage('loading');
+          }}
+        />
+      );
+      break;
     case 'loading':
-      return <LoadingPage ready={firstResponseReady} onDone={() => setStage('chat')} />;
+      page = <LoadingPage ready={firstResponseReady} onDone={() => setStage('chat')} />;
+      break;
     case 'chat':
-      return (
+      page = (
         <ChatPage
           user={user}
           session={session}
@@ -102,8 +132,19 @@ export default function AppFlow() {
           onOpenReview={() => setStage('review')}
         />
       );
+      break;
     case 'review':
       // Sprint 22 — 실데이터 Review (세션 요약/체크리스트 + 더미 접수).
-      return <ReviewPage session={session} onBack={() => setStage('chat')} />;
+      page = <ReviewPage session={session} onBack={() => setStage('chat')} />;
+      break;
   }
+
+  return (
+    <>
+      {page}
+      {/* Sprint 34 — 도움 챗봇을 로그인 전(welcome/익명 포함)에도 상시 노출.
+          chat 단계는 ChatPage 가 세션 컨텍스트 포함해 자체 마운트하므로 중복 방지. */}
+      {stage !== 'chat' ? <HelpLauncher /> : null}
+    </>
+  );
 }

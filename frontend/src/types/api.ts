@@ -131,7 +131,38 @@ export type AssistantAnswer = {
   disclaimer: string;
 };
 
-export type Assistant = AssistantAsk | AssistantAssessment | AssistantAnswer;
+// === 다중 실손 비교(Sprint 33 L3) ===
+export type DeductibleView = {
+  generation: number | null;      // 실손 세대(1~4)
+  covered_rate: number;           // 급여 자기부담률 0~1
+  non_covered_rate: number;       // 비급여 자기부담률 0~1
+  outpatient_min_copay: number;
+  payable_estimate: number | null;
+  prorated_share: number | null;  // 비례분담 후 이 보험 분담액(다건+금액 시)
+};
+
+export type PolicyAssessment = {
+  insurer_id: string;
+  insurer: string;
+  product: string;
+  policy_no: string;
+  assessment: AssistantAssessment;
+  deductible: DeductibleView;
+};
+
+export type AssistantComparison = {
+  type: 'comparison';
+  policies: PolicyAssessment[];         // minItems=2
+  summary: string;                      // 결정론 비교 요약(어느 약관 유리 + 비례분담)
+  recommended_policy_no: string | null; // 자기부담 유리(비례분담 전제)
+  disclaimer: string;
+};
+
+export type Assistant =
+  | AssistantAsk
+  | AssistantAssessment
+  | AssistantAnswer
+  | AssistantComparison;
 
 // === 응답 envelope ===
 export type SessionResponse = {
@@ -203,6 +234,7 @@ export type ChatMessage =
   | { id: string; role: 'assistant'; type: 'ask'; payload: AssistantAsk; created_at: string }
   | { id: string; role: 'assistant'; type: 'assessment'; payload: AssistantAssessment; created_at: string }
   | { id: string; role: 'assistant'; type: 'answer'; payload: AssistantAnswer; created_at: string }
+  | { id: string; role: 'assistant'; type: 'comparison'; payload: AssistantComparison; created_at: string }
   | { id: string; role: 'assistant'; type: 'loading'; created_at: string }
   | { id: string; role: 'assistant'; type: 'streaming'; text: string; created_at: string }
   | { id: string; role: 'assistant'; type: 'error'; code: string; message: string; retryText: string; created_at: string };

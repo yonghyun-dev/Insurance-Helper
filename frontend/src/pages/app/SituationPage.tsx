@@ -6,9 +6,10 @@ import s from './SituationPage.module.css';
 
 export interface SituationPageProps {
   onSubmit: (text: string) => void;
+  anonymous?: boolean;   // Sprint 34 — 비로그인 표준약관 상담(스텝퍼 숨김, 카피 변경)
 }
 
-export default function SituationPage({ onSubmit }: SituationPageProps) {
+export default function SituationPage({ onSubmit, anonymous = false }: SituationPageProps) {
   const [text, setText] = useState('');
   const ta = useRef<HTMLTextAreaElement>(null);
 
@@ -26,13 +27,15 @@ export default function SituationPage({ onSubmit }: SituationPageProps) {
       <ShellHeader />
       <main className={s.main}>
         <div className={s.body}>
-          <PreStepper current="situation" />
+          {anonymous ? null : <PreStepper current="situation" />}
           <h1 className={s.title}>
             지금 어떤 <strong>상황</strong>이신가요?
           </h1>
           <p className={s.sub}>
             겪고 계신 상황을 평소 말씀하시는 그대로 적어주세요.<br />
-            보험길잡이가 가입한 보험과 약관을 함께 살펴보고 안내해드립니다.
+            {anonymous
+              ? '가입 정보 없이 일반 실손 표준약관 기준으로 먼저 안내해 드려요.'
+              : '보험길잡이가 가입한 보험과 약관을 함께 살펴보고 안내해드립니다.'}
           </p>
 
           <div className={s.textareaWrap}>

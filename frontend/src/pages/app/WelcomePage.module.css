@@ -51,9 +51,24 @@
 
 .ctaWrap {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
   margin-bottom: 24px;
 }
+
+/* Sprint 34 — 익명(비로그인) 2차 진입 */
+.anonCta {
+  border: none;
+  background: none;
+  font-size: 15px;
+  color: var(--blue-60);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+.anonCta:hover { color: var(--blue-70); }
 
 .note {
   font-size: 14px;

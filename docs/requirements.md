@@ -20,3 +20,5 @@
 | 14 | 사용자 건강보험 API 연동 (NHIS/HIRA/의료마이데이터 — 진료내역 자동 prefill) | 완료 (더미 + Real skeleton, frontend 패널 포함) | 18 | [14_health_data_api.md](requirements/14_health_data_api.md) |
 | 15 | 프론트엔드 리디자인 통합 (dfocus 디자인 + 백엔드 이식 + 신규: 서류체크리스트/청구요약/접수가정) | 분석 완료, 설계 대기 | 20~23 | [15_frontend-redesign-integration.md](requirements/15_frontend-redesign-integration.md) |
 | 16 | 다중 실손 가입현황-우선 플로우 + 비례분담 설명 (L1) | 구현 중 | 30 | [16_multi-insurance-status-flow.md](requirements/16_multi-insurance-status-flow.md) |
+| 17 | 다중 실손 판정 + 비교 (L3 — 세대·자기부담·비례분담) | 완료 | 33 | [17_multi-policy-comparison.md](requirements/17_multi-policy-comparison.md) |
+| 18 | 전 페르소나 대응 고도화 (정밀/간단·노인/익명) + 가로 약관 반 크롭 + 표준약관 모드 | 완료 | 34 | [18_persona-serving-and-landscape-crop.md](requirements/18_persona-serving-and-landscape-crop.md) |

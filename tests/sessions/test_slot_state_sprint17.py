@@ -71,9 +71,10 @@ class TestComputeMissingPolicy:
         assert missing == []
 
     def test_only_common_required_when_minimal(self):
+        # Sprint 34 — insurer/product/incident_date 는 차단 필수 제외(표준약관 모드로 진행)
         s = SlotState()
         missing = _compute_missing(s)
-        assert set(missing) == {"area", "insurer", "product", "incident_date"}
+        assert set(missing) == {"area"}
 
 
 class TestSlotStateRoundTrip:

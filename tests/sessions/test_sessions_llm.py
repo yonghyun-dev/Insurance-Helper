@@ -648,10 +648,13 @@ class TestTonePromptGuide:
         from app.domains.sessions.llm import _ASSESSMENT_SYSTEM
         assert "책임" in _ASSESSMENT_SYSTEM
 
-    def test_assessment_system_contains_partial_tone_guidance(self):
-        # partial 케이스 톤 가이드: "현재 정보로 일반적인 약관 기준에 따라 안내드리겠습니다" 포함
+    def test_assessment_system_answer_first_no_hedge(self):
+        # Sprint 34 — 답변-우선: 헤지 선문구 금지 + 결론 먼저 규칙 포함
         from app.domains.sessions.llm import _ASSESSMENT_SYSTEM
-        assert "현재 정보로 일반적인 약관 기준에 따라 안내드리겠습니다" in _ASSESSMENT_SYSTEM
+        assert "답변 먼저" in _ASSESSMENT_SYSTEM
+        assert "결론" in _ASSESSMENT_SYSTEM
+        # 옛 헤지 강제 문구는 제거됨
+        assert "정보가 더 있으면 좋겠으나" not in _ASSESSMENT_SYSTEM
 
     def test_assessment_system_preserves_sprint6_confidence_rule(self):
         # 회귀: Sprint 6 confidence 판정 규칙 ("confidence 판정") 보존

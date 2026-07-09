@@ -38,7 +38,11 @@ from app.domains.sessions.schemas import (
     AssistantAnswer,
     AssistantAsk,
     AssistantAssessment,
+    AssistantComparison,
+    DeductibleView,
     Message,
+    PolicyAssessment,
+    PolicyRef,
     Session,
     SessionResponse,
     SlotSeedResponse,
@@ -64,12 +68,13 @@ _EXTERNAL_API_TOOLS: frozenset[str] = frozenset({"get_disease_code"})
 # 영역별 필수 슬롯 정의 (data-model.md § 영역별 필수 슬롯 표 + tech-decisions §4-1)
 # ---------------------------------------------------------------------------
 
-_COMMON_REQUIRED: tuple[str, ...] = ("area", "insurer", "product", "incident_date")
-"""모든 영역 공통 필수 슬롯.
+_COMMON_REQUIRED: tuple[str, ...] = ("area",)
+"""판정을 **차단(blocking)** 하는 공통 필수 슬롯.
 
-순서 자체가 `next_question` 의 우선순위를 결정한다 (tech-decisions §4-1).
-앞쪽일수록 먼저 물어본다 — 항목 추가/순서 변경 시 의도적인지 확인할 것.
-version 은 누락 시 active 자동 선택이라 필수 아님.
+Sprint 34 — insurer/product/incident_date 를 차단 필수에서 제외했다. 이들이 없으면
+판정을 막고 되묻는 대신 **일반 실손 표준약관 기준(insurer 미상 → 교차검색)** 으로 진행한다
+(익명·개인정보 미공유 사용자도 바로 답을 받게 함). area 는 실손 플로우가 항상 seed 하므로
+사실상 비지 않는다. 정밀 판정이 필요한 경우 insurer 는 마이데이터 seed 로 이미 채워진다.
 """
 
 _AREA_REQUIRED: dict[str, tuple[str, ...]] = {
@@ -115,9 +120,12 @@ def _compute_missing(slots: SlotState) -> list[str]:
     return missing
 
 
-# Sprint 6 — partial assessment 진입 조건
-_PARTIAL_KEYWORDS: tuple[str, ...] = ("그냥", "됐어", "알려줘", "그만", "다 모름")
-_PARTIAL_ASK_THRESHOLD: int = 3
+# Sprint 6/34 — partial assessment 진입 조건. Sprint 34: 되묻기 1회로 완화(답변-우선).
+# 노인/간단 사용자 표현을 키워드에 보강(대충 물어도 바로 답).
+_PARTIAL_KEYWORDS: tuple[str, ...] = (
+    "그냥", "됐어", "알려줘", "그만", "다 모름", "몰라", "모르", "잘 몰라", "없어", "그런 거",
+)
+_PARTIAL_ASK_THRESHOLD: int = 1
 _PARTIAL_UNKNOWN_THRESHOLD: int = 2
 
 
@@ -304,6 +312,14 @@ def post_message(
 
         # 충족 또는 partial → RAG + assessment
         store.touch(session, status="analyzing")
+
+        # Sprint 33 — 다중 실손: 보험별로 각각 판정해 비교. 성공 2건 이상이면 비교 응답,
+        # 아니면 아래 단일 경로로 폴백(하위호환).
+        if len(session.policies) > 1:
+            comparison_resp = _build_comparison(session, audit_ctx)
+            if comparison_resp is not None:
+                return comparison_resp
+
         # rag_react=true 면 agent (tool 다발 자가 라우팅, 단일 LangGraph 경로), false 면 단순 RAG.
         if get_settings().rag_react:
             from app.domains.rag.service import run_agent
@@ -409,6 +425,18 @@ def seed_slots(session_id: str, updates: dict[str, Any]) -> SlotSeedResponse:
     if session is None:
         raise SessionNotFoundError(f"세션 없음 또는 만료: {session_id}")
 
+    # Sprint 33 — 다중 실손: policies 는 SlotState 가 아니라 Session.policies 에 저장.
+    # 대표 1건(policies[0])의 보험 식별 필드는 slots 에도 반영(상황 수집 질문 표시용).
+    policies = updates.pop("policies", None)
+    if policies:
+        session.policies = [PolicyRef.model_validate(p) for p in policies]
+        rep = session.policies[0]
+        updates = {
+            "insurer_id": rep.insurer_id, "insurer": rep.insurer,
+            "product": rep.product, "policy_no": rep.policy_no,
+            "generation": rep.generation, **updates,  # 명시 updates 가 우선
+        }
+
     valid_fields = set(SlotState.model_fields)
     clean = {
         k: v
@@ -434,8 +462,91 @@ def _merge_slots(current: SlotState, updates: dict[str, Any]) -> SlotState:
     return SlotState.model_validate(merged)
 
 
+def _build_comparison(session: Session, audit_ctx: Any) -> SessionResponse | None:
+    """Sprint 33 — 보유 실손 각각을 판정해 비교(비례분담 포함) 응답 생성.
+
+    각 policy 를 공유 상황 슬롯(session.slots)에 얹어 임시 slots 를 만들고, 기존
+    _search_chunks(insurer 필터)·evaluate·generate_assessment 를 그대로 N회 재사용한다
+    (비스트리밍 — N개 요약 동시 스트리밍은 UX 이득이 없다는 설계 결정).
+
+    판정 성공이 2건 미만이면 None 을 반환해 호출자가 단일 경로로 폴백한다.
+    """
+    from app.domains.coverage import build_facts_from_slots
+    from app.domains.coverage import evaluate as evaluate_coverage
+    from app.domains.coverage.proration import compute as compute_proration
+    from app.shared import audit
+
+    store = get_session_store()
+    assessed: list[tuple[PolicyRef, AssistantAssessment]] = []
+    proration_items = []
+    for policy in session.policies:
+        pslots = session.slots.model_copy(
+            update={
+                "insurer_id": policy.insurer_id, "insurer": policy.insurer,
+                "product": policy.product, "policy_no": policy.policy_no,
+                "generation": policy.generation,
+            }
+        )
+        chunks = _search_chunks(pslots)
+        if not chunks:
+            logger.warning("비교: %s 검색 0건 — 이 보험 스킵", policy.insurer)
+            continue
+        coverage_result = evaluate_coverage(build_facts_from_slots(pslots))
+        try:
+            assessment = llm.generate_assessment(
+                pslots, chunks, coverage=coverage_result.model_dump(mode="json")
+            )
+        except Exception as exc:  # noqa: BLE001 — 한 보험 실패는 비교 자체를 막지 않음
+            logger.warning("비교: %s 판정 실패 — 스킵: %s", policy.insurer, exc)
+            continue
+        assessed.append((policy, assessment))
+        proration_items.append((policy.policy_no, policy.generation, coverage_result))
+
+    if len(assessed) < 2:
+        logger.info("비교 대상 %d건(<2) — 단일 판정으로 폴백", len(assessed))
+        return None
+
+    pror = compute_proration(proration_items)
+    policies_out = []
+    all_chunk_ids: list[str] = []
+    for policy, assessment in assessed:
+        pp = pror.per_policy[policy.policy_no]
+        policies_out.append(
+            PolicyAssessment(
+                insurer_id=policy.insurer_id, insurer=policy.insurer,
+                product=policy.product, policy_no=policy.policy_no,
+                assessment=assessment,
+                deductible=DeductibleView(
+                    generation=pp.generation, covered_rate=pp.covered_rate,
+                    non_covered_rate=pp.non_covered_rate,
+                    outpatient_min_copay=pp.outpatient_min_copay,
+                    payable_estimate=pp.payable_estimate, prorated_share=pp.prorated_share,
+                ),
+            )
+        )
+        all_chunk_ids += [c.chunk_id for c in assessment.citations]
+
+    comparison = AssistantComparison(
+        policies=policies_out, summary=pror.summary,
+        recommended_policy_no=pror.recommended_policy_no,
+    )
+    session.last_comparison = comparison
+    session.last_assessment = policies_out[0].assessment  # 청구 요약/체크리스트 하위호환
+    audit_ctx.retrieved_chunk_ids = all_chunk_ids
+    _append_assistant(session, comparison.summary, response_type="comparison")
+    store.touch(session, status="answered")
+    audit.complete(
+        audit_ctx, assistant_response_type="comparison",
+        assistant_message=comparison.summary,
+    )
+    return _build_response(session, comparison)
+
+
 def _append_assistant(
-    session: Session, content: str, *, response_type: Literal["ask", "assessment", "answer"]
+    session: Session,
+    content: str,
+    *,
+    response_type: Literal["ask", "assessment", "answer", "comparison"],
 ) -> None:
     """assistant 메시지를 history 에 append."""
     session.history.append(
@@ -565,7 +676,7 @@ from app.domains.rag._slots import slots_to_query as _slots_to_query  # noqa: E4
 
 def _build_response(
     session: Session,
-    assistant: AssistantAsk | AssistantAssessment | AssistantAnswer,
+    assistant: AssistantAsk | AssistantAssessment | AssistantAnswer | AssistantComparison,
 ) -> SessionResponse:
     """SessionResponse 생성. turn = 유저 메시지 개수."""
     turn = sum(1 for m in session.history if m.role == "user")

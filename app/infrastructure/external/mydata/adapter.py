@@ -34,6 +34,7 @@ class InsuranceDict(TypedDict):
     area: str                 # auto / fire / accident_disease
     valid_from: str           # ISO 날짜
     valid_to: str | None      # ISO 날짜 또는 null (무기한)
+    generation: int | None    # 실손 세대(1~4). Sprint 33 다중판정 비교(자기부담 차등)의 핵심 축
 
 
 class MydataAdapter(Protocol):

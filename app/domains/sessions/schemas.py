@@ -51,7 +51,7 @@ class Message(BaseModel):
     role: Literal["user", "assistant"]
     content: str = Field(..., min_length=1)
     created_at: datetime
-    response_type: Literal["ask", "assessment", "answer"] | None = Field(
+    response_type: Literal["ask", "assessment", "answer", "comparison"] | None = Field(
         default=None,
         description="assistant 메시지만 채워진다. 감사 추적용",
     )
@@ -141,6 +141,23 @@ class SlotState(BaseModel):
     )
 
 
+class PolicyRef(BaseModel):
+    """가입 실손 1건 참조 — Sprint 33 다중판정(L3).
+
+    SlotState 는 '상황 사실'(진단/치료량/금액) 담당으로 유지하고, 보유·선택된 보험
+    목록은 Session.policies 로 분리한다(SlotState 복수화의 광범위 부작용 회피).
+    판정 시 각 policy 를 공유 상황 슬롯에 얹어 임시 slots 를 만들어 N회 판정한다.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    insurer_id: str
+    insurer: str
+    product: str
+    policy_no: str
+    generation: Annotated[int, Field(ge=1, le=4)] | None = None
+
+
 class Session(BaseModel):
     """세션 1건. 인메모리 SessionStore 가 보관."""
 
@@ -152,8 +169,12 @@ class Session(BaseModel):
     status: SessionStatus = "gathering"
     slots: SlotState = Field(default_factory=SlotState)
     history: list[Message] = Field(default_factory=list)
+    # Sprint 33 — 보유·선택 실손 목록(다중판정 L3). 0~1 건이면 단일 판정 경로(하위호환).
+    policies: list[PolicyRef] = Field(default_factory=list)
     # Sprint 22 — 마지막 assessment 보관 (청구 요약·체크리스트 집계용). P-3 보정.
     last_assessment: AssistantAssessment | None = None
+    # Sprint 33 — 마지막 비교 결과 보관.
+    last_comparison: AssistantComparison | None = None
 
     def is_expired(self, now: datetime, ttl_seconds: int) -> bool:
         """`last_activity_at + ttl` 경과 시 만료.
@@ -212,6 +233,8 @@ class SlotSeedRequest(BaseModel):
     treatment_period: str | None = None
     claim_amount: int | None = None
     incident_location: str | None = None
+    # Sprint 33 — 다중 실손 seed. 있으면 Session.policies 로 저장(대표 1건은 slots.insurer 등에도 반영).
+    policies: list[PolicyRef] = Field(default_factory=list)
 
 
 class SlotSeedResponse(BaseModel):
@@ -319,6 +342,56 @@ class AssistantAnswer(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# 다중 실손 비교 (Sprint 33 L3)
+# ---------------------------------------------------------------------------
+
+
+class DeductibleView(BaseModel):
+    """세대별 자기부담 요약 — 비교표 셀(금액 없이도 표시 가능)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    generation: int | None = None                 # 실손 세대(1~4). None=미상
+    covered_rate: float                           # 급여 자기부담률 (0~1)
+    non_covered_rate: float                       # 비급여 자기부담률 (0~1)
+    outpatient_min_copay: int                     # 통원 최소 공제(원)
+    payable_estimate: int | None = None           # 예상 청구가능액(금액 있을 때만)
+    prorated_share: int | None = None             # 비례분담 후 이 보험 분담액(다건+금액)
+
+
+class PolicyAssessment(BaseModel):
+    """보험사 1건의 판정 — 기존 AssistantAssessment 를 inner 로 재사용."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    insurer_id: str
+    insurer: str
+    product: str
+    policy_no: str
+    assessment: AssistantAssessment
+    deductible: DeductibleView
+
+
+class AssistantComparison(BaseModel):
+    """comparison 모드 — 여러 실손을 각각 판정해 비교(Sprint 33 L3).
+
+    실손 중복은 비례분담(이중 수령 불가)이므로 '더 받는 법'이 아니라 '어느 약관이
+    이 상황에 유리한지(세대·자기부담) + 비례가 어떻게 나뉘는지'를 제시한다.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["comparison"] = "comparison"
+    policies: list[PolicyAssessment] = Field(..., min_length=2)
+    summary: str = Field(..., min_length=10)          # 결정론 비교 요약(어느 약관 유리 + 비례분담)
+    recommended_policy_no: str | None = None          # 자기부담 유리(비례분담 전제 하)
+    disclaimer: str = Field(
+        default="실손보험은 중복가입해도 실제 낸 의료비 한도 안에서 비례로 나눠 지급되며, "
+        "이중으로 더 받지는 못합니다. 본 비교는 참고용입니다."
+    )
+
+
+# ---------------------------------------------------------------------------
 # 통합 응답 (POST /sessions/{id}/messages)
 # ---------------------------------------------------------------------------
 
@@ -326,20 +399,22 @@ class AssistantAnswer(BaseModel):
 class SessionResponse(BaseModel):
     """POST /sessions/{id}/messages 응답.
 
-    `assistant` 는 AssistantAsk / AssistantAssessment / AssistantAnswer 중 하나.
-    단일 직렬화 + discriminator(`type`) 으로 클라이언트 분기.
+    `assistant` 는 AssistantAsk / AssistantAssessment / AssistantAnswer /
+    AssistantComparison 중 하나. discriminator(`type`) 으로 클라이언트 분기.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     session_id: str
     turn: int = Field(..., ge=1, description="이번 메시지가 몇 번째 대화 턴인지")
-    assistant: AssistantAsk | AssistantAssessment | AssistantAnswer = Field(
-        ..., discriminator="type"
-    )
+    assistant: (
+        AssistantAsk | AssistantAssessment | AssistantAnswer | AssistantComparison
+    ) = Field(..., discriminator="type")
     slots: SlotState
     status: SessionStatus
 
 
-# Sprint 22 — Session 이 뒤에 정의된 AssistantAssessment 를 참조(forward ref) → 재빌드.
+# 전방 참조 해소 — Session/SlotSeedRequest 가 뒤에 정의된 PolicyRef/AssistantComparison/
+# AssistantAssessment 를 forward ref 로 참조 → 재빌드.
 Session.model_rebuild()
+SlotSeedRequest.model_rebuild()

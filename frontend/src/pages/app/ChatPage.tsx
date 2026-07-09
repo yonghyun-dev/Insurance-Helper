@@ -1,6 +1,6 @@
 // Sprint 20 — ChatPage 재배선: 하드코딩 scenarioMessages 제거, useSession 의
 // ask→assessment 멀티턴 루프를 새 디자인 패턴으로 구동한다. (설계: docs/design/frontend-chat-rewiring.md)
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import AppShell from '../../design-system/patterns/chat/AppShell';
 import BrandMark from '../../design-system/patterns/chat/BrandMark';
 import StepNavigator, { type StepItem } from '../../design-system/patterns/chat/StepNavigator';
@@ -21,16 +21,20 @@ import CitationList from '../../components/CitationList';
 import ImageLightbox from '../../components/ImageLightbox';
 import HelpLauncher from '../../components/HelpLauncher';
 import Markdown from '../../components/Markdown';
+import { Tabs } from '../../design-system/components/Tabs';
 import type {
   AssistantAnswer,
   AssistantAsk,
   AssistantAssessment,
+  AssistantComparison,
   ChatMessage,
   Citation,
   LikelihoodLevel,
   TreatmentCard,
 } from '../../types/api';
 import s from './ChatPage.module.css';
+
+const pct = (r: number) => `${Math.round(r * 100)}%`;
 
 export interface ChatPageProps {
   user: { name: string; dob: string; phone: string };
@@ -171,6 +175,77 @@ function AssessmentBody({ a }: { a: AssistantAssessment }): ReactNode {
   );
 }
 
+// Sprint 33 — 다중 실손 비교. 상단 요약 비교표(보험사별 세대·자기부담·가능성) +
+// 보험 탭 전환 → 탭당 기존 AssessmentBody 재사용. 탭 전환 시 좌측 근거 PDF 도 그 보험으로.
+function ComparisonBody({
+  c,
+  onActive,
+}: {
+  c: AssistantComparison;
+  onActive: (policyNo: string) => void;
+}): ReactNode {
+  const [activeId, setActiveId] = useState(c.policies[0]?.policy_no ?? '');
+
+  useEffect(() => {
+    onActive(activeId);
+  }, [activeId, onActive]);
+
+  const active = c.policies.find((p) => p.policy_no === activeId) ?? c.policies[0];
+
+  return (
+    <div className={s.comparison}>
+      <div className={s.cmpSummary}>
+        <Markdown>{c.summary}</Markdown>
+      </div>
+
+      {/* 요약 비교표 — 보험사 × 세대/자기부담/가능성 */}
+      <div className={s.cmpGrid} role="table" aria-label="보험사별 비교">
+        {c.policies.map((p) => {
+          const rec = p.policy_no === c.recommended_policy_no;
+          return (
+            <button
+              key={p.policy_no}
+              type="button"
+              className={`${s.cmpCard} ${p.policy_no === activeId ? s.cmpCardOn : ''}`}
+              onClick={() => setActiveId(p.policy_no)}
+            >
+              {rec ? <span className={s.cmpBadge}>추천</span> : null}
+              <div className={s.cmpInsurer}>{p.insurer}</div>
+              <div className={s.cmpGen}>
+                {p.deductible.generation ? `${p.deductible.generation}세대` : '세대 미상'}
+              </div>
+              <div className={s.cmpLike} data-kind={LIKELIHOOD_KIND[p.assessment.likelihood]}>
+                <span className={s.likeDot} /> {p.assessment.likelihood}
+              </div>
+              <dl className={s.cmpMeta}>
+                <div><dt>급여 자기부담</dt><dd>{pct(p.deductible.covered_rate)}</dd></div>
+                <div><dt>비급여 자기부담</dt><dd>{pct(p.deductible.non_covered_rate)}</dd></div>
+                {p.deductible.prorated_share != null ? (
+                  <div>
+                    <dt>예상 분담액</dt>
+                    <dd>{p.deductible.prorated_share.toLocaleString()}원</dd>
+                  </div>
+                ) : null}
+              </dl>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 보험별 상세 — 탭 전환 + 기존 AssessmentBody 재사용 */}
+      <Tabs
+        className={s.cmpTabs}
+        items={c.policies.map((p) => ({ id: p.policy_no, label: p.insurer }))}
+        activeId={activeId}
+        onChange={setActiveId}
+      />
+      <AssessmentBody a={active.assessment} />
+
+      <p className={s.disclaimer} role="note">{c.disclaimer}</p>
+    </div>
+  );
+}
+
 function renderAnswer(a: AssistantAnswer, onPick: (text: string) => void): ReactNode {
   return (
     <div className={s.assessment}>
@@ -206,6 +281,10 @@ function renderAnswer(a: AssistantAnswer, onPick: (text: string) => void): React
 }
 
 // 인용된 약관 원문을 왼쪽에 크게 보여주는 프리뷰 패널(사람이 읽을 수 있도록).
+// Sprint 34 — 삼성/현대 약관은 가로 2단(landscape)이라 전체 페이지가 작게 나온다.
+// 인용 하이라이트 x 로 좌/우 단을 판별해 그 단만 2배 확대(왜곡 없이 프레임째 이동).
+type DocCol = 'left' | 'right' | 'full';
+
 function DocPreview({
   citation,
   onZoom,
@@ -219,6 +298,30 @@ function DocPreview({
   const pdfHref = citation.pdf_url
     ? `${citation.pdf_url}#page=${citation.page}`
     : (citation.page_image_url ?? undefined);
+
+  const highlights = citation.highlights ?? [];
+  // 하이라이트 x 중앙 평균 → 좌단(<0.5)/우단. 하이라이트 없으면 full.
+  const defaultCol: DocCol = highlights.length
+    ? highlights.reduce((s2, h) => s2 + h.x + h.w / 2, 0) / highlights.length < 0.5
+      ? 'left'
+      : 'right'
+    : 'full';
+
+  const [landscape, setLandscape] = useState(false);
+  const [col, setCol] = useState<DocCol>('full');
+
+  // 인용(citation)이 바뀌면 크롭 기준 재설정.
+  useEffect(() => {
+    setCol(landscape ? defaultCol : 'full');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [citation.chunk_id, landscape]);
+
+  const cropped = landscape && col !== 'full';
+  // 프레임: full 이면 100%/이동0, 단 크롭이면 200% 폭 + 좌(0)/우(-50%) 이동.
+  const frameStyle = cropped
+    ? { width: '200%', transform: `translateX(${col === 'right' ? '-50%' : '0'})` }
+    : undefined;
+
   return (
     <aside className={s.docPanel} aria-label="인용 약관 원문">
       <div className={s.docHead}>
@@ -229,29 +332,54 @@ function DocPreview({
           </a>
         ) : null}
       </div>
+
+      {landscape ? (
+        <div className={s.docCols} role="group" aria-label="약관 단 보기">
+          {(['left', 'right', 'full'] as DocCol[]).map((c) => (
+            <button
+              key={c}
+              type="button"
+              className={`${s.docColBtn} ${col === c ? s.docColOn : ''}`}
+              onClick={() => setCol(c)}
+            >
+              {c === 'left' ? '왼쪽 단' : c === 'right' ? '오른쪽 단' : '전체'}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       <div className={s.docScroll}>
         {citation.page_image_url ? (
           <button
             type="button"
             className={s.docImgWrap}
             onClick={() =>
-              onZoom(citation.page_image_url!, `${title} (p.${citation.page})`, citation.highlights)
+              onZoom(citation.page_image_url!, `${title} (p.${citation.page})`, highlights)
             }
             aria-label="현재 약관 페이지 크게 보기"
           >
-            <img className={s.docImg} src={citation.page_image_url} alt={`약관 ${citation.page}페이지`} />
-            {(citation.highlights ?? []).map((hl, i) => (
-              <span
-                key={i}
-                className={s.docHl}
-                style={{
-                  left: `${hl.x * 100}%`,
-                  top: `${hl.y * 100}%`,
-                  width: `${hl.w * 100}%`,
-                  height: `${hl.h * 100}%`,
-                }}
+            <span className={s.docFrame} style={frameStyle}>
+              <img
+                className={s.docImg}
+                src={citation.page_image_url}
+                alt={`약관 ${citation.page}페이지`}
+                onLoad={(e) =>
+                  setLandscape(e.currentTarget.naturalWidth > e.currentTarget.naturalHeight)
+                }
               />
-            ))}
+              {highlights.map((hl, i) => (
+                <span
+                  key={i}
+                  className={s.docHl}
+                  style={{
+                    left: `${hl.x * 100}%`,
+                    top: `${hl.y * 100}%`,
+                    width: `${hl.w * 100}%`,
+                    height: `${hl.h * 100}%`,
+                  }}
+                />
+              ))}
+            </span>
           </button>
         ) : (
           <p className={s.docText}>{citation.text}</p>
@@ -291,9 +419,14 @@ export default function ChatPage({ user, session, onReset, onOpenReview }: ChatP
       : 0;
   useAutoScroll(streamRef, [messages.length, isSending, streamingLen]);
 
-  const hasAssessment = messages.some((m) => m.role === 'assistant' && m.type === 'assessment');
+  const hasAssessment = messages.some(
+    (m) => m.role === 'assistant' && (m.type === 'assessment' || m.type === 'comparison'),
+  );
 
-  // 가장 최근 답변/진단의 페이지 이미지 인용 → 왼쪽 프리뷰 패널에 크게 표시.
+  // 비교 화면에서 활성 탭(보험) → 좌측 근거 PDF 를 그 보험 기준으로 전환.
+  const [activePolicyNo, setActivePolicyNo] = useState<string | null>(null);
+
+  // 가장 최근 답변/진단/비교의 페이지 이미지 인용 → 왼쪽 프리뷰 패널에 크게 표시.
   const activeCitation = useMemo<Citation | null>(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       const m = messages[i];
@@ -301,9 +434,16 @@ export default function ChatPage({ user, session, onReset, onOpenReview }: ChatP
         const c = m.payload.citations?.find((x) => x.page_image_url);
         if (c) return c;
       }
+      if (m.role === 'assistant' && m.type === 'comparison') {
+        // 활성 탭 보험의 근거 우선, 없으면 첫 보험.
+        const pol =
+          m.payload.policies.find((p) => p.policy_no === activePolicyNo) ?? m.payload.policies[0];
+        const c = pol?.assessment.citations?.find((x) => x.page_image_url);
+        if (c) return c;
+      }
     }
     return null;
-  }, [messages]);
+  }, [messages, activePolicyNo]);
   const rail = deriveRail(status, hasAssessment);
   const st = STATUS_TEXT[status ?? 'gathering'] ?? STATUS_TEXT.gathering;
 
@@ -357,6 +497,8 @@ export default function ChatPage({ user, session, onReset, onOpenReview }: ChatP
       body = renderAsk(m.payload, (t) => void sendMessage(t));
     } else if (m.type === 'assessment') {
       body = <AssessmentBody a={m.payload} />;
+    } else if (m.type === 'comparison') {
+      body = <ComparisonBody c={m.payload} onActive={setActivePolicyNo} />;
     } else if (m.type === 'answer') {
       body = renderAnswer(m.payload, (t) => void sendMessage(t));
     } else {
@@ -396,8 +538,8 @@ export default function ChatPage({ user, session, onReset, onOpenReview }: ChatP
             <StepNavigator title="" steps={rail} />
             <UserPill
               initial={user.name?.[0] ?? '나'}
-              name={`${user.name} 고객님`}
-              meta="인증 완료 · 마이데이터 연동됨"
+              name={user.name ? `${user.name} 고객님` : '고객님'}
+              meta={user.name ? '인증 완료 · 마이데이터 연동됨' : '비로그인 · 표준약관 기준'}
             />
           </>
         }

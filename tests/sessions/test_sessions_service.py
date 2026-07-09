@@ -178,13 +178,13 @@ class TestComputeMissing:
     """_compute_missing 우선순위 순서 + 영역별 슬롯 검증."""
 
     def test_all_empty_returns_common_required_first(self):
-        # 모든 슬롯 비어있음 → 공통 필수부터 반환
+        # Sprint 34 — insurer/product/incident_date 는 차단 필수 제외(없으면 표준약관 모드).
+        # 모든 슬롯 비어있으면 area 만 차단 필수.
         missing = _compute_missing(SlotState())
         assert "area" in missing
-        assert "insurer" in missing
-        assert "product" in missing
-        assert "incident_date" in missing
-        # area 가 첫 번째
+        assert "insurer" not in missing
+        assert "product" not in missing
+        assert "incident_date" not in missing
         assert missing[0] == "area"
 
     def test_all_slots_filled_returns_empty(self):
@@ -751,11 +751,17 @@ class TestShouldPartial:
         result = _should_partial(slots, missing=["incident_date"], ask_count=3, user_text="")
         assert result is True
 
-    def test_trigger_ask_count_two_false(self):
-        # ask_count = 2 < 3 → ask 트리거 미충족 (다른 트리거도 없으면 False)
+    def test_trigger_ask_count_zero_false(self):
+        # Sprint 34 — 임계 1. ask_count = 0 → 아직 미충족(다른 트리거 없으면 False)
         slots = self._base_slots()
-        result = _should_partial(slots, missing=["incident_date"], ask_count=2, user_text="")
+        result = _should_partial(slots, missing=["incident_date"], ask_count=0, user_text="")
         assert result is False
+
+    def test_trigger_ask_count_one_true(self):
+        # Sprint 34 — 되묻기 1회 후 바로 판정(답변-우선)
+        slots = self._base_slots()
+        result = _should_partial(slots, missing=["incident_date"], ask_count=1, user_text="")
+        assert result is True
 
     def test_trigger_keyword_geunyang_true(self):
         # "그냥" 키워드 → True
@@ -782,10 +788,10 @@ class TestShouldPartial:
         assert result is True
 
     def test_all_triggers_false_returns_false(self):
-        # unknown < 2, ask < 3, 키워드 없음 → False
+        # unknown < 2, ask < 1(=0), 키워드 없음 → False
         slots = self._base_slots()
         result = _should_partial(
-            slots, missing=["incident_date"], ask_count=1, user_text="사고 났어요"
+            slots, missing=["incident_date"], ask_count=0, user_text="사고 났어요"
         )
         assert result is False
 

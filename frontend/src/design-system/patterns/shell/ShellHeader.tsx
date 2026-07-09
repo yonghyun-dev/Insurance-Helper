@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import Icon from '../../components/Icon/Icon';
+import FontSizeToggle from '../../../pages/legal/FontSizeToggle';
 import s from './ShellHeader.module.css';
 
 export interface ShellHeaderProps {
@@ -23,6 +24,8 @@ export default function ShellHeader({
         <span className={s.brandTag}>대국민 보험 도우미</span>
       </button>
       <div className={s.right}>
+        {/* Sprint 34 — 글자 크기 토글을 전 페이지 헤더에 일관 노출(노인 접근성). */}
+        <FontSizeToggle />
         {rightSlot ?? (
           <>
             <button type="button" className={s.link}>

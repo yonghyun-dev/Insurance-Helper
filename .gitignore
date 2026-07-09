@@ -82,3 +82,4 @@ infra/azure/.deploy_key*
 
 # IE 열화 벤치 fixture (생성기가 원천 — python -m eval.ie_bench.generate)
 eval/ie_bench/fixtures/
+/comparison-*.png

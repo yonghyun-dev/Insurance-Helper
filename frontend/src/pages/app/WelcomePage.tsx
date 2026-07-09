@@ -1,11 +1,11 @@
 import { Button, Tile, Icon } from '../../design-system';
 import ShellHeader from '../../design-system/patterns/shell/ShellHeader';
 import LegalFooter from '../../components/LegalFooter';
-import FontSizeToggle from '../legal/FontSizeToggle';
 import s from './WelcomePage.module.css';
 
 export interface WelcomePageProps {
   onStart: () => void;
+  onAnonymous: () => void;   // Sprint 34 — 로그인·개인정보 없이 표준약관 기준 상담
 }
 
 const TRUST_CARDS = [
@@ -26,10 +26,10 @@ const TRUST_CARDS = [
   },
 ];
 
-export default function WelcomePage({ onStart }: WelcomePageProps) {
+export default function WelcomePage({ onStart, onAnonymous }: WelcomePageProps) {
   return (
     <div className={s.shell} data-screen-label="01 시작 화면">
-      <ShellHeader rightSlot={<FontSizeToggle />} />
+      <ShellHeader />
       <main className={s.main}>
         <div className={s.welcome}>
           <img className={s.mark} src="/assets/logo-mark.svg" alt="보험길잡이" />
@@ -43,13 +43,16 @@ export default function WelcomePage({ onStart }: WelcomePageProps) {
           </p>
           <div className={s.ctaWrap}>
             <Button variant="primary" size="xl" onClick={onStart} withIcon>
-              시작하기
+              내 보험으로 정확히 확인하기
               <Icon name="arrow-right" size={18} />
             </Button>
+            <button type="button" className={s.anonCta} onClick={onAnonymous}>
+              로그인 없이 그냥 물어볼게요
+            </button>
           </div>
           <p className={s.note}>
             복잡한 보험 용어를 몰라도 괜찮습니다.<br />
-            현재 상황만 입력하면 확인을 시작합니다.
+            가입 정보 없이도 일반 실손 표준약관 기준으로 먼저 안내해 드려요.
           </p>
 
           <div className={s.trust}>

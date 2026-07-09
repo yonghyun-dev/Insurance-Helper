@@ -26,10 +26,11 @@ interface MiniMsg {
 }
 
 interface Props {
-  onSelectTreatment: (t: TreatmentCard) => void;
-  pushToast: (kind: 'info' | 'warn' | 'error', text: string) => void;
-  hasAssessment: boolean;
-  onOpenReview: () => void;
+  // Sprint 34 — 전역(welcome 포함) 마운트 가능. 로그인 종속 quick-action props 는 옵셔널.
+  onSelectTreatment?: (t: TreatmentCard) => void;
+  pushToast?: (kind: 'info' | 'warn' | 'error', text: string) => void;
+  hasAssessment?: boolean;
+  onOpenReview?: () => void;
 }
 
 let _mid = 0;
@@ -38,9 +39,11 @@ const nextId = () => ++_mid;
 export default function HelpLauncher({
   onSelectTreatment,
   pushToast,
-  hasAssessment,
+  hasAssessment = false,
   onOpenReview,
 }: Props) {
+  // 로그인 세션 컨텍스트가 있을 때만 "빠른 작업"(진료내역·청구준비) 노출.
+  const hasSessionContext = !!onSelectTreatment;
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<'menu' | 'chat'>('menu');
   const [expanded, setExpanded] = useState(false);
@@ -72,7 +75,7 @@ export default function HelpLauncher({
         ...m,
         { id: nextId(), role: 'bot', text: '잠시 문제가 있었어요. 다시 한 번 여쭤봐 주시겠어요?' },
       ]);
-      pushToast('error', '도움 챗봇 응답에 실패했어요.');
+      pushToast?.('error', '도움 챗봇 응답에 실패했어요.');
     } finally {
       setSending(false);
     }
@@ -146,29 +149,33 @@ export default function HelpLauncher({
                 ))}
               </div>
 
-              <p className={s.section}>빠른 작업</p>
-              <div className={s.actions}>
-                <HealthHistoryPanel
-                  onSelect={(t) => {
-                    onSelectTreatment(t);
-                    setOpen(false);
-                  }}
-                  pushToast={pushToast}
-                />
-                {hasAssessment ? (
-                  <button
-                    type="button"
-                    className={s.item}
-                    onClick={() => {
-                      onOpenReview();
-                      setOpen(false);
-                    }}
-                  >
-                    <Icon name="document" size={22} className={s.itemIcon} />
-                    <span>청구 준비 화면 보기</span>
-                  </button>
-                ) : null}
-              </div>
+              {hasSessionContext ? (
+                <>
+                  <p className={s.section}>빠른 작업</p>
+                  <div className={s.actions}>
+                    <HealthHistoryPanel
+                      onSelect={(t) => {
+                        onSelectTreatment?.(t);
+                        setOpen(false);
+                      }}
+                      pushToast={pushToast ?? (() => {})}
+                    />
+                    {hasAssessment ? (
+                      <button
+                        type="button"
+                        className={s.item}
+                        onClick={() => {
+                          onOpenReview?.();
+                          setOpen(false);
+                        }}
+                      >
+                        <Icon name="document" size={22} className={s.itemIcon} />
+                        <span>청구 준비 화면 보기</span>
+                      </button>
+                    ) : null}
+                  </div>
+                </>
+              ) : null}
 
               <div className={s.spacer} />
               {inputRow}

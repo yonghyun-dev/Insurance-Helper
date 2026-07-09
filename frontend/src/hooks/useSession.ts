@@ -43,6 +43,9 @@ function historyToMessages(history: SessionStateResponse['history']): ChatMessag
       if (parsed.type === 'answer') {
         return { id: uid(), role: 'assistant', type: 'answer', payload: parsed, created_at: m.created_at };
       }
+      if (parsed.type === 'comparison') {
+        return { id: uid(), role: 'assistant', type: 'comparison', payload: parsed, created_at: m.created_at };
+      }
     } catch { /* fall through */ }
     // fallback: 평문 메시지를 ask 메시지로 감싸 노출
     return {
@@ -97,6 +100,8 @@ export function useSession() {
         next.push({ id: uid(), role: 'assistant', type: 'ask', payload: r.assistant, created_at: now() });
       } else if (r.assistant.type === 'answer') {
         next.push({ id: uid(), role: 'assistant', type: 'answer', payload: r.assistant, created_at: now() });
+      } else if (r.assistant.type === 'comparison') {
+        next.push({ id: uid(), role: 'assistant', type: 'comparison', payload: r.assistant, created_at: now() });
       } else {
         next.push({ id: uid(), role: 'assistant', type: 'assessment', payload: r.assistant, created_at: now() });
       }
@@ -453,7 +458,7 @@ export function useSession() {
       if (m.role !== 'assistant') continue;
       if (m.type === 'ask') return m.payload;
       // ask 이전에 다른 assistant 응답이 있으면 ask 없음
-      if (m.type === 'assessment' || m.type === 'error') return null;
+      if (m.type === 'assessment' || m.type === 'comparison' || m.type === 'error') return null;
     }
     return null;
   })();

@@ -13,7 +13,50 @@
 
 ---
 
-## ▶ 현재 작업 — Sprint 32: 뉴로심볼릭 검색 완성 + 운영 수준 마감 ✅ (커밋 대기)
+## ▶ 현재 작업 — Sprint 34: 전 페르소나 대응 고도화 + 가로 약관 반 크롭 ✅ (커밋 대기)
+
+- 유저 요청: (A) 삼성·현대같이 가로 2단 약관은 좌측 인용 패널에서 원문이 작아 안 읽힘 →
+  반으로 잘라 보여줘. (B) 상황을 자세히 말해야만 좋은 판정이 나오고 대충 물으면 헤지하며 되묻음 →
+  노인·비가입·개인정보 미공유자까지 **세 페르소나 모두** 만족하는 서비스로 고도화.
+- **페르소나**: P1 정밀형(로그인+마이데이터, 기존 happy path 유지) · P2 간단형/노인(불완전 발화 →
+  답변-우선 그레이스풀 + 큰 글씨) · P3 익명형(무로그인·무개인정보 → 일반 실손 표준약관 기준).
+- **통합 규칙**: insurer 를 모르면(익명이든 미공유든) **실손 표준약관 기준**(보험사 필터 없는 교차검색
+  + 표준 프레이밍)으로 답한다. 한국 실손은 금감원 표준약관 기반이라 5개사 핵심 조항이 거의 동일 →
+  기존 코퍼스 재사용, 새 약관 미생성.
+- **T-A 가로 크롭**(프론트 전용): `<img onLoad>` naturalWidth>naturalHeight 로 landscape 판별 →
+  하이라이트 x 중앙값으로 좌단/우단 결정, 래퍼 `transform` 200%폭+translateX 로 그 단만 확대
+  (오버레이 % 기반이라 함께 이동, 좌표 재매핑 불필요). 왼쪽 단/오른쪽 단/전체 토글. 백엔드 무변경.
+- **T-B 답변-우선 그레이스풀**: `_ASSESSMENT_SYSTEM` 재작성(결론 먼저·헤지 선문구 금지·부족정보는
+  맨끝 한 줄 후속). `_PARTIAL_ASK_THRESHOLD` 3→1(되묻기 최대 1회). insurer/product/incident_date
+  를 차단 필수에서 제외(`_COMMON_REQUIRED=("area",)`) — 없으면 표준 모드로 진행.
+- **T-C 익명 진입 + 표준 모드**: WelcomePage 2차 CTA "로그인 없이 그냥 물어볼게요" → AppFlow
+  `anon-situation` stage(identity/coverage 건너뜀). `generate_assessment` 에 **결정론 standard_mode**
+  (insurer 부재 시 시스템 프롬프트에 강한 지시 주입 — 인용 청크 보험사명을 '가입하신 보험사'로
+  오지칭하는 누수 차단). HelpLauncher 전역 마운트(welcome 포함). 사이드바 라벨도 익명 시 '비로그인·
+  표준약관 기준'으로 분기.
+- **T-D 접근성**: FontSizeToggle 를 전 페이지 ShellHeader 에 일관 노출(노인).
+- **라이브 e2e**: ① 익명 짧은질문("발목 다쳐서 병원 다녀왔어요")→ 결론 먼저("가능성 높음")+표준
+  프레이밍("실손 표준약관 기준으로는…")+보험사 오지칭 0. ② p01 삼성(가로) 인용 → 좌/우 단 크롭
+  토글 동작·하이라이트 정합. pytest 1048 · ruff · tsc · build ✅.
+- PM-40 / REQ-18.
+
+---
+
+### (완료) Sprint 33: 다중 실손 판정 + 비교 (L3) ✅ (커밋 대기)
+
+- 유저 요청: 가입현황에서 여러 실손 중복선택 → 비교. **도메인 정정**(실손 비례분담 = 이중 수령
+  불가)해 "더 받는 법" 아닌 **"어느 약관 유리(세대·자기부담) + 비례 안분"** 으로 구현.
+- 아키텍처: SlotState 복수화 대신 `Session.policies` 분리 + 보험별 임시 slots 로 기존
+  retrieve/evaluate/generate_assessment N회 재사용. post_message 분기(다중→비교, 단일→하위호환).
+- 신규: `coverage/proration.py`(세대별 자기부담 비교 + 비례 안분), 비교 스키마(PolicyAssessment/
+  AssistantComparison), 프론트 다중선택(체크박스+세대태그) + ComparisonBody(비교표+탭+근거PDF 연동).
+- **라이브 e2e(p01)**: 삼성 4세대(20/30%) vs 현대 3세대(10/20%) 비교표 + 추천(현대) + 탭 전환 시
+  좌측 근거 PDF 전환(삼성 제3조 p.26 ↔ 현대 제1조 p.71). pytest 1043 · ruff · tsc · build ✅.
+- PM-39 / REQ-17.
+
+---
+
+### (완료) Sprint 32: 뉴로심볼릭 검색 완성 + 운영 수준 마감 ✅ (라이브 반영 완료)
 
 - **T1 골든셋 ✅** — 30문항(5개사×6, 코퍼스 정합 자동검증) + hit/MRR/nDCG 하네스 +
   `ica eval-retrieval` + pytest `-m eval` 게이트. 베이스라인: hit@8 0.833 / MRR 0.663.
@@ -27,7 +70,10 @@
   기본 경로 데이터로 확정. 저신뢰(0.550) 플래그 실동작.
 - **T5 운영 ✅** — `docs/ops/reindex-runbook.md`, perf-log/엑셀 갱신. 게이트: pytest 1035 ·
   ruff · tsc · verify 3-스토어 · 골든셋 임계 전부 통과.
-- 잔여: 라이브 서버 반영(런북 §1~4 — Memgraph 기동+rebuild), 커밋/푸시.
+- **라이브 반영 ✅ (07-09)** — Memgraph 를 prod compose 에 추가(ec6fdee)·자동배포, 서버 rebuild:
+  3-스토어 정합 2494=2494=2494(Postgres=pgvector=Memgraph)·REFERS_TO 1511·verify 통과.
+  라이브 스모크: "한 눈이 멀었을 때 지급률?" → **삼성화재 붙임3 p.73 인용 + 50% 정답**.
+  **수용기준 6/6 — Sprint 32 100% 달성.**
 
 ---
 

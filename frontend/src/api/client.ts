@@ -293,6 +293,7 @@ export interface EnrolledInsurance {
   area: string;
   valid_from: string;
   valid_to: string | null;
+  generation?: number | null;   // 실손 세대(1~4) — Sprint 33 다중판정 비교
 }
 
 export async function fetchInsurances(): Promise<EnrolledInsurance[]> {
