@@ -306,7 +306,7 @@ class TestRunAgentLanggraph:
         from app.domains.rag import langgraph_agent as lg_mod
 
         monkeypatch.setattr(
-            lg_mod, "invoke", lambda name, args: {"chunks": [{"id": f"c-{args.get('query')}", "score": 0.5, "text": "x"}]}
+            lg_mod, "invoke", lambda name, args, **kw: {"chunks": [{"id": f"c-{args.get('query')}", "score": 0.5, "text": "x"}]}
         )
 
         result = lg.run_agent_langgraph(auto_slots, "테스트", max_iter=3)
@@ -377,7 +377,7 @@ class TestLlmErrorRobustness:
         monkeypatch.setattr(lg, "_get_openai_client", lambda: _Client())
         monkeypatch.setattr(
             lg, "invoke",
-            lambda name, args: {"chunks": [{"id": "c1", "score": 0.8, "text": "약관"}]},
+            lambda name, args, **kw: {"chunks": [{"id": "c1", "score": 0.8, "text": "약관"}]},
         )
 
         result = lg.run_agent_langgraph(auto_slots, "사고", max_iter=5)

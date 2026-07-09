@@ -106,6 +106,18 @@ class Settings(BaseSettings):
         default=False,
         description="ReAct agent(tool 자가 라우팅, 단일 LangGraph 경로) 적용 — false 면 단순 RAG",
     )
+    # Sprint 31 D2 — 검색 정밀도
+    rag_score_ratio: float = Field(
+        default=0.55,
+        description="상대 점수 컷 — top1 점수 대비 이 비율 미만 청크 제외 (0=끄기). "
+        "무관 청크가 top_k 를 채워 인용되는 것을 방지. 절대 임계값 대신 상대 컷이라 "
+        "임베딩 모델 점수 분포에 덜 민감하다.",
+    )
+    rag_rerank: bool = Field(
+        default=False,
+        description="Solar 리랭커 — 후보 2*top_k 를 벡터 검색 후 Solar 가 관련도 재정렬. "
+        "정밀도 향상, 지연 +1 LLM 호출. 실패 시 원 순서 graceful 유지.",
+    )
     # 추론 LLM 호출 견고성 — 행(hang)/단발 실패 방어. OpenAI SDK 에 그대로 전달.
     llm_timeout_s: float = Field(
         default=60.0, description="추론 LLM 호출 타임아웃(초). OpenAI SDK timeout 으로 전달."

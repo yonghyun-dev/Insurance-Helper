@@ -38,7 +38,12 @@ class ToolNotImplementedError(Exception):
     """tool 정의는 있으나 Sprint 단계상 미구현 (stub)."""
 
 
-def invoke(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
+def invoke(
+    tool_name: str,
+    args: dict[str, Any],
+    *,
+    search_filters: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """LLM tool_call 을 실 함수로 라우팅 + 소요시간/성공여부 로깅.
 
     로그의 args 는 전역 PiiMaskingFilter(logging.py)가 마스킹한다.
@@ -46,6 +51,9 @@ def invoke(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
     Args:
         tool_name: definitions.ALL_TOOLS 의 function.name
         args: function.arguments 를 json.loads 한 dict
+        search_filters: search_terms 벡터 검색에 강제할 where 필터(area/insurer_id).
+            에이전트 경로에서도 비-agent retrieve 와 동일하게 가입 보험사 외
+            약관 인용을 차단한다 (미지정 시 기존처럼 무필터).
 
     Returns:
         tool 결과 dict (LLM 의 다음 turn 에 tool message 로 전달)
@@ -57,7 +65,7 @@ def invoke(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
     logger.info("dispatcher: %s(%s)", tool_name, args)
     t0 = perf_counter()
     try:
-        result = _dispatch(tool_name, args)
+        result = _dispatch(tool_name, args, search_filters=search_filters)
     except (ToolNotFoundError, ToolNotImplementedError) as exc:
         logger.info(
             "dispatcher: %s 미처리 %.1fms (%s)",
@@ -71,7 +79,12 @@ def invoke(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-def _dispatch(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
+def _dispatch(
+    tool_name: str,
+    args: dict[str, Any],
+    *,
+    search_filters: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """tool_name 라우팅 본체. invoke() 가 타이밍/로깅으로 감싼다."""
     if tool_name not in tool_names():
         raise ToolNotFoundError(f"정의되지 않은 tool: {tool_name}")
@@ -88,13 +101,14 @@ def _dispatch(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
     # search_terms 활성 — query 기반 vector 검색. 벡터 backend 추상화(get_vector_store)를 거쳐
     # 설정(effective_vector_store)에 따라 Chroma/pgvector 로 라우팅된다. similarity_search 직접 호출은
     # Chroma 전용이라 pgvector 모드에서 빈 결과가 나므로 어댑터 경유로 통일(반환 형식 동일).
-    # 에이전트 retrieve 와 분리되어 무한 재귀 없음. SlotState 의존성 없음 — LLM 이 query 텍스트 직접 생성.
+    # 에이전트 retrieve 와 분리되어 무한 재귀 없음. query 텍스트는 LLM 생성,
+    # where 필터(search_filters)는 호출자(에이전트)가 슬롯에서 결정론으로 주입.
     if tool_name == "search_terms":
         from app.domains.rag.vectorstore import get_vector_store
 
         query = args["query"]
         top_k = args.get("top_k", 8)
-        results = get_vector_store().query(query, top_k=top_k)
+        results = get_vector_store().query(query, top_k=top_k, filters=search_filters)
         # Sprint 11 ReAct LLM 이 chunk_id + text 만 필요 (citations 검증에 사용)
         compact = [
             {

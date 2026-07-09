@@ -32,6 +32,7 @@ from typing import Any, TypedDict
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
+from app.domains.rag._slots import slots_to_filters
 from app.domains.rag.agent import AgentResult, _get_openai_client
 from app.domains.sessions.schemas import SlotState
 from app.infrastructure.llm.client import get_chat_model
@@ -109,10 +110,14 @@ def _slot_summary(slots: SlotState) -> str:
     return ", ".join(parts) or "(empty)"
 
 
-def _safe_invoke(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
+def _safe_invoke(
+    tool_name: str,
+    args: dict[str, Any],
+    search_filters: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """dispatcher.invoke + graceful 예외 → LLM 친화 에러 dict."""
     try:
-        return invoke(tool_name, args)
+        return invoke(tool_name, args, search_filters=search_filters)
     except ToolNotImplementedError as exc:
         return {"error": "not_implemented", "tool": tool_name, "message": str(exc)}
     except ToolNotFoundError as exc:
@@ -282,7 +287,12 @@ def execute_tools(state: AgentState) -> AgentState:
         else:
             visited_tools.append(key)
             t0 = perf_counter()
-            tool_result = _safe_invoke(tool_name, args)
+            # 슬롯 기반 where 필터 — agent 경로에서도 가입 보험사/영역 외 약관 인용 차단
+            # (비-agent retrieve 의 slots_to_filters 와 동일 정책. 기존엔 무필터 버그)
+            search_filters = (
+                slots_to_filters(state["slots"]) if tool_name == "search_terms" else None
+            )
+            tool_result = _safe_invoke(tool_name, args, search_filters)
             latency_ms = round((perf_counter() - t0) * 1000, 1)
 
         # B1 관측성 — tool 별 latency + 성공여부(error 키 부재) 기록.

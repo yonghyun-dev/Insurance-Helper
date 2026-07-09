@@ -97,15 +97,18 @@ def retrieve(
 
     retriever = _get_retriever(resolved_mode)
 
+    # 리랭크 활성 시 후보를 넉넉히(2x) 가져와 재정렬 후 top_k 로 줄인다.
+    fetch_k = top_k * 2 if settings.rag_rerank else top_k
+
     breaker = _rag_circuit_breaker()
     try:
-        results = breaker.call(retriever.retrieve, slots, top_k)
+        results = breaker.call(retriever.retrieve, slots, fetch_k)
     except CircuitBreakerError as exc:
         logger.warning("RAG circuit open (mode=%s) — vector 폴백 시도: %s", resolved_mode, exc)
         # circuit open 상태 — vector 직접 호출 (breaker 우회) 1회 시도
         if resolved_mode != "vector":
             try:
-                results = _vector_singleton().retrieve(slots, top_k)
+                results = _vector_singleton().retrieve(slots, fetch_k)
             except Exception as exc2:
                 logger.error("circuit-open vector 폴백 실패: %s", exc2)
                 results = []
@@ -116,7 +119,7 @@ def retrieve(
         # vector 가 아니면 vector 로 1회 더 시도
         if resolved_mode != "vector":
             try:
-                results = _vector_singleton().retrieve(slots, top_k)
+                results = _vector_singleton().retrieve(slots, fetch_k)
                 logger.info("vector 폴백 성공")
             except Exception as exc2:
                 logger.error("vector 폴백도 실패: %s", exc2)
@@ -124,8 +127,82 @@ def retrieve(
         else:
             results = []
 
+    # Sprint 31 D2 — 검색 정밀도 후처리: 상대 점수 컷 → (옵션) Solar 리랭크
+    out = [dict(r) for r in results]
+    out = _apply_score_ratio_cut(out, settings.rag_score_ratio)
+    if settings.rag_rerank and len(out) > 1:
+        out = _rerank_with_solar(slots, out, top_k)
     # RetrievalResult TypedDict → 일반 dict (기존 sessions.service 계약 유지)
-    return [dict(r) for r in results]
+    return out
+
+
+def _apply_score_ratio_cut(
+    results: list[dict[str, Any]], ratio: float
+) -> list[dict[str, Any]]:
+    """top1 점수 대비 ratio 미만 청크 제외 — 무관 청크가 top_k 를 채우는 것 방지.
+
+    score 필드가 없거나(graph 경로 등) top1 이 0 이하이면 원본 유지. 최소 1건은 남긴다.
+    """
+    if ratio <= 0 or not results:
+        return results
+    top = results[0].get("score")
+    if not isinstance(top, (int, float)) or top <= 0:
+        return results
+    cut = top * ratio
+    kept = [r for r in results if isinstance(r.get("score"), (int, float)) and r["score"] >= cut]
+    if len(kept) < len(results):
+        logger.info(
+            "score ratio cut: %d→%d (top=%.3f, cut=%.3f)", len(results), len(kept), top, cut
+        )
+    return kept or results[:1]
+
+
+def _rerank_with_solar(
+    slots: SlotState, results: list[dict[str, Any]], top_k: int
+) -> list[dict[str, Any]]:
+    """Solar 로 후보 청크를 질의 관련도 순 재정렬 (listwise). 실패 시 원 순서 유지.
+
+    국내 전용 제약상 cross-encoder 대신 추론 LLM(solar) 재활용. 입력은 청크당 300자
+    요약본 — 토큰 절약. 반환 인덱스가 이상하면(범위 밖/부족) 원 순서로 폴백한다.
+    """
+    import json as _json
+
+    from app.domains.rag._slots import slots_to_query
+    from app.infrastructure.llm.client import get_chat_client, get_chat_model
+
+    query = slots_to_query(slots)
+    listing = "\n".join(
+        f"[{i}] {r['text'][:300]}" for i, r in enumerate(results)
+    )
+    try:
+        resp = get_chat_client().chat.completions.create(
+            model=get_chat_model(),
+            temperature=0.0,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "당신은 보험 약관 검색 리랭커다. 질의와 각 청크의 관련도가 높은 순으로 "
+                        "청크 인덱스를 정렬해 JSON 배열로만 답하라. 예: [2,0,5]"
+                    ),
+                },
+                {"role": "user", "content": f"질의: {query}\n\n청크:\n{listing}"},
+            ],
+        )
+        content = (resp.choices[0].message.content or "").strip()
+        start, end = content.find("["), content.rfind("]")
+        order = _json.loads(content[start : end + 1])
+        idx = [i for i in order if isinstance(i, int) and 0 <= i < len(results)]
+        # 중복 제거(순서 유지) + 누락 인덱스는 원 순서로 뒤에 붙임 — 청크 유실 방지
+        seen: set[int] = set()
+        idx = [i for i in idx if not (i in seen or seen.add(i))]
+        idx += [i for i in range(len(results)) if i not in seen]
+        reranked = [results[i] for i in idx][:top_k]
+        logger.info("solar rerank 적용: %d 후보 → top%d", len(results), len(reranked))
+        return reranked
+    except Exception as exc:  # noqa: BLE001 — 리랭크는 부가 기능, 실패 시 원 순서
+        logger.warning("solar rerank 실패 — 원 순서 유지: %s", exc)
+        return results[:top_k]
 
 
 def run_agent(slots: SlotState, user_message: str) -> AgentResult:
