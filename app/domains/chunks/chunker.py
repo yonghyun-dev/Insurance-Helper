@@ -38,7 +38,10 @@ logger = get_logger(__name__)
 
 DEFAULT_MAX_TOKENS = 1000
 MIN_CHUNK_TOKENS = 30  # 너무 짧은 단편(예: 빈 article 헤더)은 검색 노이즈가 되어 제외
-HARD_TOKEN_LIMIT = 7000  # OpenAI 임베딩 한도(8191) 아래로 안전 마진 — 강제 분할 임계
+# 강제 분할 임계 — 임베딩 입력 절단(embeddings.MAX_INPUT_TOKENS=3800, 동일 cl100k 프록시)
+# 아래로 유지해 "청크 꼬리가 임베딩에서 잘려 검색 불가"가 되는 일을 구조적으로 차단한다.
+# (기존 7000 은 OpenAI 8191 기준이라 3800 절단과 어긋나 청크 꼬리가 검색 사각지대였다)
+HARD_TOKEN_LIMIT = 3500
 SPLIT_OVERLAP_TOKENS = 80  # 강제 분할 시 문맥 유지를 위한 오버랩
 _ENCODING_NAME = "cl100k_base"
 
@@ -100,35 +103,70 @@ def _enforce_hard_limit(chunks: list[Chunk], encoder: tiktoken.Encoding) -> list
 
 
 def _split_by_tokens(chunk: Chunk, encoder: tiktoken.Encoding) -> list[Chunk]:
-    """1개 청크를 HARD_TOKEN_LIMIT 단위(오버랩 포함)로 잘라 여러 청크로 만든다."""
-    token_ids = encoder.encode(chunk.text)
-    pieces: list[Chunk] = []
-    step = HARD_TOKEN_LIMIT - SPLIT_OVERLAP_TOKENS
-    start = 0
-    part_no = 1
-    while start < len(token_ids):
-        end = min(start + HARD_TOKEN_LIMIT, len(token_ids))
-        piece_text = encoder.decode(token_ids[start:end])
-        sub_no = f"{chunk.sub_no or ''}#part-{part_no}".lstrip("#")
-        pieces.append(
-            Chunk(
-                id=str(uuid.uuid4()),
-                chunk_type=chunk.chunk_type,
-                clause_no=chunk.clause_no,
-                sub_no=sub_no,
-                page_start=chunk.page_start,
-                page_end=chunk.page_end,
-                token_count=end - start,
-                text=piece_text,
-                parent_chunk_id=chunk.parent_chunk_id,
-            )
+    """1개 청크를 HARD_TOKEN_LIMIT 이하 조각으로 자른다 — **라인 경계 우선**.
+
+    기존 토큰 단순 슬라이스는 문장/표 행 중간을 자르며 의미를 훼손했다. 라인 단위로
+    그리디하게 담고, 조각 사이에는 직전 조각의 마지막 라인들(≤SPLIT_OVERLAP_TOKENS)을
+    겹쳐 문맥을 잇는다. 개행 없는 초장문 라인만 토큰 단위로 폴백 분할한다.
+    """
+    lines = chunk.text.splitlines()
+    line_tokens = [len(encoder.encode(ln)) + 1 for ln in lines]  # +1 ≈ 개행
+
+    piece_texts: list[str] = []
+    buf: list[str] = []
+    buf_tok = 0
+
+    def flush() -> list[str]:
+        """buf 를 조각으로 확정하고, 다음 조각 앞에 붙일 오버랩 라인들을 돌려준다."""
+        nonlocal buf, buf_tok
+        if buf:
+            piece_texts.append("\n".join(buf))
+        carry: list[str] = []
+        carry_tok = 0
+        for ln in reversed(buf):
+            t = len(encoder.encode(ln)) + 1
+            if carry_tok + t > SPLIT_OVERLAP_TOKENS:
+                break
+            carry.insert(0, ln)
+            carry_tok += t
+        buf, buf_tok = [], 0
+        return carry
+
+    for ln, t in zip(lines, line_tokens, strict=True):
+        if t > HARD_TOKEN_LIMIT:
+            # 개행 없는 초장문 라인(예: 한 줄로 직렬화된 표) — 토큰 단위 폴백
+            flush()
+            ids = encoder.encode(ln)
+            step = HARD_TOKEN_LIMIT - SPLIT_OVERLAP_TOKENS
+            for s in range(0, len(ids), step):
+                piece_texts.append(encoder.decode(ids[s : s + HARD_TOKEN_LIMIT]))
+                if s + HARD_TOKEN_LIMIT >= len(ids):
+                    break
+            continue
+        if buf_tok + t > HARD_TOKEN_LIMIT:
+            carry = flush()
+            buf = list(carry)
+            buf_tok = sum(len(encoder.encode(c)) + 1 for c in carry)
+        buf.append(ln)
+        buf_tok += t
+    flush()
+
+    pieces = [
+        Chunk(
+            id=str(uuid.uuid4()),
+            chunk_type=chunk.chunk_type,
+            clause_no=chunk.clause_no,
+            sub_no=f"{chunk.sub_no or ''}#part-{i + 1}".lstrip("#"),
+            page_start=chunk.page_start,
+            page_end=chunk.page_end,
+            token_count=len(encoder.encode(text)),
+            text=text,
+            parent_chunk_id=chunk.parent_chunk_id,
         )
-        if end == len(token_ids):
-            break
-        start += step
-        part_no += 1
+        for i, text in enumerate(piece_texts)
+    ]
     logger.warning(
-        "강제 분할: %s %s (%dt → %d개 조각)",
+        "강제 분할: %s %s (%dt → %d개 조각, 라인 경계)",
         chunk.chunk_type.value, chunk.clause_no, chunk.token_count, len(pieces),
     )
     return pieces
@@ -181,13 +219,49 @@ def _chunk_article(
             )
         )
 
+    # ITEM 직속 자식(항 없이 "1./가." 가 바로 오는 구조 — 별표/붙임 분류표에서 흔함)은
+    # 버리지 않고 연속 구간을 max_tokens 까지 그리디로 묶어 1청크로 만든다.
+    # (기존엔 PARAGRAPH 외 자식을 skip → annex 인식 시 분류표 본문이 통째로 유실됐다)
+    item_buf: list[StructureNode] = []
+
+    def _flush_items() -> None:
+        if not item_buf:
+            return
+        text = "\n".join(_flatten_paragraph_text(struct, n) for n in item_buf)
+        text_with_header = f"{article_header}\n{text}".strip()
+        chunks.append(
+            Chunk(
+                id=str(uuid.uuid4()),
+                chunk_type=article.chunk_type,
+                clause_no=article.clause_no,
+                sub_no=item_buf[0].sub_no,
+                page_start=item_buf[0].page_start,
+                page_end=item_buf[-1].page_end,
+                token_count=len(encoder.encode(text_with_header)),
+                text=text_with_header,
+            )
+        )
+        item_buf.clear()
+
+    def _items_tokens() -> int:
+        return sum(
+            len(encoder.encode(_flatten_paragraph_text(struct, n))) for n in item_buf
+        )
+
     for child_id in article.children_ids:
         child = struct.by_id(child_id)
         if child.chunk_type == ChunkType.TABLE:
+            _flush_items()
             chunks.append(_chunk_table(child, encoder))
+            continue
+        if child.chunk_type == ChunkType.ITEM:
+            item_buf.append(child)
+            if _items_tokens() >= max_tokens:
+                _flush_items()
             continue
         if child.chunk_type != ChunkType.PARAGRAPH:
             continue
+        _flush_items()
         paragraph_text = _flatten_paragraph_text(struct, child)
         text_with_header = f"{article_header}\n{paragraph_text}".strip()
         chunks.append(
@@ -202,6 +276,7 @@ def _chunk_article(
                 text=text_with_header,
             )
         )
+    _flush_items()
 
     return chunks
 

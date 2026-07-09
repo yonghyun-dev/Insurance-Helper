@@ -171,8 +171,22 @@ class TestAnnexRe:
         # "[별표 1] 보장한도표"
         m = _ANNEX_RE.match("[별표 1] 보장한도표")
         assert m is not None
-        assert m.group(1) == "1"
-        assert "보장한도표" in m.group(2)
+        assert m.group(1) == "별표"
+        assert m.group(2) == "1"
+        assert "보장한도표" in m.group(3)
+
+    def test_butim_annex_no_space(self):
+        # 실사례(삼성 실손): "[붙임3]장해분류표" — 괄호 뒤 무공백 + 붙임 표기
+        m = _ANNEX_RE.match("[붙임3]장해분류표")
+        assert m is not None
+        assert m.group(1) == "붙임"
+        assert m.group(2) == "3"
+        assert "장해분류표" in m.group(3)
+
+    def test_byeolcheom_annex(self):
+        m = _ANNEX_RE.match("[별첨 2] 특정신체부위 분류표")
+        assert m is not None
+        assert m.group(1) == "별첨"
 
     def test_no_bracket_annex_format(self):
         # "별표 1 보장한도표"

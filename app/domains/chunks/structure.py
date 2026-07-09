@@ -47,9 +47,11 @@ _PARAGRAPH_RE = re.compile(r"^\s*([①-⑳])\s+")
 # 한글은 호 표기에 실제 쓰이는 14자(가~하)만 화이트리스트로 좁혀 false positive 차단
 _ITEM_RE = re.compile(r"^\s*(\d+[.)]|\(\d+\)|[가-하]\.|\([가-하]\))\s+")
 
-# 별표 시작 헤더: "[별표 1] 보장한도표" 또는 페이지 단독 "별표 1 ..."
+# 별표/붙임/별첨 시작 헤더: "[별표 1] 보장한도표", "[붙임3]장해분류표", 페이지 단독 "별표 1 ..."
+# (실사례: 삼성 실손 "[붙임3]장해분류표" — 붙임 미인식 시 14p 분류표가 직전 조항에 뭉쳐
+#  7000tok 강제분할 + 임베딩 절단(3800tok)으로 검색 사각지대가 됐다.)
 # 단, 본문 중간의 "<별표1>"·"<별표 2>" 같은 참조는 시작 헤더가 아님 → ^에서 시작하고 < 로 시작 X
-_ANNEX_RE = re.compile(r"^\s*\[?\s*별표\s*(\d+)\s*\]?\s+(?!\d)([^\n<]{1,80})$")
+_ANNEX_RE = re.compile(r"^\s*\[?\s*(별표|붙임|별첨)\s*(\d+)\s*\]?\s*(?!\d)([^\n<]{1,80})$")
 
 # 목차 라인 판정용:
 #   - 한 줄에 "제N조" 가 2회 이상 등장 (예: "제40조 (..) 제41조(..) ..")
@@ -169,8 +171,8 @@ def recognize_structure(raw: RawDocument) -> StructuredDocument:
             item_match = _ITEM_RE.match(stripped)
 
             if annex_match:
-                annex_no = f"별표 {annex_match.group(1)}"
-                title = annex_match.group(2).strip()
+                annex_no = f"{annex_match.group(1)} {annex_match.group(2)}"  # "별표 1" / "붙임 3"
+                title = annex_match.group(3).strip()
                 current_article = _new_node(
                     chunk_type=ChunkType.ANNEX,
                     clause_no=annex_no,
