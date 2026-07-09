@@ -1,0 +1,169 @@
+.shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--gray-10);
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  padding: 48px 32px 80px;
+}
+
+.body {
+  max-width: 640px;
+  width: 100%;
+}
+
+.title {
+  font-size: 36px;
+  line-height: 46px;
+  font-weight: 300;
+  letter-spacing: -0.8px;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+  text-wrap: balance;
+}
+.title strong {
+  font-weight: 600;
+  color: var(--blue-60);
+}
+
+.sub {
+  font-size: 16px;
+  line-height: 26px;
+  color: var(--text-secondary);
+  margin-bottom: 32px;
+}
+
+.helper {
+  font-size: 14px;
+  color: var(--text-helper);
+  padding: 24px 0;
+}
+
+/* 다중가입 비례분담 안내 배너 */
+.prorationCard {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 18px 20px !important;
+  margin-bottom: 16px;
+  background: var(--blue-10) !important;
+  border-color: var(--blue-60) !important;
+}
+.prorationIco {
+  color: var(--blue-70);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.prorationTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+.prorationDesc {
+  font-size: 13.5px;
+  line-height: 21px;
+  color: var(--text-secondary);
+}
+
+/* 가입 보험 리스트 */
+.listCard {
+  padding: 20px 24px !important;
+  margin-bottom: 24px;
+}
+.listLabel {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.policy {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  width: 100%;
+  padding: 14px 0;
+  border: none;
+  border-bottom: 1px solid var(--border-subtle-01);
+  background: none;
+  font: inherit;
+  text-align: left;
+}
+.policy:last-child { border-bottom: none; padding-bottom: 0; }
+.policy:first-child { padding-top: 0; }
+.policySelectable { cursor: pointer; }
+.policySelectable:hover .policyName { color: var(--blue-70); }
+
+.policyIco {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--blue-10);
+  color: var(--blue-70);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.policyText { flex: 1; min-width: 0; }
+.policyName {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+.policyCo {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* 라디오 인디케이터(다중 선택 시) */
+.radio {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  border: 2px solid var(--border-strong-01);
+  flex-shrink: 0;
+  transition: all var(--dur-fast-02) var(--ease-productive-standard);
+}
+.policyOn .radio {
+  border-color: var(--blue-60);
+  background: radial-gradient(circle, var(--blue-60) 0 5px, transparent 6px);
+}
+.policyOn .policyIco {
+  background: var(--blue-60);
+  color: #fff;
+}
+
+/* 가입 없음 */
+.emptyCard {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 20px !important;
+  margin-bottom: 24px;
+  color: var(--blue-70);
+}
+.emptyTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+.emptyDesc {
+  font-size: 13.5px;
+  line-height: 21px;
+  color: var(--text-secondary);
+}
+
+.cta {
+  display: flex;
+  justify-content: flex-end;
+}

@@ -19,3 +19,4 @@
 | 13 | 벡터 DB pgvector 전환 (Chroma → PostgreSQL + pgvector) | 분석 완료, 설계 대기 | 12 | [13_pgvector-migration.md](requirements/13_pgvector-migration.md) |
 | 14 | 사용자 건강보험 API 연동 (NHIS/HIRA/의료마이데이터 — 진료내역 자동 prefill) | 완료 (더미 + Real skeleton, frontend 패널 포함) | 18 | [14_health_data_api.md](requirements/14_health_data_api.md) |
 | 15 | 프론트엔드 리디자인 통합 (dfocus 디자인 + 백엔드 이식 + 신규: 서류체크리스트/청구요약/접수가정) | 분석 완료, 설계 대기 | 20~23 | [15_frontend-redesign-integration.md](requirements/15_frontend-redesign-integration.md) |
+| 16 | 다중 실손 가입현황-우선 플로우 + 비례분담 설명 (L1) | 구현 중 | 30 | [16_multi-insurance-status-flow.md](requirements/16_multi-insurance-status-flow.md) |

@@ -78,3 +78,4 @@ frontend/2*/
 # Azure 프로비저닝 산출물 (시크릿·SSH 키) — 절대 커밋 금지
 infra/azure/.secrets*.env
 infra/azure/.deploy_key*
+/coverage-*.png

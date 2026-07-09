@@ -105,15 +105,20 @@ class TestGetMydataAdapterFactory:
 
 
 class TestProductionFixture:
-    """실제 data/demo/mydata.json (10 페르소나) 검증. 실손 전용 — 각자 실손 1건."""
+    """실제 data/demo/mydata.json (10 페르소나) 검증. 실손 전용.
 
-    def test_p01_samsung_silson(self):
+    Sprint 30 — p01·p06 은 실손 2건(다중가입) 데모(비례분담 안내용), 나머지는 1건.
+    """
+
+    def test_p01_multi_silson(self):
+        """p01 = 삼성화재 + 현대해상 실손 2건 (다중가입 데모)."""
         adapter = DummyAdapter()
         result = adapter.fetch_insurances("p01")
-        assert len(result) == 1
+        assert len(result) == 2
         assert result[0]["area"] == "accident_disease"
         assert result[0]["insurer_id"] == "samsung"
         assert result[0]["product_id"] == "samsung_silson"
+        assert {r["insurer_id"] for r in result} == {"samsung", "hyundai"}
 
     def test_p02_lotte_silson(self):
         adapter = DummyAdapter()
@@ -122,15 +127,16 @@ class TestProductionFixture:
         assert result[0]["insurer_id"] == "lotte"
         assert result[0]["product_id"] == "lotte_silson"
 
-    def test_all_personas_single_indexed_silson(self):
-        """모든 페르소나가 인덱싱된 5개 보험사 실손 1건씩 보유 (실손 중복가입 금지 반영)."""
+    def test_all_personas_indexed_silson(self):
+        """모든 페르소나가 인덱싱된 5개 보험사 실손 보유 (p01·p06 은 2건 다중가입 데모)."""
         adapter = DummyAdapter()
         insurers = {"samsung", "lotte", "hyundai", "meritz", "hanwha"}
+        multi = {"p01", "p06"}
         for pid in (f"p{n:02d}" for n in range(1, 11)):
             result = adapter.fetch_insurances(pid)
-            assert len(result) == 1
-            ins = result[0]
-            assert ins["area"] == "accident_disease"
-            assert ins["insurer_id"] in insurers
-            assert ins["product_id"] == f"{ins['insurer_id']}_silson"
-            assert ins["product_name"] == "실손의료보험"
+            assert len(result) == (2 if pid in multi else 1)
+            for ins in result:
+                assert ins["area"] == "accident_disease"
+                assert ins["insurer_id"] in insurers
+                assert ins["product_id"] == f"{ins['insurer_id']}_silson"
+                assert ins["product_name"] == "실손의료보험"

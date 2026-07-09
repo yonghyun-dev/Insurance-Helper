@@ -9,10 +9,11 @@ export interface PreStepperProps {
   current: PreStepId;
 }
 
+// Sprint 30 — 가입현황-우선 플로우: 본인 확인 → 보험 확인 → 상황 입력 → 맞춤 안내
 const STEPS: { id: PreStepId; label: string }[] = [
   { id: 'identity',  label: '본인 확인' },
-  { id: 'situation', label: '상황 입력' },
   { id: 'analysis',  label: '보험 확인' },
+  { id: 'situation', label: '상황 입력' },
   { id: 'chat',      label: '맞춤 안내' },
 ];
 
