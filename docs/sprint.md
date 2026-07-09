@@ -13,7 +13,25 @@
 
 ---
 
-## ▶ 현재 작업 — Sprint 31: 문서 파이프라인 품질 (파싱·청킹·검색·IE) 🚧
+## ▶ 현재 작업 — Sprint 32: 뉴로심볼릭 검색 완성 + 운영 수준 마감 ✅ (커밋 대기)
+
+- **T1 골든셋 ✅** — 30문항(5개사×6, 코퍼스 정합 자동검증) + hit/MRR/nDCG 하네스 +
+  `ica eval-retrieval` + pytest `-m eval` 게이트. 베이스라인: hit@8 0.833 / MRR 0.663.
+- **T2 뉴로심볼릭 ✅** — rag_mode 토글 폐지 → NeuroSymbolicRetriever(뉴럴+심볼릭 항상 병행,
+  가중 RRF w=0.1 그리드 실측). Neo4j→**Memgraph**, LLM-Cypher 폐기(결정론 Cypher),
+  ingest→그래프 자동 동기화(3-스토어 verify), REFERS_TO 1511. **hit@8 0.833→0.867**,
+  별표/붙임 미스 회수. 리랭커 on 은 악화 실측 → off 확정. graceful 강등 e2e ✓.
+- **T3 메타·소프트캡 ✅** — clause_chunks 메타 4컬럼(alembic backfill NULL 0) + pgvector 필터
+  직독 + ITEM 초과-전-flush. >1000tok 557→556(무변화 — 항 단위 의미청크 지배, 수용 판정).
+- **T4 IE 열화벤치 ✅** — 4서류×5열화 20케이스 A/B: **IE 1.000 vs 2단계 0.611(+38.9%p)** —
+  기본 경로 데이터로 확정. 저신뢰(0.550) 플래그 실동작.
+- **T5 운영 ✅** — `docs/ops/reindex-runbook.md`, perf-log/엑셀 갱신. 게이트: pytest 1035 ·
+  ruff · tsc · verify 3-스토어 · 골든셋 임계 전부 통과.
+- 잔여: 라이브 서버 반영(런북 §1~4 — Memgraph 기동+rebuild), 커밋/푸시.
+
+---
+
+### (완료) Sprint 31: 문서 파이프라인 품질 (파싱·청킹·검색·IE) ✅
 
 - **D1 파싱/청킹 재작업 ✅** — PDF 페이지 육안 검증으로 근본원인 확정: `[붙임N]` 별첨 미인식 →
   장해분류표 14p 가 직전 조항에 뭉쳐 7000tok 강제분할 + 3800tok 임베딩 절단(검색 사각지대 34청크).
