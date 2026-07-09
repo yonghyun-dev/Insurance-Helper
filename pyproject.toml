@@ -123,7 +123,8 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra -q"
+addopts = "-ra -q -m 'not eval'"
 markers = [
     "pgvector_integration: requires PostgreSQL+pgvector via testcontainers (needs Docker)",
+    "eval: retrieval golden-set regression (needs indexed app.db + Upstage API key; run with -m eval)",
 ]

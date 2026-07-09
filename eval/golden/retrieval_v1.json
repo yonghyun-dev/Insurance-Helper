@@ -1,0 +1,421 @@
+{
+  "version": "v1",
+  "created": "2026-07-09",
+  "description": "검색 골든셋 30문항 (5개사×6) — 질의→기대 조항. relevance = insurer 일치 AND (clause_no ∈ expected.clause_no OR clause_no null) AND must_contain 전부 포함. 코퍼스 대조 검증 통과본.",
+  "items": [
+    {
+      "id": "samsung-01-manual-therapy",
+      "insurer_id": "samsung",
+      "query": "도수치료는 1년에 얼마까지 보상되나요?",
+      "expected": {
+        "clause_no": [
+          "제3조"
+        ],
+        "must_contain": [
+          "도수치료",
+          "350만원"
+        ]
+      }
+    },
+    {
+      "id": "samsung-02-injection",
+      "insurer_id": "samsung",
+      "query": "비급여 주사료 보상 한도가 어떻게 되나요?",
+      "expected": {
+        "clause_no": [
+          "제3조"
+        ],
+        "must_contain": [
+          "주사료",
+          "250만원"
+        ]
+      }
+    },
+    {
+      "id": "samsung-03-mri",
+      "insurer_id": "samsung",
+      "query": "MRI 검사비도 실손으로 보장되나요?",
+      "expected": {
+        "clause_no": [
+          "제3조"
+        ],
+        "must_contain": [
+          "자기공명영상",
+          "300만원"
+        ]
+      }
+    },
+    {
+      "id": "samsung-04-exclusion",
+      "insurer_id": "samsung",
+      "query": "미용 목적 성형수술도 보상해주나요?",
+      "expected": {
+        "clause_no": [
+          "제4조"
+        ],
+        "must_contain": [
+          "보상하지 않는",
+          "성형"
+        ]
+      }
+    },
+    {
+      "id": "samsung-05-disability-annex",
+      "insurer_id": "samsung",
+      "query": "한 눈이 멀었을 때 장해지급률은 몇 퍼센트인가요?",
+      "expected": {
+        "clause_no": [
+          "붙임 3"
+        ],
+        "must_contain": [
+          "눈이 멀었을 때"
+        ]
+      }
+    },
+    {
+      "id": "samsung-06-deductible",
+      "insurer_id": "samsung",
+      "query": "통원 치료 시 공제금액은 얼마인가요?",
+      "expected": {
+        "clause_no": [
+          "제3조"
+        ],
+        "must_contain": [
+          "공제",
+          "통원"
+        ]
+      }
+    },
+    {
+      "id": "hanwha-01-manual-therapy",
+      "insurer_id": "hanwha",
+      "query": "도수치료 체외충격파 보상 한도를 알려주세요",
+      "expected": {
+        "clause_no": [
+          "제3조"
+        ],
+        "must_contain": [
+          "도수치료",
+          "350만원"
+        ]
+      }
+    },
+    {
+      "id": "hanwha-02-injection",
+      "insurer_id": "hanwha",
+      "query": "비급여 주사제 맞으면 얼마까지 보상되나요?",
+      "expected": {
+        "clause_no": [
+          "제3조",
+          "제2조",
+          null
+        ],
+        "must_contain": [
+          "주사료"
+        ]
+      }
+    },
+    {
+      "id": "hanwha-03-mri",
+      "insurer_id": "hanwha",
+      "query": "자기공명영상 촬영비 보장 조건이 뭔가요?",
+      "expected": {
+        "clause_no": [
+          "제3조"
+        ],
+        "must_contain": [
+          "자기공명영상",
+          "300만원"
+        ]
+      }
+    },
+    {
+      "id": "hanwha-04-exclusion",
+      "insurer_id": "hanwha",
+      "query": "고의로 다친 경우에도 보험금이 나오나요?",
+      "expected": {
+        "clause_no": [
+          "제4조"
+        ],
+        "must_contain": [
+          "보상하지 않는",
+          "고의"
+        ]
+      }
+    },
+    {
+      "id": "hanwha-05-emergency-annex",
+      "insurer_id": "hanwha",
+      "query": "응급증상에 해당하는 증상은 어떤 것들인가요?",
+      "expected": {
+        "clause_no": [
+          "별표 1"
+        ],
+        "must_contain": [
+          "응급증상"
+        ]
+      }
+    },
+    {
+      "id": "hanwha-06-nonbenefit-annex",
+      "insurer_id": "hanwha",
+      "query": "국민건강보험 비급여대상에는 어떤 것이 있나요?",
+      "expected": {
+        "clause_no": [
+          "별표 2"
+        ],
+        "must_contain": [
+          "비급여대상"
+        ]
+      }
+    },
+    {
+      "id": "hyundai-01-manual-therapy",
+      "insurer_id": "hyundai",
+      "query": "도수치료를 받았는데 보상 범위가 궁금해요",
+      "expected": {
+        "clause_no": [
+          "제1조",
+          "제3조"
+        ],
+        "must_contain": [
+          "도수치료"
+        ]
+      }
+    },
+    {
+      "id": "hyundai-02-injection",
+      "insurer_id": "hyundai",
+      "query": "주사 치료 비급여 보상 조건 알려주세요",
+      "expected": {
+        "clause_no": [
+          "제1조",
+          "붙임 1"
+        ],
+        "must_contain": [
+          "주사료"
+        ]
+      }
+    },
+    {
+      "id": "hyundai-03-mri",
+      "insurer_id": "hyundai",
+      "query": "MRI 자기공명영상 검사 보장 내용이 뭔가요?",
+      "expected": {
+        "clause_no": [
+          "제1조",
+          "제3조"
+        ],
+        "must_contain": [
+          "자기공명영상"
+        ]
+      }
+    },
+    {
+      "id": "hyundai-04-exclusion",
+      "insurer_id": "hyundai",
+      "query": "보상하지 않는 사항에는 뭐가 있나요?",
+      "expected": {
+        "clause_no": [
+          "제4조",
+          "제3조"
+        ],
+        "must_contain": [
+          "보상하지"
+        ]
+      }
+    },
+    {
+      "id": "hyundai-05-bodypart-annex",
+      "insurer_id": "hyundai",
+      "query": "특정부위 분류표에서 척추는 어디에 속하나요?",
+      "expected": {
+        "clause_no": [
+          "별표 2"
+        ],
+        "must_contain": [
+          "특정부위"
+        ]
+      }
+    },
+    {
+      "id": "hyundai-06-renewal",
+      "insurer_id": "hyundai",
+      "query": "계약 갱신은 어떻게 되나요?",
+      "expected": {
+        "clause_no": [
+          "제2조",
+          "제19조"
+        ],
+        "must_contain": [
+          "갱신"
+        ]
+      }
+    },
+    {
+      "id": "meritz-01-manual-therapy",
+      "insurer_id": "meritz",
+      "query": "도수치료 보상받을 수 있는 조건이 뭔가요?",
+      "expected": {
+        "clause_no": [
+          "제6조"
+        ],
+        "must_contain": [
+          "도수치료"
+        ]
+      }
+    },
+    {
+      "id": "meritz-02-injection",
+      "insurer_id": "meritz",
+      "query": "비급여 주사료는 어디까지 보상해주나요?",
+      "expected": {
+        "clause_no": [
+          "제6조"
+        ],
+        "must_contain": [
+          "주사료"
+        ]
+      }
+    },
+    {
+      "id": "meritz-03-mri",
+      "insurer_id": "meritz",
+      "query": "자기공명영상 진단비 보장 한도 알려주세요",
+      "expected": {
+        "clause_no": [
+          "제6조",
+          "제3조"
+        ],
+        "must_contain": [
+          "자기공명영상"
+        ]
+      }
+    },
+    {
+      "id": "meritz-04-exclusion",
+      "insurer_id": "meritz",
+      "query": "전쟁이나 폭동으로 다치면 보상되나요?",
+      "expected": {
+        "clause_no": [
+          "제4조"
+        ],
+        "must_contain": [
+          "보상하지 않는"
+        ]
+      }
+    },
+    {
+      "id": "meritz-05-exclusion-table",
+      "insurer_id": "meritz",
+      "query": "보상하지 않는 비급여 항목 표를 보여주세요",
+      "expected": {
+        "clause_no": [
+          "제4조"
+        ],
+        "must_contain": [
+          "보상하지 않는"
+        ],
+        "chunk_type": "table"
+      }
+    },
+    {
+      "id": "meritz-06-renewal",
+      "insurer_id": "meritz",
+      "query": "보험 갱신 시 보험료가 어떻게 되나요?",
+      "expected": {
+        "clause_no": [
+          "제3조",
+          "제6조",
+          "제5조"
+        ],
+        "must_contain": [
+          "갱신"
+        ]
+      }
+    },
+    {
+      "id": "lotte-01-manual-therapy",
+      "insurer_id": "lotte",
+      "query": "도수치료 증식치료 보상 내용이 궁금합니다",
+      "expected": {
+        "clause_no": [
+          "제3조",
+          "제9조",
+          null
+        ],
+        "must_contain": [
+          "도수치료"
+        ]
+      }
+    },
+    {
+      "id": "lotte-02-injection",
+      "insurer_id": "lotte",
+      "query": "주사료 비급여 보상 한도가 있나요?",
+      "expected": {
+        "clause_no": [
+          "제3조",
+          "제9조",
+          null
+        ],
+        "must_contain": [
+          "주사료"
+        ]
+      }
+    },
+    {
+      "id": "lotte-03-mri",
+      "insurer_id": "lotte",
+      "query": "MRI 촬영하면 실손 청구 가능한가요?",
+      "expected": {
+        "clause_no": [
+          "제3조",
+          null
+        ],
+        "must_contain": [
+          "자기공명영상"
+        ]
+      }
+    },
+    {
+      "id": "lotte-04-exclusion",
+      "insurer_id": "lotte",
+      "query": "임신이나 출산 관련 비용도 보상되나요?",
+      "expected": {
+        "clause_no": [
+          "제4조"
+        ],
+        "must_contain": [
+          "보상하지 않는"
+        ]
+      }
+    },
+    {
+      "id": "lotte-05-nonbenefit-annex",
+      "insurer_id": "lotte",
+      "query": "비급여 대상 항목에는 어떤 것들이 있나요?",
+      "expected": {
+        "clause_no": [
+          "별표 2"
+        ],
+        "must_contain": [
+          "비급여대상"
+        ]
+      }
+    },
+    {
+      "id": "lotte-06-copay-annex",
+      "insurer_id": "lotte",
+      "query": "본인부담상한액은 어떻게 계산하나요?",
+      "expected": {
+        "clause_no": [
+          "별표 3"
+        ],
+        "must_contain": [
+          "본인부담상한액"
+        ]
+      }
+    }
+  ]
+}

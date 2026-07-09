@@ -19,8 +19,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from app.sessions.schemas import AssistantAssessment
-from app.sessions.service import create_session, post_message
+from app.domains.sessions.schemas import AssistantAssessment
+from app.domains.sessions.service import create_session, post_message
 
 _SCENARIO_DIR = Path(__file__).parent / "scenarios"
 
