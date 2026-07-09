@@ -381,7 +381,13 @@ export function useSession() {
           lines.push(`- ${label}: ${value}`);
         }
         lines.push('');
-        lines.push('맞다면 "맞아요" 라고 답해 주시거나, 다른 정보가 있으면 자유롭게 알려주세요.');
+        if (r.low_confidence) {
+          lines.push(
+            '사진이 흐릿해 일부 정보가 부정확할 수 있어요. 내용을 꼭 확인해 주시고, 가능하면 더 선명한 사진으로 다시 올려주세요.',
+          );
+        } else {
+          lines.push('맞다면 "맞아요" 라고 답해 주시거나, 다른 정보가 있으면 자유롭게 알려주세요.');
+        }
       } else {
         lines.push('');
         lines.push('아쉽게도 정보를 추출하지 못했어요. 직접 입력해 주시거나 다른 사진을 첨부해 주세요.');

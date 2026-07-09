@@ -63,6 +63,8 @@ class OcrNotConfiguredError(ConfigurationError):
 _UPSTAGE_OCR_PATH = "/document-digitization"
 _UPSTAGE_OCR_MODEL = "ocr"
 _UPSTAGE_PARSE_MODEL = "document-parse"
+_UPSTAGE_IE_PATH = "/information-extraction/chat/completions"
+_UPSTAGE_IE_MODEL = "information-extract"
 _MIME_EXT = {
     "image/jpeg": ".jpg",
     "image/png": ".png",
@@ -158,6 +160,71 @@ class UpstageAdapter:
             except Exception as exc:  # noqa: BLE001
                 raise LLMError(f"Upstage document-parse 호출 실패: {exc}") from exc
         raise LLMError(f"Upstage document-parse 호출 실패(재시도 소진): {last_exc}")
+
+    def extract_information(
+        self,
+        file_bytes: bytes,
+        mime_type: str,
+        schema: dict[str, Any],
+        schema_name: str = "document_fields",
+    ) -> dict[str, Any]:
+        """Upstage Information Extraction — 서류 원본에서 구조화 필드 직접 추출.
+
+        Sprint 31 D3 — 기존 'OCR 텍스트 → LLM 재추출' 2단계 대신, 문서 이미지를
+        json_schema 와 함께 1회 호출로 필드를 뽑는다(정형 서류 정확도 향상, 국내 전용).
+        OpenAI 호환 chat/completions 형식: base64 image_url + response_format=json_schema.
+
+        Args:
+            file_bytes: 원본 서류(이미지/PDF) 바이트
+            mime_type: 예) image/png, application/pdf
+            schema: json_schema 의 schema 부 (type=object, properties=...)
+            schema_name: json_schema.name
+
+        Returns:
+            스키마 필드 → 추출값 dict (미검출 필드는 응답에서 빠질 수 있음)
+
+        Raises:
+            OcrNotConfiguredError / LLMError
+        """
+        import base64
+
+        settings = get_settings()
+        if not settings.upstage_api_key:
+            raise OcrNotConfiguredError(
+                "UPSTAGE_API_KEY 미설정 — Upstage Information Extraction 사용 불가"
+            )
+        url = settings.upstage_base_url.rstrip("/") + _UPSTAGE_IE_PATH
+        b64 = base64.b64encode(file_bytes).decode()
+        payload = {
+            "model": _UPSTAGE_IE_MODEL,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:{mime_type};base64,{b64}"},
+                        }
+                    ],
+                }
+            ],
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {"name": schema_name, "schema": schema},
+            },
+        }
+        try:
+            response = self._get_client().post(
+                url,
+                headers={"Authorization": f"Bearer {settings.upstage_api_key}"},
+                json=payload,
+                timeout=90.0,
+            )
+            response.raise_for_status()
+            content = response.json()["choices"][0]["message"]["content"] or "{}"
+            return json.loads(content)
+        except Exception as exc:  # noqa: BLE001
+            raise LLMError(f"Upstage information-extract 호출 실패: {exc}") from exc
 
 
 def _parse_docparse_payload(payload: dict[str, Any]) -> ParsedDocument:

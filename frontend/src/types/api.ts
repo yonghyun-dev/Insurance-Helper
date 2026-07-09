@@ -82,6 +82,7 @@ export type UploadResponse = {
   doc_type_reason: string;
   extracted_slots: Partial<SlotState>;
   ocr_confidence: number;          // 0~1
+  low_confidence?: boolean;        // OCR 저신뢰(<0.6) — 재촬영/직접입력 유도
 };
 
 // === 어시스턴트 응답 (discriminated union) ===

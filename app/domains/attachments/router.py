@@ -16,6 +16,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
 from app.domains.attachments import service as attachments_service
+from app.domains.attachments.ie_schemas import DOC_IE_SCHEMAS, ie_result_to_slots
 from app.domains.attachments.schemas import AttachmentMeta
 from app.domains.auth.deps import get_current_user_optional
 from app.domains.sessions import llm
@@ -113,9 +114,22 @@ async def upload_document(
     extracted_slots: dict[str, Any] = {}
     try:
         classification = llm.classify_document(masked_text)
-        extracted_slots = llm.extract_slots_from_document(
-            masked_text, classification["doc_type"]
-        )
+        doc_type = classification["doc_type"]
+        # Sprint 31 D3 — 정형 서류는 Upstage Information Extraction 으로 원본에서
+        # 구조화 필드를 직접 추출(1단계, 정확도↑). 실패/비정형은 기존 2단계 폴백.
+        if doc_type in DOC_IE_SCHEMAS:
+            try:
+                ie_raw = adapter.extract_information(  # type: ignore[attr-defined]
+                    content, mime_type, DOC_IE_SCHEMAS[doc_type], schema_name=doc_type
+                )
+                extracted_slots = ie_result_to_slots(doc_type, ie_raw)
+                logger.info(
+                    "IE 추출 성공: doc_type=%s fields=%d", doc_type, len(extracted_slots)
+                )
+            except Exception as exc:  # noqa: BLE001 — IE 는 우선 경로, 실패 시 기존 경로
+                logger.warning("IE 추출 실패 — 기존 LLM 추출 폴백: %s", exc)
+        if not extracted_slots:
+            extracted_slots = llm.extract_slots_from_document(masked_text, doc_type)
     except LLMError as exc:
         logger.warning("OCR 후속 LLM 실패 — 분류/추출 폴백: %s", exc)
         # graceful — 저장은 성공, 분류/추출 실패 시 빈 결과
@@ -134,4 +148,6 @@ async def upload_document(
         "doc_type_reason": classification.get("reason", ""),
         "extracted_slots": extracted_slots,
         "ocr_confidence": ocr_result["confidence"],
+        # Sprint 31 D3 — 저신뢰 OCR 게이팅: 프론트가 재촬영/직접입력을 유도할 수 있게 명시 플래그
+        "low_confidence": ocr_result["confidence"] < 0.6,
     }
