@@ -14,8 +14,17 @@ name: ica
 x-backend-env: &backend-env
   DATABASE_URL: postgresql+psycopg://ica:${POSTGRES_PASSWORD}@postgres:5432/ica_db
   VECTOR_STORE: pgvector
+  GRAPH_URI: bolt://memgraph:7687
 
 services:
+  # Sprint 32 — 뉴로심볼릭 심볼릭 채널 그래프 스토어 (다운이어도 검색은 뉴럴 단독 graceful)
+  memgraph:
+    image: memgraph/memgraph:latest
+    command: ["--log-level=WARNING", "--also-log-to-stderr"]
+    volumes:
+      - ica-memgraph-data:/var/lib/memgraph
+    restart: unless-stopped
+
   postgres:
     image: pgvector/pgvector:pg16
     environment:
@@ -73,3 +82,4 @@ services:
 
 volumes:
   ica-pg-data:
+  ica-memgraph-data:
