@@ -138,6 +138,11 @@ class Chunk(BaseModel):
     text: str
     parent_chunk_id: str | None = None
     document_id: int | None = None
+    # Sprint 32 T3 — 문서 메타 비정규 부착 (ingest 가 채움. 검색 필터 백엔드 정합)
+    insurer_id: str | None = None
+    product_id: str | None = None
+    area: str | None = None
+    doc_type: str | None = None
     summary: str | None = None
     tags: list[str] = Field(default_factory=list)
 

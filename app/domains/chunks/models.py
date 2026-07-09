@@ -51,6 +51,9 @@ class ClauseChunk(Base):
         Index("idx_chunks_document", "document_id"),
         Index("idx_chunks_parent", "parent_chunk_id"),
         Index("idx_chunks_clause", "document_id", "clause_no"),
+        # Sprint 32 T3 — 검색 필터 직결 메타 (백엔드 무관 정합)
+        Index("idx_chunks_insurer", "insurer_id"),
+        Index("idx_chunks_area", "area"),
     )
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)  # UUID
@@ -58,6 +61,13 @@ class ClauseChunk(Base):
     parent_chunk_id: Mapped[str | None] = mapped_column(
         ForeignKey("clause_chunks.id"), nullable=True
     )
+    # Sprint 32 T3 — 문서 메타 비정규 부착. 기존엔 documents JOIN 으로만 얻어
+    # Chroma(복제)/pgvector(JOIN) 백엔드마다 필터 정합이 갈릴 여지가 있었다.
+    # ingest 가 write, alembic backfill 이 기존 행 채움. (의도적 비정규화 — data-model.md 갱신)
+    insurer_id: Mapped[str | None] = mapped_column(String(32))
+    product_id: Mapped[str | None] = mapped_column(String(64))
+    area: Mapped[str | None] = mapped_column(String(32))
+    doc_type: Mapped[str | None] = mapped_column(String(32))
     chunk_type: Mapped[str] = mapped_column(String(16), nullable=False)
     clause_no: Mapped[str | None] = mapped_column(String(64))
     sub_no: Mapped[str | None] = mapped_column(String(32))

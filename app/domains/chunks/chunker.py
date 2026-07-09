@@ -255,9 +255,13 @@ def _chunk_article(
             chunks.append(_chunk_table(child, encoder))
             continue
         if child.chunk_type == ChunkType.ITEM:
-            item_buf.append(child)
-            if _items_tokens() >= max_tokens:
+            # 초과 "전" flush — 담고 나서 자르면 청크가 max_tokens 를 1개 항목만큼
+            # 초과(1000→1500 급)하므로, 다음 항목을 담기 전에 경계를 검사한다.
+            # (단일 항목이 max 를 넘는 경우는 어쩔 수 없이 단독 청크 — HARD 3500 이 방어)
+            next_tokens = len(encoder.encode(_flatten_paragraph_text(struct, child)))
+            if item_buf and _items_tokens() + next_tokens > max_tokens:
                 _flush_items()
+            item_buf.append(child)
             continue
         if child.chunk_type != ChunkType.PARAGRAPH:
             continue
