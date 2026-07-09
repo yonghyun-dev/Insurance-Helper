@@ -277,6 +277,51 @@ def list_cmd(
 # ---------------------------------------------------------------------------
 
 
+@app.command(name="eval-retrieval")
+def eval_retrieval(
+    validate_only: Annotated[bool, typer.Option("--validate", help="골든셋-코퍼스 정합 검증만")] = False,
+) -> None:
+    """검색 골든셋 30문항 평가 — hit@k/MRR/nDCG + 보험사 필터 정합 (Sprint 32 T1).
+
+    프로덕션 retrieve() 동일 경로로 실행. 임계(eval.retrieval_metrics.THRESHOLDS) 미달 시 exit 1.
+    """
+    from eval.retrieval_metrics import (
+        THRESHOLDS,
+        default_retrieve_fn,
+        evaluate,
+        validate_against_corpus,
+    )
+
+    if validate_only:
+        fails = validate_against_corpus()
+        if fails:
+            console.print(f"[red]정합 실패 {len(fails)}건: {fails}[/red]")
+            raise typer.Exit(1)
+        console.print("[green]골든셋-코퍼스 정합 OK[/green]")
+        return
+
+    result = evaluate(default_retrieve_fn)
+    m = result.metrics()
+    table = Table(title="검색 골든셋 평가 (retrieval_v1)")
+    table.add_column("지표")
+    table.add_column("값")
+    table.add_column("임계")
+    table.add_column("판정")
+    ok = True
+    for key in ("hit@3", "hit@8", "mrr@8", "ndcg@8", "filter_integrity"):
+        thr = THRESHOLDS.get(key)
+        passed = thr is None or m.get(key, 0) >= thr
+        ok = ok and passed
+        table.add_row(key, f"{m.get(key)}", f"{thr if thr is not None else '-'}",
+                      "✓" if passed else "✗")
+    console.print(table)
+    misses = [r for r in result.per_item if r["first_rank"] is None or not r["filter_ok"]]
+    for r in misses:
+        console.print(f"  [yellow]✗ {r['id']} rank={r['first_rank']} filter_ok={r['filter_ok']}[/yellow]")
+    if not ok:
+        raise typer.Exit(1)
+
+
 @app.command()
 def verify() -> None:
     """인덱싱 적재 검증: SQLite↔벡터DB 카운트, 임베딩 차원(4096), 메타 완전성.
@@ -324,10 +369,26 @@ def verify() -> None:
     empty_ok = quality.empty_text == 0
     _row("빈 텍스트 청크", str(quality.empty_text), empty_ok)
 
+    # Sprint 32 T2 — 그래프(심볼릭 채널) 3-스토어 정합. 다운이면 경고(검색은 graceful)지만
+    # 카운트 불일치는 실패로 처리(ingest 동기화 누락 감지).
+    graph_ok = True
+    try:
+        from app.domains.rag.indexer import graph_counts
+
+        gc = graph_counts()
+        graph_ok = gc["chunk_nodes"] == sqlite_count
+        _row(
+            "그래프 (SQLite=그래프 노드)",
+            f"{sqlite_count} / {gc['chunk_nodes']} (REFERS_TO {gc['refers_to']})",
+            graph_ok,
+        )
+    except Exception as exc:  # noqa: BLE001 — 그래프 미기동
+        table.add_row("그래프", f"접속 불가 ({type(exc).__name__}) — 뉴럴 단독 동작", "⚠")
+
     console.print(table)
     console.print(f"chunk_type 분포: {quality.by_type}")
 
-    ok = count_ok and dim_ok and empty_ok and clause_rate > 0
+    ok = count_ok and dim_ok and empty_ok and clause_rate > 0 and graph_ok
     if ok:
         typer.secho("검증 통과 ✓", fg=typer.colors.GREEN)
     else:
@@ -733,17 +794,17 @@ def agent_graph(
 def graph_build(
     rebuild: Annotated[
         bool,
-        typer.Option("--rebuild", help="기존 Neo4j 그래프 전체 삭제 후 재구축"),
+        typer.Option("--rebuild", help="기존 그래프 전체 삭제 후 재구축"),
     ] = False,
 ) -> None:
-    """SQLite → Neo4j v0 그래프 적재 (Sprint 4 GraphRAG).
+    """SQLite → 그래프(Memgraph) v1 전체 적재 (Sprint 32 뉴로심볼릭 심볼릭 채널).
 
     선행 조건:
-        docker compose -f docker-compose.neo4j.yml up -d
-        .env 의 NEO4J_URI / NEO4J_USERNAME / NEO4J_PASSWORD 설정
+        docker compose -f docker-compose.memgraph.yml up -d
+        (.env GRAPH_URI — 기본 bolt://localhost:7687)
 
-    멱등 — 재실행해도 중복 없음. --rebuild 옵션은 전체 삭제 후 재구축.
-    LLM 0회 호출, 결정론 변환.
+    평상시엔 ica ingest 가 문서 단위로 자동 동기화하므로 불필요 — 전체 재구축용.
+    멱등, LLM 0회 결정론 변환. --rebuild 는 전체 삭제 후 재구축.
     """
     from app.domains.rag import indexer
 

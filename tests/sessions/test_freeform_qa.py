@@ -117,8 +117,8 @@ class TestPostMessageIntentRouting:
             "app.domains.sessions.service.llm.classify_intent", lambda *a, **kw: "general_qa"
         )
         monkeypatch.setattr(
-            "app.domains.rag.vectorstore.get_vector_store",
-            lambda: type("V", (), {"query": lambda self, q, top_k=8: []})(),
+            "app.domains.sessions.service.rag_service.retrieve_freeform",
+            lambda text, top_k=8: [],
         )
         gen_called = []
         monkeypatch.setattr(

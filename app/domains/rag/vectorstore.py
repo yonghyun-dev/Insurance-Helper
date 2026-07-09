@@ -32,12 +32,15 @@ logger = get_logger(__name__)
 
 
 # Chroma 메타 키 → SQL 컬럼 매핑 (PgVectorAdapter 의 filter 변환용)
+# Sprint 32 T3 — 필터는 clause_chunks 비정규 메타 컬럼 직독 (JOIN 의존 제거,
+# Chroma 복제 메타와 동일 원천 → 백엔드 간 필터 정합 단일화). JOIN 은 표시용
+# 이름(insurer_name/product_name/version_label)에만 남는다.
 _FILTER_KEY_TO_SQL: dict[str, str] = {
-    "area": "p.area",
-    "insurer_id": "p.insurer_id",
-    "product_id": "p.id",
+    "area": "c.area",
+    "insurer_id": "c.insurer_id",
+    "product_id": "c.product_id",
     "version_id": "v.id",
-    "doc_type": "d.doc_type",
+    "doc_type": "c.doc_type",
     "document_id": "c.document_id",
 }
 

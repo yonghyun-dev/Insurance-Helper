@@ -94,7 +94,7 @@ def slots_to_filters(slots: SlotState) -> dict[str, Any] | None:
 
 
 def slots_to_question(slots: SlotState) -> str:
-    """슬롯을 GraphCypherQAChain 에 던질 자연어 질문으로 변환.
+    """슬롯을 그래프 채널용 자연어 질문으로 변환. (구 GraphCypherQAChain 잔재 — 현재 미사용 가능)
 
     vector 의 query 와 달리 graph 는 LLM 이 Cypher 를 만들어야 하므로 더 명시적인 한국어 문장.
     Sprint 4 graph 모드 진입 시 사용.

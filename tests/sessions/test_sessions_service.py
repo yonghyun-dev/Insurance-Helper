@@ -603,7 +603,7 @@ class TestPostMessageAssessmentPath:
         # RAG 0건 → ask 재질문 유도 (503 아님)
         monkeypatch.setattr("app.domains.sessions.service.llm.extract_slots", lambda *a, **kw: {})
         monkeypatch.setattr(
-            "app.domains.sessions.service.search_service.similarity_search",
+            "app.domains.sessions.service.rag_service.retrieve",
             lambda *a, **kw: [],  # 빈 결과
         )
 

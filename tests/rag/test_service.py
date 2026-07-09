@@ -1,418 +1,142 @@
-"""tests.rag.test_service
+"""tests.rag.test_service — retrieval 단일 진입점 (뉴로심볼릭 고정 경로) 테스트.
 
-app/rag/service.py 단위 테스트.
-
-테스트 대상:
-    - retrieve() mode 라우팅 (vector / graph / hybrid)
-    - Neo4j health 실패 시 mode="graph"/"hybrid" → vector 폴백
-    - retriever 예외 시 vector 폴백
-    - react opt-in 동작
-    - clear_caches() 동작
-
-mock 정책:
-    - _vector_singleton / _graph_singleton / _hybrid_singleton 교체 (monkeypatch)
-    - clear_caches() 로 테스트 격리
+Sprint 32 T2 — 구 rag_mode(vector/graph/hybrid) 라우팅 테스트를 대체.
 """
 
 from __future__ import annotations
 
+from typing import Any
+
+import app.domains.rag.service as svc
 import pytest
-
-from tests.rag.conftest import make_accident_disease_slot, make_retrieval_result
-
-# ---------------------------------------------------------------------------
-# 공통 stub
-# ---------------------------------------------------------------------------
-
-
-def _fake_results(n: int = 2, source: str = "vector") -> list[dict]:
-    return [make_retrieval_result(f"c{i}", source=source) for i in range(n)]
-
-
-class FakeRetriever:
-    """임의 결과 반환 Retriever stub."""
-
-    def __init__(self, results=None, health_val=True, raise_exc=False):
-        self._results = results or _fake_results()
-        self._health_val = health_val
-        self._raise = raise_exc
-
-    def retrieve(self, slots, top_k=8):
-        if self._raise:
-            raise RuntimeError("retriever 오류")
-        return self._results
-
-    def health(self):
-        return self._health_val
-
-
-# ---------------------------------------------------------------------------
-# 픽스처 — rag service 캐시 격리
-# ---------------------------------------------------------------------------
+from app.domains.sessions.schemas import SlotState
 
 
 @pytest.fixture(autouse=True)
-def isolate_rag_caches():
-    """각 테스트 전후로 rag.service lru_cache 초기화."""
-    import app.domains.rag.service as svc
-
+def _fresh_singletons():
     svc.clear_caches()
     yield
     svc.clear_caches()
 
 
-# ===========================================================================
-# retrieve() — mode 라우팅
-# ===========================================================================
+def _slots(**kw) -> SlotState:
+    base = {"area": "accident_disease", "insurer_id": "samsung", "diagnosis": "골절"}
+    base.update(kw)
+    return SlotState(**base)
 
 
-class TestRetrieveModeRouting:
-    """mode 파라미터에 따라 올바른 retriever 가 선택된다."""
+class FakeRetriever:
+    def __init__(self, results=None, boom: Exception | None = None):
+        self.results = results if results is not None else []
+        self.boom = boom
+        self.calls: list[dict[str, Any]] = []
 
-    def test_vector_mode_uses_vector_retriever(self, monkeypatch):
-        import app.domains.rag.service as svc
+    def retrieve(self, slots, top_k=8):
+        self.calls.append({"slots": slots, "top_k": top_k})
+        if self.boom:
+            raise self.boom
+        return self.results[:top_k]
 
-        vector = FakeRetriever(_fake_results(2, "vector"))
-        monkeypatch.setattr(svc, "_vector_singleton", lambda: vector)
-        monkeypatch.setattr(svc, "_graph_singleton", lambda: FakeRetriever(health_val=True))
-        monkeypatch.setattr(svc, "_hybrid_singleton", lambda: FakeRetriever())
-
-        results = svc.retrieve(make_accident_disease_slot(), mode="vector")
-
-        assert all(r["source"] == "vector" for r in results)
-
-    def test_graph_mode_uses_graph_retriever_when_healthy(self, monkeypatch):
-        import app.domains.rag.service as svc
-
-        graph_results = _fake_results(2, "graph")
-        graph = FakeRetriever(graph_results, health_val=True)
-        monkeypatch.setattr(svc, "_graph_singleton", lambda: graph)
-        monkeypatch.setattr(svc, "_vector_singleton", lambda: FakeRetriever(_fake_results(2, "vector")))
-        monkeypatch.setattr(svc, "_hybrid_singleton", lambda: FakeRetriever())
-
-        results = svc.retrieve(make_accident_disease_slot(), mode="graph")
-
-        assert all(r["source"] == "graph" for r in results)
-
-    def test_hybrid_mode_uses_hybrid_retriever_when_healthy(self, monkeypatch):
-        import app.domains.rag.service as svc
-
-        hybrid_results = _fake_results(3, "vector")
-        hybrid = FakeRetriever(hybrid_results, health_val=True)
-        graph = FakeRetriever(health_val=True)
-        monkeypatch.setattr(svc, "_hybrid_singleton", lambda: hybrid)
-        monkeypatch.setattr(svc, "_graph_singleton", lambda: graph)
-        monkeypatch.setattr(svc, "_vector_singleton", lambda: FakeRetriever())
-
-        results = svc.retrieve(make_accident_disease_slot(), mode="hybrid")
-
-        assert len(results) == 3
+    def retrieve_freeform(self, text, top_k=8):
+        self.calls.append({"text": text, "top_k": top_k})
+        if self.boom:
+            raise self.boom
+        return self.results[:top_k]
 
 
-# ===========================================================================
-# graceful fallback — Neo4j health 실패
-# ===========================================================================
+def _wire(monkeypatch, fake: FakeRetriever) -> None:
+    monkeypatch.setattr(svc, "_retriever_singleton", lambda: fake)
 
 
-class TestNeo4jFallback:
-    """graph/hybrid 모드에서 Neo4j health 실패 시 vector 폴백."""
+class TestRetrieve:
+    def test_returns_retriever_results_as_dicts(self, monkeypatch):
+        fake = FakeRetriever([{"id": "c1", "text": "t", "score": 0.9, "metadata": {}, "source": "neural"}])
+        _wire(monkeypatch, fake)
+        out = svc.retrieve(_slots(), top_k=8)
+        assert out and out[0]["id"] == "c1"
+        assert isinstance(out[0], dict)
 
-    def test_graph_mode_falls_back_to_vector_when_neo4j_unhealthy(self, monkeypatch):
-        import app.domains.rag.service as svc
+    def test_retriever_exception_returns_empty(self, monkeypatch):
+        _wire(monkeypatch, FakeRetriever(boom=RuntimeError("down")))
+        assert svc.retrieve(_slots()) == []
 
-        vector_results = _fake_results(2, "vector")
-        vector = FakeRetriever(vector_results, health_val=True)
-        graph = FakeRetriever(health_val=False)  # Neo4j 다운
+    def test_rerank_fetches_double_candidates(self, monkeypatch):
+        from app.infrastructure.core.config import get_settings
 
-        monkeypatch.setattr(svc, "_graph_singleton", lambda: graph)
-        monkeypatch.setattr(svc, "_vector_singleton", lambda: vector)
-        monkeypatch.setattr(svc, "_hybrid_singleton", lambda: FakeRetriever())
+        monkeypatch.setattr(get_settings(), "rag_rerank", True)
+        fake = FakeRetriever([{"id": f"c{i}", "text": "t", "score": 0.5, "metadata": {}} for i in range(16)])
+        _wire(monkeypatch, fake)
+        monkeypatch.setattr(svc, "_rerank_with_solar", lambda slots, out, k: out[:k])
+        out = svc.retrieve(_slots(), top_k=8)
+        assert fake.calls[0]["top_k"] == 16
+        assert len(out) == 8
 
-        results = svc.retrieve(make_accident_disease_slot(), mode="graph")
+    def test_no_rerank_fetches_top_k(self, monkeypatch):
+        from app.infrastructure.core.config import get_settings
 
-        # vector 폴백 — source 검증
-        assert all(r["source"] == "vector" for r in results)
-
-    def test_hybrid_mode_falls_back_to_vector_when_neo4j_unhealthy(self, monkeypatch):
-        import app.domains.rag.service as svc
-
-        vector_results = _fake_results(2, "vector")
-        vector = FakeRetriever(vector_results, health_val=True)
-        graph = FakeRetriever(health_val=False)
-
-        monkeypatch.setattr(svc, "_graph_singleton", lambda: graph)
-        monkeypatch.setattr(svc, "_vector_singleton", lambda: vector)
-        monkeypatch.setattr(svc, "_hybrid_singleton", lambda: FakeRetriever())
-
-        results = svc.retrieve(make_accident_disease_slot(), mode="hybrid")
-
-        assert all(r["source"] == "vector" for r in results)
+        monkeypatch.setattr(get_settings(), "rag_rerank", False)
+        fake = FakeRetriever([])
+        _wire(monkeypatch, fake)
+        svc.retrieve(_slots(), top_k=8)
+        assert fake.calls[0]["top_k"] == 8
 
 
-# ===========================================================================
-# graceful fallback — retriever 예외
-# ===========================================================================
+class TestRetrieveFreeform:
+    def test_freeform_passes_text(self, monkeypatch):
+        fake = FakeRetriever([{"id": "c1", "text": "t", "score": 0.5, "metadata": {}}])
+        _wire(monkeypatch, fake)
+        out = svc.retrieve_freeform("도수치료 보장", top_k=6)
+        assert fake.calls[0] == {"text": "도수치료 보장", "top_k": 6}
+        assert out[0]["id"] == "c1"
 
-
-class TestRetrieverExceptionFallback:
-    """retriever.retrieve 예외 → vector 폴백 또는 빈 list."""
-
-    def test_graph_retriever_exception_falls_back_to_vector(self, monkeypatch):
-        import app.domains.rag.service as svc
-
-        vector_results = _fake_results(2, "vector")
-        vector = FakeRetriever(vector_results, health_val=True)
-        graph_healthy_but_raises = FakeRetriever(health_val=True, raise_exc=True)
-
-        monkeypatch.setattr(svc, "_graph_singleton", lambda: graph_healthy_but_raises)
-        monkeypatch.setattr(svc, "_vector_singleton", lambda: vector)
-        monkeypatch.setattr(svc, "_hybrid_singleton", lambda: FakeRetriever())
-
-        results = svc.retrieve(make_accident_disease_slot(), mode="graph")
-
-        # vector 폴백 성공
-        assert len(results) > 0
-
-    def test_vector_retriever_exception_returns_empty(self, monkeypatch):
-        """vector 까지 실패하면 빈 list."""
-        import app.domains.rag.service as svc
-
-        vector_raises = FakeRetriever(raise_exc=True, health_val=True)
-        graph = FakeRetriever(health_val=True)
-
-        monkeypatch.setattr(svc, "_vector_singleton", lambda: vector_raises)
-        monkeypatch.setattr(svc, "_graph_singleton", lambda: graph)
-        monkeypatch.setattr(svc, "_hybrid_singleton", lambda: FakeRetriever())
-
-        # vector 모드에서 예외 → 빈 list
-        results = svc.retrieve(make_accident_disease_slot(), mode="vector")
-
-        assert results == []
-
-
-# ===========================================================================
-# clear_caches
-# ===========================================================================
-
-
-class TestClearCaches:
-    """clear_caches() — lru_cache 초기화."""
-
-    def test_clear_caches_does_not_raise(self):
-        import app.domains.rag.service as svc
-
-        svc.clear_caches()  # 예외 없이 실행 가능
-
-    def test_clear_caches_resets_singletons(self, monkeypatch):
-        """캐시 초기화 후 다시 호출하면 새 인스턴스 생성."""
-        import app.domains.rag.service as svc
-
-        # 최초 singleton 생성
-        v1 = svc._vector_singleton()
-        svc.clear_caches()
-        v2 = svc._vector_singleton()
-
-        # 새 인스턴스 (lru_cache 재생성)
-        assert v1 is not v2
-
-
-# ===========================================================================
-# Sprint 8 — circuit breaker 동작 검증
-# ===========================================================================
+    def test_freeform_exception_returns_empty(self, monkeypatch):
+        _wire(monkeypatch, FakeRetriever(boom=RuntimeError("down")))
+        assert svc.retrieve_freeform("질문") == []
 
 
 class TestCircuitBreaker:
-    """_rag_circuit_breaker singleton + circuit open → vector 폴백 동작."""
+    def test_singleton_cached(self):
+        assert svc._rag_circuit_breaker() is svc._rag_circuit_breaker()
 
-    def test_circuit_breaker_singleton_returns_circuit_breaker(self):
-        """_rag_circuit_breaker() 는 CircuitBreaker 인스턴스를 반환한다."""
-        import app.domains.rag.service as svc
-        from pybreaker import CircuitBreaker as CB
-
-        # lru_cache 초기화 후 신규 생성
-        svc._rag_circuit_breaker.cache_clear()
-        cb = svc._rag_circuit_breaker()
-        assert isinstance(cb, CB)
-
-    def test_circuit_breaker_singleton_is_cached(self):
-        """동일 인스턴스를 반환한다 (lru_cache 동작)."""
-        import app.domains.rag.service as svc
-
-        svc._rag_circuit_breaker.cache_clear()
-        cb1 = svc._rag_circuit_breaker()
-        cb2 = svc._rag_circuit_breaker()
-        assert cb1 is cb2
-
-    def test_circuit_breaker_opens_after_consecutive_failures(self, monkeypatch):
-        """연속 fail_max 회 실패 후 circuit 이 open 된다 (CircuitBreakerError 발생).
-
-        실제 CircuitBreaker 인스턴스 사용 — state machine 자체 검증.
-        """
-        import contextlib
-
-        from pybreaker import CircuitBreaker, CircuitBreakerError
-
-        # 테스트 전용 breaker (fail_max=3) 직접 생성
-        test_breaker = CircuitBreaker(fail_max=3, reset_timeout=60, name="test_cb")
-
-        def always_fail():
-            raise RuntimeError("retriever error")
-
-        # 2회 실패 → circuit 아직 closed
-        for _ in range(2):
-            with contextlib.suppress(RuntimeError):
-                test_breaker.call(always_fail)
-
-        # 3번째 실패에서 circuit open
-        with contextlib.suppress(RuntimeError, CircuitBreakerError):
-            test_breaker.call(always_fail)
-
-        # 이후 호출은 CircuitBreakerError 발생
-        with pytest.raises(CircuitBreakerError):
-            test_breaker.call(always_fail)
-
-    def test_circuit_open_falls_back_to_vector(self, monkeypatch):
-        """circuit open 상태에서 retrieve() 는 vector 폴백을 시도한다."""
-        import app.domains.rag.service as svc
-        from pybreaker import CircuitBreakerError
-
-        # circuit 이 항상 open 상태인 breaker stub
-        class AlwaysOpenBreaker:
-            def call(self, func, *args, **kwargs):
-                raise CircuitBreakerError("circuit open")
-
-        monkeypatch.setattr(svc, "_rag_circuit_breaker", lambda: AlwaysOpenBreaker())
-
-        vector_results = _fake_results(2, "vector")
-        vector = FakeRetriever(vector_results, health_val=True)
-        graph = FakeRetriever(health_val=True)
-
-        monkeypatch.setattr(svc, "_vector_singleton", lambda: vector)
-        monkeypatch.setattr(svc, "_graph_singleton", lambda: graph)
-        monkeypatch.setattr(svc, "_hybrid_singleton", lambda: FakeRetriever())
-
-        # graph 모드로 호출 — circuit open → vector 폴백
-        results = svc.retrieve(make_accident_disease_slot(), mode="graph")
-
-        assert len(results) > 0
-        assert all(r["source"] == "vector" for r in results)
-
-    def test_circuit_open_vector_mode_returns_empty(self, monkeypatch):
-        """vector 모드에서 circuit open 이면 vector 직접 호출도 없이 빈 list."""
-        import app.domains.rag.service as svc
-        from pybreaker import CircuitBreakerError
-
-        class AlwaysOpenBreaker:
-            def call(self, func, *args, **kwargs):
-                raise CircuitBreakerError("circuit open")
-
-        monkeypatch.setattr(svc, "_rag_circuit_breaker", lambda: AlwaysOpenBreaker())
-
-        vector = FakeRetriever(_fake_results(2, "vector"), health_val=True)
-        graph = FakeRetriever(health_val=True)
-
-        monkeypatch.setattr(svc, "_vector_singleton", lambda: vector)
-        monkeypatch.setattr(svc, "_graph_singleton", lambda: graph)
-        monkeypatch.setattr(svc, "_hybrid_singleton", lambda: FakeRetriever())
-
-        # vector 모드에서 circuit open → 폴백 없이 빈 list
-        results = svc.retrieve(make_accident_disease_slot(), mode="vector")
-
-        assert results == []
-
-    def test_circuit_open_vector_fallback_also_fails_returns_empty(self, monkeypatch):
-        """circuit open + vector 폴백까지 실패하면 빈 list 반환."""
-        import app.domains.rag.service as svc
-        from pybreaker import CircuitBreakerError
-
-        class AlwaysOpenBreaker:
-            def call(self, func, *args, **kwargs):
-                raise CircuitBreakerError("circuit open")
-
-        monkeypatch.setattr(svc, "_rag_circuit_breaker", lambda: AlwaysOpenBreaker())
-
-        # vector 도 실패하는 retriever
-        vector_raises = FakeRetriever(raise_exc=True, health_val=True)
-        graph = FakeRetriever(health_val=True)
-
-        monkeypatch.setattr(svc, "_vector_singleton", lambda: vector_raises)
-        monkeypatch.setattr(svc, "_graph_singleton", lambda: graph)
-        monkeypatch.setattr(svc, "_hybrid_singleton", lambda: FakeRetriever())
-
-        results = svc.retrieve(make_accident_disease_slot(), mode="graph")
-
-        assert results == []
-
-    def test_circuit_breaker_cache_clear_on_isolate(self):
-        """isolate_rag_caches fixture 에서 _rag_circuit_breaker cache 도 정리된다."""
-        import app.domains.rag.service as svc
-
-        # autouse 픽스처가 clear_caches() 를 호출하므로 breaker 도 재생성 가능
-        svc._rag_circuit_breaker.cache_clear()
-        cb = svc._rag_circuit_breaker()
-        assert cb is not None
+    def test_opens_after_consecutive_failures_then_returns_empty(self, monkeypatch):
+        fake = FakeRetriever(boom=RuntimeError("db down"))
+        _wire(monkeypatch, fake)
+        breaker = svc._rag_circuit_breaker()
+        for _ in range(breaker.fail_max + 2):
+            assert svc.retrieve(_slots()) == []
+        # open 상태에서도 안전하게 빈 리스트 (예외 전파 없음)
+        assert svc.retrieve(_slots()) == []
 
 
-# ===========================================================================
-# run_agent() — 단일 LangGraph 경로 위임 (Sprint 24 일원화)
-# ===========================================================================
+class TestClearCaches:
+    def test_clear_caches_does_not_raise(self):
+        svc.clear_caches()
+
+    def test_clear_caches_resets_retriever_singleton(self):
+        a = svc._retriever_singleton()
+        svc.clear_caches()
+        assert svc._retriever_singleton() is not a
 
 
 class TestRunAgent:
-    """run_agent() — run_agent_langgraph 에 지연 import 위임한다."""
-
-    def test_run_agent_returns_agent_result(self, monkeypatch):
-        """run_agent 가 run_agent_langgraph 결과를 그대로 반환."""
-        import app.domains.rag.langgraph_agent as lg
-        import app.domains.rag.service as svc
-        from app.domains.rag.agent import AgentResult
-
-        fake_result = AgentResult(
-            chunks=[{"id": "c1"}],
-            tool_results=[{"tool": "finish"}],
-            iterations=1,
-            finish_reason="finish",
-        )
-        monkeypatch.setattr(lg, "run_agent_langgraph", lambda slots, msg: fake_result)
-
-        result = svc.run_agent(make_accident_disease_slot(), "청구하고 싶어요")
-
-        assert result.finish_reason == "finish"
-        assert result.chunks == [{"id": "c1"}]
-        assert result.iterations == 1
-
-    def test_run_agent_calls_langgraph_with_correct_args(self, monkeypatch):
-        """run_agent 가 slots + user_message 를 그대로 전달."""
-        import app.domains.rag.langgraph_agent as lg
-        import app.domains.rag.service as svc
-        from app.domains.rag.agent import AgentResult
-
+    def test_run_agent_delegates_to_langgraph(self, monkeypatch):
         captured = {}
 
-        def fake_run(slots, user_message):
-            captured["slots"] = slots
-            captured["message"] = user_message
-            return AgentResult(finish_reason="finish")
+        def fake_run(slots, msg, **kw):
+            captured["args"] = (slots, msg)
+            return "AGENT_RESULT"
 
-        monkeypatch.setattr(lg, "run_agent_langgraph", fake_run)
-
-        slots = make_accident_disease_slot()
-        svc.run_agent(slots, "자동차 추돌 사고")
-
-        assert captured["slots"] is slots
-        assert captured["message"] == "자동차 추돌 사고"
+        monkeypatch.setattr(
+            "app.domains.rag.langgraph_agent.run_agent_langgraph", fake_run
+        )
+        result = svc.run_agent(_slots(), "질문")
+        assert result == "AGENT_RESULT"
+        assert captured["args"][1] == "질문"
 
     def test_run_agent_propagates_exception(self, monkeypatch):
-        """LangGraph 실행 예외는 그대로 전파 (sessions.service 가 폴백 처리)."""
-        import app.domains.rag.langgraph_agent as lg
-        import app.domains.rag.service as svc
+        def boom(*a, **kw):
+            raise RuntimeError("agent down")
 
-        def broken(slots, user_message):
-            raise RuntimeError("agent 내부 오류")
-
-        monkeypatch.setattr(lg, "run_agent_langgraph", broken)
-
-        import pytest as _pytest
-
-        with _pytest.raises(RuntimeError, match="agent 내부 오류"):
-            svc.run_agent(make_accident_disease_slot(), "질문")
+        monkeypatch.setattr("app.domains.rag.langgraph_agent.run_agent_langgraph", boom)
+        with pytest.raises(RuntimeError):
+            svc.run_agent(_slots(), "질문")

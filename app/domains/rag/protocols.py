@@ -12,9 +12,6 @@ from typing import Any, Literal, Protocol, TypedDict
 
 from app.domains.sessions.schemas import SlotState
 
-RagMode = Literal["vector", "graph", "hybrid"]
-"""Retrieval 채널 — config.rag_mode 의 enum 과 동일."""
-
 
 class RetrievalResult(TypedDict):
     """단일 검색 결과.

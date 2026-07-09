@@ -246,9 +246,14 @@ def _ingest_one(info: PathInfo, *, force: bool) -> bool:
             logger.info("DB 변경 없음, 스킵: %s", info.file_path.name)
             return False
 
-        # document_id 를 chunks 에 채우고, 청크 교체 (delete + insert)
+        # document_id + 문서 메타를 chunks 에 채우고, 청크 교체 (delete + insert)
+        # (Sprint 32 T3 — 메타 비정규 부착: 검색 필터가 JOIN 없이 백엔드 무관 동작)
         for c in chunks:
             c.document_id = document_id
+            c.insurer_id = info.insurer_id
+            c.product_id = info.product_id
+            c.area = info.area
+            c.doc_type = info.doc_type
         deleted, inserted = chunks_service.replace_chunks_for_document(
             session, document_id, chunks
         )
@@ -277,4 +282,13 @@ def _ingest_one(info: PathInfo, *, force: bool) -> bool:
         "doc_type": info.doc_type,
     }
     vector_store.upsert(chunks, embeddings, doc_meta)
+
+    # Sprint 32 T2 — 그래프(심볼릭 채널) 동기화. 실패는 경고만(검색은 뉴럴 단독 graceful)
+    # 하되, ica verify 의 그래프 카운트 검증이 불일치를 드러낸다.
+    try:
+        from app.domains.rag.indexer import sync_document
+
+        sync_document(document_id)
+    except Exception as exc:  # noqa: BLE001 — 그래프 다운 시 인제스트 자체는 성공
+        logger.warning("그래프 동기화 실패 (document_id=%s): %s — 'ica graph-build' 로 복구", document_id, exc)
     return True

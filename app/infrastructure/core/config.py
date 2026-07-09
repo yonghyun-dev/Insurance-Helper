@@ -92,15 +92,21 @@ class Settings(BaseSettings):
     # 로깅 (대소문자 무관 입력 허용, 알려진 레벨만 통과)
     log_level: LogLevel = Field(default="INFO")
 
-    # Sprint 4 — GraphRAG
-    neo4j_uri: str = Field(
-        default="bolt://localhost:7687", description="Neo4j Bolt URI (Docker 기본)"
+    # Sprint 32 T2 — 뉴로심볼릭 그래프 스토어 (Memgraph, Bolt 호환)
+    graph_uri: str = Field(
+        default="bolt://localhost:7687",
+        description="그래프 스토어 Bolt URI (Memgraph 기본. Neo4j 도 Bolt 호환)",
     )
-    neo4j_username: str = Field(default="neo4j")
-    neo4j_password: str = Field(default="", description="Neo4j 비밀번호 — .env 에서 주입")
-    rag_mode: Literal["vector", "graph", "hybrid"] = Field(
-        default="vector",
-        description="Retrieval 채널 — vector(기본·회귀 0) / graph(Neo4j 단독) / hybrid(둘 합성)",
+    graph_username: str = Field(default="", description="그래프 스토어 계정 (Memgraph 로컬 기본 무인증)")
+    graph_password: str = Field(default="", description="그래프 스토어 비밀번호")
+    rag_graph_enabled: bool = Field(
+        default=True,
+        description="심볼릭(그래프) 채널 사용 — false 또는 그래프 다운 시 뉴럴(벡터) 단독으로 graceful",
+    )
+    rag_symbolic_weight: float = Field(
+        default=0.1,
+        description="가중 RRF 에서 심볼릭 순위 가중 (뉴럴=1.0 고정). 골든셋 그리드 실측"
+        "(2026-07-09: 0.05/0.1/0.15/0.3/0.5 중 0.1 이 hit@8 +0.034·MRR 동등 최적)으로 확정.",
     )
     rag_react: bool = Field(
         default=False,

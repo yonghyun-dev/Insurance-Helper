@@ -1,9 +1,12 @@
 """app.domains.rag.service
 
 파일 경로: app/rag/service.py
-목적: RAG retrieval 단일 진입점. mode 라우팅 + graceful fallback + ReAct opt-in.
+목적: RAG retrieval 단일 진입점 — 뉴로심볼릭(뉴럴+심볼릭 융합) 고정 경로 (Sprint 32 T2).
 
-sessions.service 는 본 모듈의 `retrieve()` 만 호출한다.
+구 rag_mode(vector/graph/hybrid) 토글은 폐지 — 두 채널은 선택지가 아니라 항상 함께
+동작하는 구성요소다. 그래프 다운 시 retriever 내부에서 뉴럴 단독으로 graceful 강등.
+
+sessions.service 는 본 모듈의 `retrieve()`/`retrieve_freeform()` 만 호출한다.
 """
 
 from __future__ import annotations
@@ -13,10 +16,7 @@ from typing import TYPE_CHECKING, Any
 
 from pybreaker import CircuitBreaker, CircuitBreakerError
 
-from app.domains.rag.graph import GraphRetriever
-from app.domains.rag.hybrid import HybridRetriever
-from app.domains.rag.protocols import RagMode, Retriever
-from app.domains.rag.vector import VectorRetriever
+from app.domains.rag.neurosymbolic import NeuroSymbolicRetriever
 from app.domains.sessions.schemas import SlotState
 from app.infrastructure.core.config import get_settings
 from app.infrastructure.core.logging import get_logger
@@ -43,118 +43,56 @@ def _rag_circuit_breaker() -> CircuitBreaker:
 
 
 @lru_cache(maxsize=1)
-def _vector_singleton() -> VectorRetriever:
-    return VectorRetriever()
-
-
-@lru_cache(maxsize=1)
-def _graph_singleton() -> GraphRetriever:
-    return GraphRetriever()
-
-
-@lru_cache(maxsize=1)
-def _hybrid_singleton() -> HybridRetriever:
-    # I6 에서 graph 주입. 현재는 vector only 폴백.
-    return HybridRetriever(_vector_singleton(), _graph_singleton())
-
-
-def _get_retriever(mode: RagMode) -> Retriever:
-    if mode == "vector":
-        return _vector_singleton()
-    if mode == "graph":
-        return _graph_singleton()
-    return _hybrid_singleton()
+def _retriever_singleton() -> NeuroSymbolicRetriever:
+    return NeuroSymbolicRetriever()
 
 
 def retrieve(
     slots: SlotState,
     top_k: int = 8,
-    *,
-    mode: RagMode | None = None,
 ) -> list[dict[str, Any]]:
-    """슬롯 컨텍스트로 top_k 청크 반환. mode 미지정 시 settings 사용.
+    """슬롯 컨텍스트로 top_k 청크 반환 — 뉴로심볼릭(뉴럴+심볼릭 RRF 융합) 단일 경로.
 
-    graceful fallback:
-        - mode 가 graph 또는 hybrid 인데 Neo4j health 실패 → vector mode 로 자동 폴백
-        - 모든 retriever 실패 → 빈 list (sessions.service 가 _build_no_match_ask 로 분기)
+    graceful: 그래프 다운 → retriever 내부에서 뉴럴 단독. 벡터까지 실패 → 빈 list
+    (sessions.service 가 _build_no_match_ask 로 분기).
 
     Returns:
-        list[dict] — 기존 search.service.similarity_search 와 호환 + source 필드.
-        sessions.service.generate_assessment 가 그대로 소비.
+        list[dict] — 기존 search.service.similarity_search 와 호환 + source 필드
+        ("neural"/"symbolic"). sessions.service.generate_assessment 가 그대로 소비.
 
-    주: 에이전트(tool 자가 라우팅) 경로는 본 함수가 아니라 run_agent(LangGraph) 가 담당.
-    settings.rag_react 가 에이전트 vs 단순 retrieve 를 sessions.service 에서 분기한다.
+    주: 에이전트(search_terms tool) 경로도 dispatcher 가 본 모듈을 경유한다 — 우회 경로 없음.
     """
     settings = get_settings()
-    resolved_mode: RagMode = mode if mode is not None else settings.rag_mode  # type: ignore[assignment]
-
-    # graceful fallback — graph 의존 모드인데 health 실패 시 vector 로
-    if resolved_mode in ("graph", "hybrid") and not _graph_singleton().health():
-        logger.warning(
-            "Neo4j health 실패 — mode=%s → vector 폴백", resolved_mode
-        )
-        resolved_mode = "vector"
-
-    retriever = _get_retriever(resolved_mode)
-
+    retriever = _retriever_singleton()
     # 리랭크 활성 시 후보를 넉넉히(2x) 가져와 재정렬 후 top_k 로 줄인다.
     fetch_k = top_k * 2 if settings.rag_rerank else top_k
 
     breaker = _rag_circuit_breaker()
     try:
         results = breaker.call(retriever.retrieve, slots, fetch_k)
-    except CircuitBreakerError as exc:
-        logger.warning("RAG circuit open (mode=%s) — vector 폴백 시도: %s", resolved_mode, exc)
-        # circuit open 상태 — vector 직접 호출 (breaker 우회) 1회 시도
-        if resolved_mode != "vector":
-            try:
-                results = _vector_singleton().retrieve(slots, fetch_k)
-            except Exception as exc2:
-                logger.error("circuit-open vector 폴백 실패: %s", exc2)
-                results = []
-        else:
-            results = []
-    except Exception as exc:
-        logger.error("RAG retrieve 실패 (mode=%s): %s", resolved_mode, exc)
-        # vector 가 아니면 vector 로 1회 더 시도
-        if resolved_mode != "vector":
-            try:
-                results = _vector_singleton().retrieve(slots, fetch_k)
-                logger.info("vector 폴백 성공")
-            except Exception as exc2:
-                logger.error("vector 폴백도 실패: %s", exc2)
-                results = []
-        else:
-            results = []
+    except (CircuitBreakerError, Exception) as exc:  # noqa: BLE001
+        logger.error("RAG retrieve 실패: %s", exc)
+        results = []
 
-    # Sprint 31 D2 — 검색 정밀도 후처리: 상대 점수 컷 → (옵션) Solar 리랭크
     out = [dict(r) for r in results]
-    out = _apply_score_ratio_cut(out, settings.rag_score_ratio)
     if settings.rag_rerank and len(out) > 1:
         out = _rerank_with_solar(slots, out, top_k)
-    # RetrievalResult TypedDict → 일반 dict (기존 sessions.service 계약 유지)
-    return out
+    return out[:top_k]
 
 
-def _apply_score_ratio_cut(
-    results: list[dict[str, Any]], ratio: float
-) -> list[dict[str, Any]]:
-    """top1 점수 대비 ratio 미만 청크 제외 — 무관 청크가 top_k 를 채우는 것 방지.
+def retrieve_freeform(text: str, top_k: int = 8) -> list[dict[str, Any]]:
+    """자유 질의(도움 챗봇·일반 QA) — 보험사 스코프 없이 동일 융합·점수컷 파이프라인.
 
-    score 필드가 없거나(graph 경로 등) top1 이 0 이하이면 원본 유지. 최소 1건은 남긴다.
+    기존에는 vectorstore.query 직행이라 점수컷·심볼릭이 우회됐다 (Sprint 32 T2 일원화).
     """
-    if ratio <= 0 or not results:
-        return results
-    top = results[0].get("score")
-    if not isinstance(top, (int, float)) or top <= 0:
-        return results
-    cut = top * ratio
-    kept = [r for r in results if isinstance(r.get("score"), (int, float)) and r["score"] >= cut]
-    if len(kept) < len(results):
-        logger.info(
-            "score ratio cut: %d→%d (top=%.3f, cut=%.3f)", len(results), len(kept), top, cut
-        )
-    return kept or results[:1]
+    retriever = _retriever_singleton()
+    breaker = _rag_circuit_breaker()
+    try:
+        results = breaker.call(retriever.retrieve_freeform, text, top_k)
+    except (CircuitBreakerError, Exception) as exc:  # noqa: BLE001
+        logger.error("RAG retrieve_freeform 실패: %s", exc)
+        return []
+    return [dict(r) for r in results]
 
 
 def _rerank_with_solar(
@@ -238,7 +176,7 @@ def clear_caches() -> None:
     test 환경에서 monkeypatch 로 plain function 으로 교체된 경우는 cache_clear 가 없으므로
     방어적으로 hasattr 체크.
     """
-    for fn in (_vector_singleton, _graph_singleton, _hybrid_singleton, _rag_circuit_breaker):
+    for fn in (_retriever_singleton, _rag_circuit_breaker):
         if hasattr(fn, "cache_clear"):
             fn.cache_clear()
     from app.domains.rag.vectorstore import clear_cache as _clear_vectorstore_cache

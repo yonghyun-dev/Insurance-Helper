@@ -133,16 +133,18 @@ class TestInvokeNotImplementedStubs:
     """미구현 stub tool 호출 시 ToolNotImplementedError 발생 검증."""
 
     def test_search_terms_returns_chunks(self, monkeypatch):
-        # Sprint 11 — search_terms 활성. search_service.similarity_search mock 으로 격리.
+        # Sprint 32 T2 — search_terms 는 뉴로심볼릭 단일 경로 경유. retriever mock 으로 격리.
         fake_results = [
             {"id": "c1", "text": "조항1 본문", "score": 0.91, "metadata": {"clause_no": "제1조"}},
             {"id": "c2", "text": "조항2 본문", "score": 0.82, "metadata": {"clause_no": "제2조"}},
         ]
-        import app.domains.search.service as search_service
+        import app.shared.tools.dispatcher as dispatcher_mod
 
-        monkeypatch.setattr(
-            search_service, "similarity_search", lambda *a, **k: fake_results
-        )
+        class FakeRetriever:
+            def retrieve_fused(self, query, insurer_id, filters, top_k):
+                return fake_results
+
+        monkeypatch.setattr(dispatcher_mod, "_search_retriever", lambda: FakeRetriever())
         result = invoke("search_terms", {"query": "자기부담금"})
         assert result["count"] == 2
         assert len(result["chunks"]) == 2

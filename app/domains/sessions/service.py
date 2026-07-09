@@ -495,11 +495,11 @@ def _answer_general_qa(
     가입 보험 필터 없이 실손 표준약관 전체에서 검색해 약관 근거로 설명한다.
     인용 강제(환각 차단)는 generate_explanation 이 담당. 검색 0건이면 정직한 재질문.
     """
-    from app.domains.rag.vectorstore import get_vector_store
     from app.shared import audit
 
     store = get_session_store()
-    chunks = get_vector_store().query(text, top_k=8)
+    # Sprint 32 T2 — 뉴로심볼릭 단일 경로 (점수컷·심볼릭 확장 포함, 광역=보험사 스코프 없음)
+    chunks = rag_service.retrieve_freeform(text, top_k=8)
     if not chunks:
         ask = AssistantAsk(
             type="ask",
@@ -534,10 +534,8 @@ def answer_help(text: str) -> AssistantAnswer:
 
     사용법 질문/무관 질문은 인용 없이 답하고, 본인 사례 판단은 메인 흐름으로 안내한다.
     """
-    from app.domains.rag.vectorstore import get_vector_store
-
     try:
-        chunks = get_vector_store().query(text, top_k=6)
+        chunks = rag_service.retrieve_freeform(text, top_k=6)
     except Exception as exc:  # noqa: BLE001 — 검색 실패해도 사용법 답변은 가능
         logger.warning("answer_help RAG 검색 실패, 무근거 답변으로 진행: %s", exc)
         chunks = []

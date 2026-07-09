@@ -151,6 +151,10 @@ def pg_engine(pg_container):
                 parent_chunk_id VARCHAR(64),
                 chunk_type VARCHAR(16) NOT NULL
                     CHECK (chunk_type IN ('article','paragraph','item','table','annex','other')),
+                insurer_id VARCHAR(32),
+                product_id VARCHAR(64),
+                area VARCHAR(32),
+                doc_type VARCHAR(32),
                 clause_no VARCHAR(64),
                 sub_no VARCHAR(32),
                 page_start INTEGER NOT NULL,
@@ -232,10 +236,12 @@ def seed_data(pg_engine):
 
             conn.execute(text("""
                 INSERT INTO clause_chunks
-                    (id, document_id, chunk_type, clause_no, sub_no, page_start, page_end,
+                    (id, document_id, insurer_id, product_id, area, doc_type,
+                     chunk_type, clause_no, sub_no, page_start, page_end,
                      token_count, text, embedding)
                 VALUES
-                    (:id, :doc_id, 'article', :clause_no, NULL, :page, :page,
+                    (:id, :doc_id, 'hanwha', 'hanwha_auto', 'auto', 'terms',
+                     'article', :clause_no, NULL, :page, :page,
                      50, :text, CAST(:emb AS vector))
             """), {
                 "id": chunk_id,

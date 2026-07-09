@@ -1,170 +1,152 @@
 """app.domains.rag.graph
 
-파일 경로: app/rag/graph.py
-목적: GraphRetriever — Neo4j + langchain_neo4j.GraphCypherQAChain.
+심볼릭 그래프 채널 — 뉴로심볼릭 검색의 결정론 절반 (Sprint 32 T2).
 
-설계 참조:
-    - docs/design/graph-schema.md (노드/엣지)
-    - docs/design/rag-architecture.md § 6
-    - prompts.CYPHER_FEW_SHOT_EXAMPLES (한국어 few-shot)
+구 GraphCypherQAChain(LLM 이 Cypher 생성) 을 폐기하고 **LLM 0회 결정론 질의**로 재작성:
+    - clause_candidates(): 슬롯 스코프(보험사) 안에서 조항 제목 토큰 ↔ 질의 키워드 매칭
+    - expand(): 뉴럴(벡터) 히트 청크의 구조 이웃 — 같은 조의 형제 청크(HAS_SUBCLAUSE),
+      본문이 참조하는 별표/붙임(REFERS_TO) — 을 후보로 확장
+    - health(): Bolt 접속 가능 여부 (다운 시 뉴로심볼릭 retriever 가 뉴럴 단독으로 graceful)
 
-graceful 동작:
-    - Neo4j 다운 / Cypher 실패 시 빈 list 반환 (호출자 service.retrieve 가 vector 폴백)
-    - health() 가 connection ping 으로 사전 검사
+심볼릭 채널에 LLM 을 넣지 않는 것이 개념 정합(구조 지식은 결정론)이며 환각이 0 이다.
 """
 
 from __future__ import annotations
 
-from functools import cached_property
+import re
 from typing import Any
 
-from app.domains.rag._slots import slots_to_question
-from app.domains.rag.prompts import CYPHER_FEW_SHOT_EXAMPLES
-from app.domains.rag.protocols import RetrievalResult
-from app.domains.sessions.schemas import SlotState
+from neo4j import Driver, GraphDatabase
+
 from app.infrastructure.core.config import get_settings
 from app.infrastructure.core.logging import get_logger
 
 logger = get_logger(__name__)
 
+# 조항 제목에서 의미 토큰 추출: "제3조 (보장종목별 보상내용)" → {보장종목별, 보상내용}
+_TOKEN_RE = re.compile(r"[가-힣A-Za-z0-9]{2,}")
+_TITLE_STOPWORDS = {
+    "제", "조", "관한", "관련", "경우", "사항", "내용", "기타", "등의", "대한", "위한",
+}
 
-class GraphRetriever:
-    """Neo4j + GraphCypherQAChain 기반 graph RAG.
 
-    LangChain 의존:
-        - langchain_neo4j.Neo4jGraph
-        - langchain_neo4j.GraphCypherQAChain
-        - langchain_openai.ChatOpenAI
+def _tokens(text: str) -> set[str]:
+    return {t for t in _TOKEN_RE.findall(text or "") if t not in _TITLE_STOPWORDS}
 
-    Lazy initialization (cached_property) — 모듈 import 시점에 Neo4j 연결 시도 안 함.
-    실제 retrieve / health 호출 시점에만 연결.
-    """
 
-    @cached_property
-    def _graph(self) -> Any:
-        from langchain_neo4j import Neo4jGraph
+class SymbolicGraphChannel:
+    """Memgraph(Bolt) 기반 결정론 구조 검색 채널."""
 
-        settings = get_settings()
-        return Neo4jGraph(
-            url=settings.neo4j_uri,
-            username=settings.neo4j_username,
-            password=settings.neo4j_password,
-            enhanced_schema=True,
-        )
+    def __init__(self, driver: Driver | None = None) -> None:
+        self._driver = driver
 
-    @cached_property
-    def _chain(self) -> Any:
-        from langchain_neo4j import GraphCypherQAChain
-        from langchain_openai import ChatOpenAI
-
-        # Sprint 16 1a — 추론 provider 중앙 정책 적용 (Upstage Solar 전용, OpenAI 폴백 없음).
-        # langchain_openai 는 base_url 주입으로 Upstage OpenAI 호환 엔드포인트를 흡수한다.
-        settings = get_settings()
-        llm = ChatOpenAI(
-            model=settings.effective_llm_model,
-            temperature=0,
-            api_key=settings.effective_llm_api_key,
-            base_url=settings.effective_llm_base_url or None,
-        )
-        return GraphCypherQAChain.from_llm(
-            llm=llm,
-            graph=self._graph,
-            verbose=False,
-            allow_dangerous_requests=True,
-            return_intermediate_steps=True,
-            validate_cypher=True,
-            top_k=10,
-            cypher_prompt=None,  # enhanced_schema=True 가 기본 프롬프트에 schema 주입
-        )
-
-    def retrieve(self, slots: SlotState, top_k: int = 8) -> list[RetrievalResult]:
-        question = (
-            slots_to_question(slots)
-            + "\n\n참고 Cypher 예시:\n"
-            + CYPHER_FEW_SHOT_EXAMPLES
-        )
-
-        try:
-            result = self._chain.invoke({"query": question})
-        except Exception as exc:
-            logger.warning("GraphCypherQAChain 실행 실패: %s", exc)
-            return []
-
-        # intermediate_steps = [{"query": cypher}, {"context": rows}]
-        steps = result.get("intermediate_steps") or []
-        rows = _extract_rows(steps)
-        return _rows_to_results(rows, top_k)
+    @property
+    def driver(self) -> Driver:
+        if self._driver is None:
+            settings = get_settings()
+            self._driver = GraphDatabase.driver(
+                settings.graph_uri,
+                auth=(settings.graph_username, settings.graph_password),
+            )
+        return self._driver
 
     def health(self) -> bool:
-        """Neo4j 연결 검사 (간단 ping)."""
         try:
-            self._graph.query("RETURN 1 AS ok")
+            with self.driver.session() as s:
+                s.run("RETURN 1").single()
             return True
-        except Exception as exc:
-            logger.debug("Neo4j health 실패: %s", exc)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("그래프 스토어 health 실패: %s", exc)
             return False
 
+    def clause_candidates(
+        self, query: str, insurer_id: str | None, limit: int = 12
+    ) -> list[dict[str, Any]]:
+        """질의 키워드 ↔ 조항 제목 토큰 매칭 후보 (결정론).
 
-# ---------------------------------------------------------------------------
-# helpers — Cypher 결과 → RetrievalResult
-# ---------------------------------------------------------------------------
-
-
-def _extract_rows(steps: list[Any]) -> list[dict[str, Any]]:
-    """intermediate_steps 의 context (rows) 만 추출.
-
-    GraphCypherQAChain 의 steps 형식: [{"query": cypher_str}, {"context": rows}]
-    rows 는 list[dict] — 각 dict 가 RETURN 절의 컬럼/값.
-    """
-    for step in reversed(steps):
-        if isinstance(step, dict) and "context" in step:
-            ctx = step["context"]
-            return ctx if isinstance(ctx, list) else []
-    return []
-
-
-def _rows_to_results(rows: list[dict[str, Any]], top_k: int) -> list[RetrievalResult]:
-    """Cypher rows → RetrievalResult.
-
-    Cypher 가 `chunk_id` 컬럼을 RETURN 한 경우만 결과로 채택 (vector dedupe 가능).
-    텍스트 컬럼은 c.text 또는 s.text (자동 인식 — 가장 긴 string 값).
-    """
-    results: list[RetrievalResult] = []
-    for i, row in enumerate(rows[:top_k]):
-        chunk_id = _pick_first(row, ["c.chunk_id", "chunk_id", "s.chunk_id"])
-        if not chunk_id:
-            continue
-        text = _pick_first(row, ["c.text", "s.text", "text"], default="")
-        clause_no = _pick_first(row, ["c.clause_no", "clause_no"], default=None)
-        sub_no = _pick_first(row, ["s.sub_no", "sub_no"], default=None)
-        page = _pick_first(row, ["c.page_start", "s.page_start", "page_start"], default=0)
-        results.append(
-            {
-                "id": str(chunk_id),
-                "text": str(text),
-                "score": _rank_to_score(i, len(rows)),
-                "metadata": {
-                    k: v for k, v in {
-                        "clause_no": clause_no,
-                        "sub_no": sub_no,
-                        "page_start": page,
-                    }.items() if v is not None
-                },
-                "source": "graph",
-            }
+        Returns:
+            [{chunk_id, match_score, clause_no, title}] — match_score 내림차순.
+            제목 토큰 중 질의에 등장한 개수(완전 포함 기준)가 score.
+        """
+        cypher = (
+            "MATCH (c:Clause) "
+            + ("WHERE c.insurer_id = $iid " if insurer_id else "")
+            + "RETURN c.chunk_id AS chunk_id, c.title AS title, c.clause_no AS clause_no"
         )
-    return results
+        query_text = query or ""
+        scored: list[dict[str, Any]] = []
+        with self.driver.session() as s:
+            for rec in s.run(cypher, iid=insurer_id):
+                title_tokens = _tokens(rec["title"] or "")
+                if not title_tokens:
+                    continue
+                score = sum(1 for t in title_tokens if t in query_text)
+                if score > 0:
+                    scored.append(
+                        {
+                            "chunk_id": rec["chunk_id"],
+                            "match_score": score,
+                            "clause_no": rec["clause_no"],
+                            "title": rec["title"],
+                        }
+                    )
+        scored.sort(key=lambda r: -r["match_score"])
+        return scored[:limit]
+
+    def expand(self, chunk_ids: list[str], limit: int = 16) -> list[dict[str, Any]]:
+        """뉴럴 히트의 구조 이웃 확장 (결정론).
+
+        - REFERS_TO: 히트 본문이 참조하는 별표/붙임 청크 (예: 제3조 → 별표2 비급여대상)
+        - HAS_SUBCLAUSE 형제: 같은 문서·같은 조의 다른 청크 (항이 잘려 검색된 경우 문맥 보완)
+
+        Returns:
+            [{chunk_id, via, src_rank}] — 입력 순위(src_rank) 오름차순, 입력 자신 제외.
+        """
+        if not chunk_ids:
+            return []
+        out: list[dict[str, Any]] = []
+        seen: set[str] = set(chunk_ids)
+        rank_of = {cid: i for i, cid in enumerate(chunk_ids)}
+        with self.driver.session() as s:
+            # REFERS_TO 를 형제보다 먼저 (별표/붙임은 내용 자체가 답인 경우가 많음)
+            for kind, cypher in (
+                (
+                    "refers_to",
+                    "MATCH (n)-[:REFERS_TO]->(t) "
+                    "WHERE (n:Clause OR n:SubClause) AND n.chunk_id IN $ids "
+                    "RETURN n.chunk_id AS src, t.chunk_id AS dst",
+                ),
+                (
+                    "sibling",
+                    "MATCH (n) WHERE (n:Clause OR n:SubClause) AND n.chunk_id IN $ids "
+                    "MATCH (sib) WHERE (sib:Clause OR sib:SubClause) "
+                    "AND sib.document_id = n.document_id AND sib.clause_no = n.clause_no "
+                    "AND sib.chunk_id <> n.chunk_id "
+                    "RETURN n.chunk_id AS src, sib.chunk_id AS dst",
+                ),
+            ):
+                rows = sorted(
+                    s.run(cypher, ids=chunk_ids),
+                    key=lambda r: rank_of.get(r["src"], 999),
+                )
+                for rec in rows:
+                    dst = rec["dst"]
+                    if dst in seen:
+                        continue
+                    seen.add(dst)
+                    out.append(
+                        {"chunk_id": dst, "via": kind, "src_rank": rank_of.get(rec["src"], 999)}
+                    )
+                    if len(out) >= limit:
+                        return out
+        return out
 
 
-def _pick_first(row: dict[str, Any], keys: list[str], *, default: Any = None) -> Any:
-    for k in keys:
-        if k in row and row[k] is not None:
-            return row[k]
-    return default
+_singleton: SymbolicGraphChannel | None = None
 
 
-def _rank_to_score(rank: int, total: int) -> float:
-    """Cypher 결과에는 score 가 없어 rank 기반 가짜 점수 (0.5~0.9 범위)."""
-    if total <= 1:
-        return 0.8
-    return 0.9 - 0.4 * (rank / max(total - 1, 1))
+def get_symbolic_channel() -> SymbolicGraphChannel:
+    global _singleton  # noqa: PLW0603 — 모듈 싱글턴 (드라이버 재사용)
+    if _singleton is None:
+        _singleton = SymbolicGraphChannel()
+    return _singleton

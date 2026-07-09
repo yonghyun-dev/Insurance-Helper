@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import date
+from functools import lru_cache
 from time import perf_counter
 from typing import Any
 
@@ -79,6 +80,13 @@ def invoke(
     return result
 
 
+@lru_cache(maxsize=1)
+def _search_retriever():
+    from app.domains.rag.neurosymbolic import NeuroSymbolicRetriever
+
+    return NeuroSymbolicRetriever()
+
+
 def _dispatch(
     tool_name: str,
     args: dict[str, Any],
@@ -104,11 +112,12 @@ def _dispatch(
     # 에이전트 retrieve 와 분리되어 무한 재귀 없음. query 텍스트는 LLM 생성,
     # where 필터(search_filters)는 호출자(에이전트)가 슬롯에서 결정론으로 주입.
     if tool_name == "search_terms":
-        from app.domains.rag.vectorstore import get_vector_store
-
         query = args["query"]
         top_k = args.get("top_k", 8)
-        results = get_vector_store().query(query, top_k=top_k, filters=search_filters)
+        # Sprint 32 T2 — 뉴로심볼릭 단일 경로 경유 (점수컷·심볼릭 확장·스코프 검증 포함)
+        insurer_id = (search_filters or {}).get("insurer_id")
+        retriever = _search_retriever()
+        results = retriever.retrieve_fused(query, insurer_id, search_filters, top_k)
         # Sprint 11 ReAct LLM 이 chunk_id + text 만 필요 (citations 검증에 사용)
         compact = [
             {
