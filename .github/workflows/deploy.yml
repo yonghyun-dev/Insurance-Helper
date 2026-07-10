@@ -85,6 +85,10 @@ jobs:
             CORS_ALLOW_ORIGINS=${{ secrets.PUBLIC_ORIGIN }}
             EOF
             echo "${{ secrets.ACR_PASSWORD }}" | docker login ${{ secrets.ACR_LOGIN_SERVER }} -u ${{ secrets.ACR_USERNAME }} --password-stdin
+            # 디스크 풀 재발 방지(2026-07-10 실사고): pull 전에 미사용 이미지 전체 정리.
+            # -a 없이는 태그된 구버전이 안 지워져 배포마다 누적(47개·23GB → no space left).
+            # 실행 중 컨테이너의 이미지는 in-use 라 prune 대상이 아님 — 안전.
+            docker image prune -af || true
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
-            docker image prune -f
+            docker image prune -af || true
