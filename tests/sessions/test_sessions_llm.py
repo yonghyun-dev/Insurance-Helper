@@ -706,3 +706,10 @@ class TestStripInternalIds:
 
         text = "통원 치료 시 공제금액(1~2만원)과 보장대상 의료비의 20% 중 큰 금액을 차감합니다."
         assert _strip_internal_ids(text) == text
+
+    def test_strips_markdown_footnote_markers(self):
+        from app.domains.sessions.llm import _strip_internal_ids
+
+        out = _strip_internal_ids("본인 부담금을 보상합니다[^1][^2]. 자세한 내용은 약관 참조[3].")
+        assert "[^1]" not in out and "[^2]" not in out and "[3]" not in out
+        assert out.startswith("본인 부담금을 보상합니다")

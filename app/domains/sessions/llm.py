@@ -797,6 +797,8 @@ def _strip_internal_ids(text: str) -> str:
     """
     text = _CITE_PAREN_RE.sub("", text)
     text = _UUID_RE.sub("", text)
+    # 마크다운 각주 마커 "[^1]" — 렌더되지 않는 각주 참조가 본문에 노출(라이브 실관측)
+    text = re.sub(r"\[\^?\d+\]", "", text)
     # 제거 후 잔여물 정리: 빈 괄호, 쉼표만 남은 괄호, 중복 공백
     text = re.sub(r"[\(\[]\s*[,;·\s]*[\)\]]", "", text)
     text = re.sub(r"[ \t]{2,}", " ", text)
