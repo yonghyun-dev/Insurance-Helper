@@ -197,6 +197,18 @@ _EXTRACT_SLOTS_TOOL = {
                     "slot_updates 에는 넣지 말고 본 배열에만 추가."
                 ),
             },
+            # Sprint 35 — 세션 메모(2층 기억): 슬롯 필드에 안 담기지만 판정에 영향 줄 수
+            # 있는 대화 사실을 짧은 한국어 메모로. 판정/QA 입력에 슬롯과 함께 전달된다.
+            "session_notes": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": (
+                    "슬롯 필드에 담기지 않는 판정 관련 사실의 짧은 메모 (각 40자 이내). "
+                    "예: '산재 아님(회사 밖 사고)', '교통사고 — 가해 차량 있음', "
+                    "'본인 보험 미가입 진술', '수술 예정'. 이번 메시지에서 새로 확인된 "
+                    "사실만. 없으면 빈 배열."
+                ),
+            },
         },
         "required": ["slot_updates"],
     },
@@ -222,7 +234,10 @@ def _extract_slots_system(today: date) -> str:
         "(slot_updates 에는 넣지 않는다). 예: '보험사 잘 모르겠어' → unknown_slots=['insurer'].\n"
         "6-b. **부정 표현 → 정수 슬롯 0 으로 채움**. 예: '입원 안 했어' → hospitalization_days=0, "
         "'통원 없어' → outpatient_visits=0.\n"
-        "7. 추론·추측·기본값 입력 금지. 모호하면 그 필드는 생략 (단 6-a, 6-b 는 명시이므로 적용).\n\n"
+        "7. 추론·추측·기본값 입력 금지. 모호하면 그 필드는 생략 (단 6-a, 6-b 는 명시이므로 적용).\n"
+        "8. **session_notes**: 슬롯 필드에 담기지 않지만 청구 판정에 영향 줄 수 있는 사실을 "
+        "짧은 메모로 추출 (예: '산재 아님' / '교통사고 — 가해 차량 있음' / '본인 보험 미가입 진술' / "
+        "'의사가 수술 권유'). 이번 메시지에서 새로 확인된 것만, 각 40자 이내.\n\n"
         "허용 필드: " + ", ".join(_SLOT_FIELD_ENUM) + "."
     )
 
@@ -267,6 +282,14 @@ def extract_slots(history: list[Message], user_msg: str, current_slots: SlotStat
         if valid_unknown:
             merged = list(dict.fromkeys([*current_slots.unknown_slots, *valid_unknown]))
             filtered["unknown_slots"] = merged
+
+    # Sprint 35 — 세션 메모: 슬롯이 아니므로 예약 키 `_notes` 로 반환 (호출자가 pop 후
+    # Session.notes 에 누적 — SlotState 머지에 섞이지 않게 분리).
+    raw_notes = args.get("session_notes") or []
+    if isinstance(raw_notes, list):
+        notes = [str(n).strip()[:60] for n in raw_notes if str(n).strip()]
+        if notes:
+            filtered["_notes"] = notes
 
     logger.info(
         "extract_slots: %d 필드 갱신 (LLM 응답 %d → 필터 %d) / unknown 추가 %d",
@@ -460,6 +483,9 @@ _ASSESSMENT_SYSTEM = (
     "   ④ (partial 일 때만) 맨 끝 후속 한 줄.\n"
     "6. **confidence 판정**: 입력 slots 의 필수 슬롯이 모두 채워졌으면 'full', "
     "  unknown_slots 가 있거나 일부 슬롯이 None 이면 'partial'.\n"
+    "6-b. **session_notes 준수**: 입력에 session_notes 가 있으면 이는 대화에서 확인된 추가 "
+    "사실(슬롯 외 기억)이다. 판정·설명에 반영하고, 메모에 이미 있는 사실을 다시 묻거나 "
+    "모순되게 말하지 않는다. (예: '산재 아님' 메모가 있으면 산재 여부를 묻지 않는다.)\n"
     "7. **입력 slots 에 insurer/insurer_id 가 없으면 = 가입 보험 미상(익명/미공유)**: 이때는 "
     "  인용된 청크가 특정 보험사(예: 메리츠화재) 것이더라도 **그 보험사를 '가입하신 보험사'로 지칭하거나 "
     "  '가입 보험이 확인되어'라고 말해서는 절대 안 된다.** 오직 '일반 실손 표준약관 기준'으로만 지칭하고 "
@@ -615,6 +641,7 @@ def generate_assessment(
     slots: SlotState,
     chunks: list[dict[str, Any]],
     coverage: dict[str, Any] | None = None,
+    notes: list[str] | None = None,
     on_delta: Callable[[str], None] | None = None,
 ) -> AssistantAssessment:
     """슬롯 + RAG 청크(+ 결정론 보장 판정)로 가능성 등급 + 인용 응답 생성.
@@ -647,6 +674,9 @@ def generate_assessment(
     }
     if coverage is not None:
         payload["coverage_decision"] = coverage
+    if notes:
+        # Sprint 35 — 세션 메모(대화에서 확인된 비슬롯 사실). 판정 반영 + 재질문 방지.
+        payload["session_notes"] = notes
     # mode='json' 으로 date → ISO 문자열 직렬화 (json.dumps 가 date 를 모르기 때문)
     user_payload = json.dumps(payload, ensure_ascii=False)
 
@@ -1081,6 +1111,8 @@ _EXPLANATION_SYSTEM = (
     "   본인 보험이 없어도 보상받을 수 있음을 안내한다.\n"
     "11. **교통사고 상식**: 교통사고 피해 치료비 중 자동차보험(대인배상)·산재보험에서 처리된 금액은 "
     "   실손에서 보상하지 않으며, 본인이 실제 부담한 의료비만 실손 보상 대상이다.\n"
+    "12. **session_notes**: 입력에 session_notes 가 있으면 대화에서 확인된 사실이다 — "
+    "   설명에 반영하고 그 사실을 다시 묻지 않는다.\n"
 )
 
 # citations 항목 스키마는 assessment 와 동일 (약관 인용 포맷 공유).
@@ -1109,6 +1141,7 @@ def generate_explanation(
     question: str,
     chunks: list[dict[str, Any]],
     history: list[Message] | None = None,
+    notes: list[str] | None = None,
     on_delta: Callable[[str], None] | None = None,
 ) -> AssistantAnswer:
     """실손 일반 질문 + RAG 청크로 약관 근거 설명(AssistantAnswer) 생성.
@@ -1130,9 +1163,10 @@ def generate_explanation(
     chunks_for_llm = _prepare_chunks(chunks)
     valid_chunk_ids = {c["chunk_id"] for c in chunks_for_llm if c["chunk_id"]}
     recent = (history or [])[-8:]  # 직전 문맥만 — 프롬프트 비대 방지
-    user_payload = json.dumps(
-        {"question": question, "chunks": chunks_for_llm}, ensure_ascii=False
-    )
+    qa_payload: dict[str, Any] = {"question": question, "chunks": chunks_for_llm}
+    if notes:
+        qa_payload["session_notes"] = notes  # Sprint 35 — 대화에서 확인된 비슬롯 사실
+    user_payload = json.dumps(qa_payload, ensure_ascii=False)
 
     last_error: SchemaViolationError | None = None
     for attempt in (1, 2):

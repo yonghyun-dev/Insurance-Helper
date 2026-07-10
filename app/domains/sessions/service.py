@@ -288,6 +288,10 @@ def post_message(
 
         # 2) LLM 슬롯 추출 + merge (validator 거치기 위해 model_validate)
         updates = llm.extract_slots(session.history[:-1], text, session.slots)
+        # Sprint 35 — 세션 메모(비슬롯 사실) 분리 누적: dedupe + 최근 10개 유지.
+        new_notes = updates.pop("_notes", None) if isinstance(updates, dict) else None
+        if new_notes:
+            session.notes = list(dict.fromkeys([*session.notes, *new_notes]))[-10:]
         if updates:
             session.slots = _merge_slots(session.slots, updates)
 
@@ -379,7 +383,8 @@ def post_message(
         coverage_result = evaluate_coverage(build_facts_from_slots(session.slots))
         assessment = llm.generate_assessment(
             session.slots, chunks,
-            coverage=coverage_result.model_dump(mode="json"), on_delta=on_delta,
+            coverage=coverage_result.model_dump(mode="json"),
+            notes=session.notes, on_delta=on_delta,
         )
         # audit 에 인용한 chunk_id + confidence 기록 (분쟁 시 재현)
         audit_ctx.retrieved_chunk_ids = [c.chunk_id for c in assessment.citations]
@@ -502,7 +507,8 @@ def _build_comparison(session: Session, audit_ctx: Any) -> SessionResponse | Non
         coverage_result = evaluate_coverage(build_facts_from_slots(pslots))
         try:
             assessment = llm.generate_assessment(
-                pslots, chunks, coverage=coverage_result.model_dump(mode="json")
+                pslots, chunks, coverage=coverage_result.model_dump(mode="json"),
+                notes=session.notes,
             )
         except Exception as exc:  # noqa: BLE001 — 한 보험 실패는 비교 자체를 막지 않음
             logger.warning("비교: %s 판정 실패 — 스킵: %s", policy.insurer, exc)
@@ -651,7 +657,7 @@ def _answer_general_qa(
         return _build_response(session, ask)
 
     answer = llm.generate_explanation(
-        text, chunks, history=session.history[:-1], on_delta=on_delta
+        text, chunks, history=session.history[:-1], notes=session.notes, on_delta=on_delta
     )
     audit_ctx.retrieved_chunk_ids = [c.chunk_id for c in answer.citations]
     _append_assistant(session, answer.message, response_type="answer")

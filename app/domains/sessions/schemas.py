@@ -175,6 +175,10 @@ class Session(BaseModel):
     last_assessment: AssistantAssessment | None = None
     # Sprint 33 — 마지막 비교 결과 보관.
     last_comparison: AssistantComparison | None = None
+    # Sprint 35 — 세션 메모(2층 기억): 슬롯 필드에 담기지 않지만 판정·설명에 영향 주는
+    # 대화 사실("산재 아님", "교통사고 — 가해 차량 있음", "보험 미가입 진술")을 추출 시
+    # 누적해 판정/QA 입력에 전달한다. 케이스별 프롬프트 패치 대신 구조적 문맥 유지.
+    notes: list[str] = Field(default_factory=list)
 
     def is_expired(self, now: datetime, ttl_seconds: int) -> bool:
         """`last_activity_at + ttl` 경과 시 만료.

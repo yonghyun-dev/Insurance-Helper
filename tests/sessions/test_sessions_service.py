@@ -1088,7 +1088,7 @@ class TestPostMessageRagReact:
         assessment = _make_assessment()
         captured_chunks = {}
 
-        def fake_generate_assessment(slots, chunks, coverage=None, on_delta=None):
+        def fake_generate_assessment(slots, chunks, coverage=None, notes=None, on_delta=None):
             captured_chunks["chunks"] = chunks
             return assessment
 
@@ -1271,3 +1271,77 @@ class TestPostMessageRagReact:
         assert response.assistant.type == "ask"
         assert response.status == "gathering"
 
+
+
+# ===========================================================================
+# Sprint 35 — 세션 메모(2층 기억)
+# ===========================================================================
+
+
+class TestSessionNotes:
+    """extract 의 `_notes` 가 Session.notes 로 누적되고 판정 입력에 전달되는지."""
+
+    def _wire(self, monkeypatch, notes_from_extract):
+        from app.domains.sessions.schemas import AssistantAssessment, Citation
+
+        captured: dict = {}
+        monkeypatch.setattr(
+            "app.domains.sessions.service.llm.classify_intent",
+            lambda *a, **kw: "claim_diagnosis",
+        )
+        monkeypatch.setattr(
+            "app.domains.sessions.service.llm.extract_slots",
+            lambda *a, **kw: {
+                "area": "accident_disease",
+                "diagnosis": "발목 골절",
+                "hospitalization_days": 3,
+                "outpatient_visits": 0,
+                "incident_date": "2026-07-01",
+                **({"_notes": list(notes_from_extract)} if notes_from_extract else {}),
+            },
+        )
+        monkeypatch.setattr(
+            "app.domains.sessions.service._search_chunks",
+            lambda *a, **kw: [{
+                "id": "c1", "text": "제3조 보상합니다", "score": 0.9,
+                "metadata": {"insurer_id": "samsung", "clause_no": "제3조"},
+            }],
+        )
+
+        def fake_assessment(slots, chunks, coverage=None, notes=None, on_delta=None):
+            captured["notes"] = notes
+            return AssistantAssessment(
+                type="assessment", likelihood="높음", confidence="full",
+                summary="청구 가능성이 높은 편입니다.", satisfied=[], unsatisfied=[],
+                citations=[Citation(chunk_id="c1", insurer="삼성화재", product="실손의료보험",
+                                    clause="제3조", page=26, version="2024", doc_type="terms",
+                                    text="제3조 보상하는 사항 본문")],
+                next_steps=[], disclaimer="면책",
+            )
+
+        monkeypatch.setattr(
+            "app.domains.sessions.service.llm.generate_assessment", fake_assessment
+        )
+        return captured
+
+    def test_notes_accumulate_and_reach_assessment(self, isolated_store, monkeypatch):
+        captured = self._wire(monkeypatch, ["교통사고 — 가해 차량 있음", "산재 아님"])
+        session = isolated_store.create()
+        post_message(session.session_id, "차에 치여서 3일 입원했어요")
+        assert session.notes == ["교통사고 — 가해 차량 있음", "산재 아님"]
+        assert captured["notes"] == ["교통사고 — 가해 차량 있음", "산재 아님"]
+
+    def test_notes_dedupe_and_cap_at_10(self, isolated_store, monkeypatch):
+        self._wire(monkeypatch, [f"메모{i}" for i in range(12)] + ["메모11"])
+        session = isolated_store.create()
+        post_message(session.session_id, "상황 설명")
+        assert len(session.notes) == 10  # cap
+        assert session.notes[-1] == "메모11"
+        assert len(set(session.notes)) == 10  # dedupe
+
+    def test_no_notes_key_keeps_session_notes_empty(self, isolated_store, monkeypatch):
+        captured = self._wire(monkeypatch, None)
+        session = isolated_store.create()
+        post_message(session.session_id, "발목 골절로 입원했어요")
+        assert session.notes == []
+        assert captured["notes"] == []

@@ -78,6 +78,8 @@ class SessionStateResponse(BaseModel):
     status: SessionStatus
     slots: SlotState
     history: list[Message] = Field(default_factory=list)
+    # Sprint 35 — 세션 메모(비슬롯 사실) 디버그 노출
+    notes: list[str] = Field(default_factory=list)
 
 
 class HelpRequest(BaseModel):
@@ -287,6 +289,7 @@ def get_session_state(session_id: str) -> SessionStateResponse:
         status=session.status,
         slots=session.slots,
         history=session.history,
+        notes=session.notes,
     )
 
 

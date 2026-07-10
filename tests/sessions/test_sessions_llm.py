@@ -713,3 +713,47 @@ class TestStripInternalIds:
         out = _strip_internal_ids("본인 부담금을 보상합니다[^1][^2]. 자세한 내용은 약관 참조[3].")
         assert "[^1]" not in out and "[^2]" not in out and "[3]" not in out
         assert out.startswith("본인 부담금을 보상합니다")
+
+
+class TestSessionNotesExtraction:
+    """Sprint 35 — 세션 메모(2층 기억): 비슬롯 사실을 `_notes` 예약 키로 반환."""
+
+    def test_extract_returns_notes_under_reserved_key(self, monkeypatch):
+        from app.domains.sessions import llm as m
+        from app.domains.sessions.schemas import SlotState
+
+        monkeypatch.setattr(m, "_get_client", lambda: object())
+        monkeypatch.setattr(
+            m, "_call_with_tool",
+            lambda *a, **kw: {
+                "slot_updates": {"diagnosis": "발목 골절"},
+                "session_notes": ["교통사고 — 가해 차량 있음", "  산재 아님  ", ""],
+            },
+        )
+        out = m.extract_slots([], "차에 치였어요", SlotState())
+        assert out["diagnosis"] == "발목 골절"
+        assert out["_notes"] == ["교통사고 — 가해 차량 있음", "산재 아님"]
+
+    def test_notes_absent_when_empty(self, monkeypatch):
+        from app.domains.sessions import llm as m
+        from app.domains.sessions.schemas import SlotState
+
+        monkeypatch.setattr(m, "_get_client", lambda: object())
+        monkeypatch.setattr(
+            m, "_call_with_tool",
+            lambda *a, **kw: {"slot_updates": {}, "session_notes": []},
+        )
+        out = m.extract_slots([], "네", SlotState())
+        assert "_notes" not in out
+
+    def test_note_length_capped(self, monkeypatch):
+        from app.domains.sessions import llm as m
+        from app.domains.sessions.schemas import SlotState
+
+        monkeypatch.setattr(m, "_get_client", lambda: object())
+        monkeypatch.setattr(
+            m, "_call_with_tool",
+            lambda *a, **kw: {"slot_updates": {}, "session_notes": ["가" * 200]},
+        )
+        out = m.extract_slots([], "x", SlotState())
+        assert len(out["_notes"][0]) == 60

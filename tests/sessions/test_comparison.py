@@ -46,7 +46,7 @@ def _wire(monkeypatch):
     # generate_assessment 는 slots.insurer 에 따라 다른 요약 반환
     monkeypatch.setattr(
         "app.domains.sessions.service.llm.generate_assessment",
-        lambda slots, chunks, coverage=None, on_delta=None: _assessment(slots.insurer),
+        lambda slots, chunks, coverage=None, notes=None, on_delta=None: _assessment(slots.insurer),
     )
 
 

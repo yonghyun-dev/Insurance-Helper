@@ -52,7 +52,7 @@ def _wire(monkeypatch, captured: dict):
         lambda *a, **kw: [{"id": "c1", "text": "약관", "score": 0.9, "metadata": {}}],
     )
 
-    def cap(slots, chunks, coverage=None, on_delta=None):
+    def cap(slots, chunks, coverage=None, notes=None, on_delta=None):
         captured["coverage"] = coverage
         return _assessment()
 
