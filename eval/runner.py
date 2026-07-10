@@ -3,7 +3,7 @@
 파일 경로: eval/runner.py
 목적: 평가 시나리오 JSON 1건/전체를 실행하고 메트릭을 출력한다.
 사용:
-    python -m eval.runner --scenario eval/scenarios/auto_basic.json
+    python -m eval.runner --scenario eval/scenarios/ad_hospitalization.json
     python -m eval.runner --all
 
 설계 참고:

@@ -22,3 +22,4 @@
 | 16 | 다중 실손 가입현황-우선 플로우 + 비례분담 설명 (L1) | 구현 중 | 30 | [16_multi-insurance-status-flow.md](requirements/16_multi-insurance-status-flow.md) |
 | 17 | 다중 실손 판정 + 비교 (L3 — 세대·자기부담·비례분담) | 완료 | 33 | [17_multi-policy-comparison.md](requirements/17_multi-policy-comparison.md) |
 | 18 | 전 페르소나 대응 고도화 (정밀/간단·노인/익명) + 가로 약관 반 크롭 + 표준약관 모드 | 완료 | 34 | [18_persona-serving-and-landscape-crop.md](requirements/18_persona-serving-and-landscape-crop.md) |
+| 19 | E2E 정량 지표 — 실손 평가셋 + 2층 채점(결정론 + Bedrock LLM-as-judge) | 완료 | 36 | [19_e2e-judge-metrics.md](requirements/19_e2e-judge-metrics.md) |
