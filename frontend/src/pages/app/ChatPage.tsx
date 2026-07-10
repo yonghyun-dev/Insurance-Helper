@@ -36,6 +36,27 @@ import s from './ChatPage.module.css';
 
 const pct = (r: number) => `${Math.round(r * 100)}%`;
 
+// Sprint 35 — SSE 델타는 버스트(수백 자가 0.5초 내)로 도착해 즉시 덤프하면 스트리밍처럼
+// 보이지 않는다(사용자 실지적: 도움 챗봇의 타이핑 효과와 대비). 성장하는 텍스트를
+// 일정 속도로 따라가는 타이핑 렌더 — 델타가 밀리면 이어서 따라잡는다.
+function LiveTypedText({ text }: { text: string }) {
+  const [count, setCount] = useState(0);
+  const countRef = useRef(0);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const target = text.length;
+      if (countRef.current < target) {
+        countRef.current = Math.min(target, countRef.current + 3);
+        setCount(countRef.current);
+      }
+    }, 16);
+    return () => window.clearInterval(id);
+  }, [text]);
+
+  return <>{text.slice(0, count)}</>;
+}
+
 export interface ChatPageProps {
   user: { name: string; dob: string; phone: string };
   // Sprint 21 — 세션은 AppFlow 에서 생성해 주입(Situation/Loading 과 공유).
@@ -487,9 +508,10 @@ export default function ChatPage({ user, session, onReset, onOpenReview }: ChatP
       body = <StatusBubble />;
     } else if (m.type === 'streaming') {
       // SSE 실시간 텍스트 — 부분 마크다운 깨짐 방지 위해 평문 + 커서. 완료 시 full 렌더로 교체.
+      // 델타 버스트를 즉시 덤프하지 않고 LiveTypedText 로 일정 속도 타이핑(체감 스트리밍).
       body = (
         <p className={s.streamingText}>
-          {m.text}
+          <LiveTypedText text={m.text} />
           <span className={s.caret} />
         </p>
       );

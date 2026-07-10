@@ -874,16 +874,17 @@ def _hydrate_citation_urls(
     from app.infrastructure.core.database import session_scope
     from app.infrastructure.pdfimage import service as pdf_service
 
-    # chunk_id → (document_id, page) 매핑
-    chunk_meta: dict[str, tuple[int, int]] = {}
+    # chunk_id → (document_id, page_start, page_end) 매핑
+    chunk_meta: dict[str, tuple[int, int, int]] = {}
     doc_ids: set[int] = set()
     for c in chunks:
         cid = c.get("id")
         meta = c.get("metadata") or {}
         doc_id = meta.get("document_id")
         page = meta.get("page_start")
+        page_end = meta.get("page_end")
         if cid and isinstance(doc_id, int) and isinstance(page, int):
-            chunk_meta[cid] = (doc_id, page)
+            chunk_meta[cid] = (doc_id, page, page_end if isinstance(page_end, int) else page)
             doc_ids.add(doc_id)
 
     if not doc_ids:
@@ -907,17 +908,34 @@ def _hydrate_citation_urls(
         if not meta:
             hydrated.append(cite)
             continue
-        doc_id, page = meta
+        doc_id, page_start, page_end = meta
         file_path = file_paths.get(doc_id)
         if not file_path:
             hydrated.append(cite)
             continue
 
-        # 이미지 변환 (lazy, 캐시)
+        # Sprint 35 — 인용 페이지를 '하이라이트가 가장 진한 페이지'로 결정론 선택.
+        # 여러 페이지에 걸친 청크는 시작 페이지에 인용 본문의 알맹이가 없을 수 있어
+        # (사용자 실지적: 하이라이트가 안 보임) 청크 범위 내에서 매칭 면적이 최대인
+        # 페이지를 고른다. 지연 상한을 위해 최대 4페이지만 스캔.
+        best_page, best_rects = page_start, []
+        try:
+            from app.infrastructure.pdfimage import highlight as hl
+
+            best_area = -1.0
+            for p in range(page_start, min(page_end, page_start + 3) + 1):
+                rects = hl.find_highlights(file_path, p, cite.text, cite.clause)
+                area = sum(r["w"] * r["h"] for r in rects)
+                if area > best_area + 1e-9:
+                    best_page, best_rects, best_area = p, rects, area
+        except Exception as exc:
+            logger.warning("Citation hydrate — 하이라이트 실패 chunk=%s: %s", cite.chunk_id, exc)
+
+        # 이미지 변환 (lazy, 캐시) — 선택된 페이지 기준
         page_url: str | None = None
         try:
-            pdf_service.render_page(doc_id, cite.page, file_path)
-            page_url = pdf_service.page_image_url(doc_id, cite.page)
+            pdf_service.render_page(doc_id, best_page, file_path)
+            page_url = pdf_service.page_image_url(doc_id, best_page)
         except Exception as exc:
             logger.warning(
                 "Citation hydrate — page 이미지 실패 chunk=%s: %s", cite.chunk_id, exc
@@ -925,22 +943,13 @@ def _hydrate_citation_urls(
 
         pdf_link = pdf_service.pdf_url(file_path)
 
-        # 인용 조항의 페이지 내 위치 하이라이트(정규화 박스). 이미지가 있을 때만.
-        highlights: list[dict[str, float]] = []
-        if page_url:
-            try:
-                from app.infrastructure.pdfimage import highlight as hl
-
-                highlights = hl.find_highlights(file_path, cite.page, cite.text, cite.clause)
-            except Exception as exc:
-                logger.warning("Citation hydrate — 하이라이트 실패 chunk=%s: %s", cite.chunk_id, exc)
-
         hydrated.append(
             cite.model_copy(
                 update={
+                    "page": best_page,
                     "page_image_url": page_url,
                     "pdf_url": pdf_link,
-                    "highlights": highlights,
+                    "highlights": best_rects if page_url else [],
                 }
             )
         )
