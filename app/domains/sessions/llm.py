@@ -479,6 +479,11 @@ _ASSESSMENT_SYSTEM = (
     "  (여러 개를 나열하지 말고 가장 중요한 1개.)\n"
     "- **금지**: \"추가 정보가 있어야 정확한 판단이 가능합니다\" 처럼 무엇을 말하면 되는지 "
     "  알려주지 않고 끝나는 수동형 마무리.\n"
+    "- **금지**: 사용자가 이미 밝힌 사실을 다시 묻는 것 — 입력 slots 나 시나리오에 입원 일수가 "
+    "  있으면 '치료 유형(입원/통원)'을 묻지 말고, 이미 준 정보는 판정에 반영만 한다.\n"
+    "- **교통사고**: 시나리오가 교통사고(차에 치임 등) 피해면, 자동차보험(대인배상)에서 처리된 "
+    "  치료비는 실손 보상에서 제외되고 **본인이 실제 부담한 의료비만** 실손 대상임을 summary 나 "
+    "  unsatisfied 에 한 줄 안내한다.\n"
     "- confidence='full' 이면 후속 요청 문장 자체를 생략한다.\n"
     "\n"
     "**결정론 판정(coverage_decision) 준수 (강제, PM-35)**: 입력에 coverage_decision 이 있으면 이는 "
@@ -969,8 +974,12 @@ _INTENT_SYSTEM = (
     "- general_qa: 실손 제도·약관·보장에 대한 일반 지식 질문 "
     "(예: '실손이 뭐야?', '비급여 자기부담률 얼마야?', '도수치료 보장돼?', '실손에서 안 되는 게 뭐야?'). "
     "본인 상황 서술이 아니라 정보를 묻는 것.\n"
-    "- out_of_domain: 실손·보험과 무관 (예: '파이썬 코드 짜줘', '오늘 날씨').\n"
+    "- out_of_domain: 실손·보험과 **완전히** 무관 (예: '파이썬 코드 짜줘', '오늘 날씨'). "
+    "직전 안내에 대한 반응이나 보험 관련 진술은 절대 out_of_domain 이 아니다.\n"
     "애매하면 claim_diagnosis 로 분류한다(보수적 폴백).\n\n"
+    "**보험 미가입/미상 진술**: '나 보험 없어', '가입 안 했어', '내 보험 잘 몰라' 는 "
+    "out_of_domain 이 아니라 **general_qa** — 문맥에 이어 무보험/미상 상황에 맞는 안내가 필요하다.\n"
+    "**직전 어시스턴트 안내가 주어지면** 사용자 입력을 그에 대한 답변/반응으로 해석해 분류한다.\n\n"
     "**판정 완료 후의 후속 입력 (판정 완료 여부: 예)**:\n"
     "- 직전 안내에 대한 설명·부연 요청은 general_qa "
     "(예: '자기부담금이 뭐예요?', '그 약관이 무슨 뜻이에요?', '왜 중간이에요?', '서류는 뭐가 필요해요?').\n"
@@ -999,7 +1008,12 @@ def _classify_intent_tool() -> dict[str, Any]:
     }
 
 
-def classify_intent(text: str, slots: SlotState, answered: bool = False) -> str:
+def classify_intent(
+    text: str,
+    slots: SlotState,
+    answered: bool = False,
+    last_assistant: str | None = None,
+) -> str:
     """사용자 입력 의도 3분류. 실패/애매 시 'claim_diagnosis'(기존 진단 흐름) 폴백.
 
     규칙 프리필터: 구체 상황 슬롯(진단명·입원·외래)이 이미 채워졌으면 LLM 호출 없이
@@ -1015,9 +1029,12 @@ def classify_intent(text: str, slots: SlotState, answered: bool = False) -> str:
         return "claim_diagnosis"
 
     client = _get_client()
+    # Sprint 35 — 직전 어시스턴트 발화를 함께 줘 문맥상 답변("나 보험 없어")이
+    # out_of_domain 으로 오분류돼 상용구가 대화를 끊는 문제를 막는다(실관측).
+    ctx = f"직전 어시스턴트 안내: {last_assistant[:200]}\n" if last_assistant else ""
     user_msg = (
         f"판정 완료 여부: {'예 — 직전에 청구 가능성 판정을 안내했음' if answered else '아니오'}\n"
-        f"현재 슬롯: {slots.model_dump_json(exclude_none=True)}\n사용자 입력: {text}"
+        f"{ctx}현재 슬롯: {slots.model_dump_json(exclude_none=True)}\n사용자 입력: {text}"
     )
     messages = _messages_for_llm(
         history=[], system_prompt=_INTENT_SYSTEM, new_user_msg=user_msg
@@ -1056,6 +1073,12 @@ _EXPLANATION_SYSTEM = (
     "9. **대화 문맥(멀티턴)**: 이전 대화가 함께 주어지면, 질문이 직전 안내를 가리키는 경우 "
     "   ('그게 무슨 뜻이에요?', '왜 중간이에요?', '그 자기부담금은요?') 그 문맥에 이어서 답한다. "
     "   직전에 청구 가능성 판정을 안내했다면 그 판정 내용과 모순되지 않게 설명한다.\n"
+    "10. **보험 미가입 진술**('나 보험 없어' 등): 상용구로 돌리지 말고 문맥에 맞게 안내한다 — "
+    "   실손 청구는 가입자만 가능함을 부드럽게 알리고, 상황에 맞는 대안을 준다. 특히 대화가 "
+    "   교통사고(차에 치임 등) 피해라면 **가해자 측 자동차보험(대인배상)으로 치료비 처리가 가능**하고 "
+    "   본인 보험이 없어도 보상받을 수 있음을 안내한다.\n"
+    "11. **교통사고 상식**: 교통사고 피해 치료비 중 자동차보험(대인배상)·산재보험에서 처리된 금액은 "
+    "   실손에서 보상하지 않으며, 본인이 실제 부담한 의료비만 실손 보상 대상이다.\n"
 )
 
 # citations 항목 스키마는 assessment 와 동일 (약관 인용 포맷 공유).

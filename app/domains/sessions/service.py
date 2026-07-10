@@ -268,7 +268,13 @@ def post_message(
         # 수집 중에는 classify_intent 프리필터가 진단으로 확정하지만, **판정 완료 후에는
         # 우회**해 후속 질문(설명 요청)이 재판정으로 반복되지 않게 한다 (Sprint 35 멀티턴).
         answered = session.status == "answered"
-        intent = llm.classify_intent(text, session.slots, answered=answered)
+        last_assistant = next(
+            (m.content for m in reversed(session.history[:-1]) if m.role == "assistant"),
+            None,
+        )
+        intent = llm.classify_intent(
+            text, session.slots, answered=answered, last_assistant=last_assistant
+        )
         if intent == "general_qa":
             return _answer_general_qa(session, text, audit_ctx, on_delta=on_delta)
         if intent == "out_of_domain":
