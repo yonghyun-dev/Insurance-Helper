@@ -12,6 +12,14 @@ const STEPS = [
   '필요한 확인 사항을 정리하고 있습니다',
 ];
 
+// Sprint 35 — 스텝 애니메이션이 끝난 뒤에도 응답 전이면 마지막 단계를 '진행 중'으로
+// 유지하고 힌트를 순환시켜, 오래 걸려도 화면이 멈춰 보이지 않게 한다.
+const HOLD_HINTS = [
+  '약관 원문을 한 줄씩 대조하고 있어요',
+  '보장 조건과 자기부담금을 계산하고 있어요',
+  '근거 조항을 추려 답변을 작성하고 있어요',
+];
+
 export interface LoadingPageProps {
   onDone: () => void;
   // Sprint 21 — 실제 첫 응답이 도착했는지. 애니메이션이 끝나도 응답 전이면 마지막 단계에서 대기.
@@ -20,16 +28,23 @@ export interface LoadingPageProps {
 
 export default function LoadingPage({ onDone, ready }: LoadingPageProps) {
   const [progress, setProgress] = useState(0);
+  const [hint, setHint] = useState(0);
 
   useEffect(() => {
-    if (progress >= STEPS.length) {
-      if (!ready) return; // 실제 백엔드 첫 응답 대기
+    if (ready) {
+      // 응답 도착 — 남은 단계를 완료 표시하고 짧게 보여준 뒤 전환.
+      setProgress(STEPS.length);
       const t = window.setTimeout(onDone, 400);
       return () => window.clearTimeout(t);
     }
-    const t = window.setTimeout(() => setProgress((p) => p + 1), 900);
+    if (progress < STEPS.length - 1) {
+      const t = window.setTimeout(() => setProgress((p) => p + 1), 900);
+      return () => window.clearTimeout(t);
+    }
+    // 마지막 단계 유지 — 스피너가 계속 돌고 힌트가 순환한다 (정지 화면 방지).
+    const t = window.setTimeout(() => setHint((h) => h + 1), 3200);
     return () => window.clearTimeout(t);
-  }, [progress, ready, onDone]);
+  }, [progress, ready, onDone, hint]);
 
   return (
     <div className={s.shell} data-screen-label="04 분석 중">
@@ -48,14 +63,14 @@ export default function LoadingPage({ onDone, ready }: LoadingPageProps) {
           <div className={s.steps}>
             {STEPS.map((label, i) => {
               const done = i < progress;
-              const active = i === progress;
+              const active = i === progress || (i === STEPS.length - 1 && progress === STEPS.length - 1);
               return (
                 <div
                   key={i}
                   className={clsx(
                     s.step,
                     done && s['step--done'],
-                    active && s['step--active'],
+                    !done && active && s['step--active'],
                   )}
                 >
                   <span className={s.stepIcon}>
@@ -65,6 +80,11 @@ export default function LoadingPage({ onDone, ready }: LoadingPageProps) {
                 </div>
               );
             })}
+            {!ready && progress === STEPS.length - 1 ? (
+              <p key={hint} className={s.holdHint}>
+                {HOLD_HINTS[hint % HOLD_HINTS.length]}…
+              </p>
+            ) : null}
           </div>
         </div>
       </main>

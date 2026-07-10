@@ -7,9 +7,12 @@ import s from './SituationPage.module.css';
 export interface SituationPageProps {
   onSubmit: (text: string) => void;
   anonymous?: boolean;   // Sprint 34 — 비로그인 표준약관 상담(스텝퍼 숨김, 카피 변경)
+  // Sprint 35 — 로그인했지만 가입 실손 0건(마이데이터 미연동 포함): 스텝퍼는 유지하되
+  // 표준약관 기준으로 안내됨을 미리 알린다.
+  noPolicy?: boolean;
 }
 
-export default function SituationPage({ onSubmit, anonymous = false }: SituationPageProps) {
+export default function SituationPage({ onSubmit, anonymous = false, noPolicy = false }: SituationPageProps) {
   const [text, setText] = useState('');
   const ta = useRef<HTMLTextAreaElement>(null);
 
@@ -33,7 +36,7 @@ export default function SituationPage({ onSubmit, anonymous = false }: Situation
           </h1>
           <p className={s.sub}>
             겪고 계신 상황을 평소 말씀하시는 그대로 적어주세요.<br />
-            {anonymous
+            {anonymous || noPolicy
               ? '가입 정보 없이 일반 실손 표준약관 기준으로 먼저 안내해 드려요.'
               : '보험길잡이가 가입한 보험과 약관을 함께 살펴보고 안내해드립니다.'}
           </p>

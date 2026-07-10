@@ -179,6 +179,15 @@ class Settings(BaseSettings):
         default="dummy",
         description="마이데이터 어댑터 — dummy (fixture) 또는 real (사업자 인증 후)",
     )
+    # Sprint 35 — 금융 마이데이터 표준 API (보험업권 /v2/insu/*) 실 연동 파라미터.
+    # 사업자 승인 후 이 두 값만 .env 에 넣으면 RealAdapter 가 표준 규격 응답을
+    # normalizer 로 내부 스키마(InsuranceDict)에 매핑해 동일하게 동작한다.
+    mydata_api_base_url: str = Field(
+        default="", description="마이데이터 정보제공자 API base URL (승인 후 설정)"
+    )
+    mydata_api_token: str = Field(
+        default="", description="마이데이터 접근토큰 (전송요구 OAuth — .env 전용)"
+    )
 
     # Sprint 18 — 건강보험 API 어댑터 backend (REQ-14)
     health_data_backend: Literal["dummy", "real"] = Field(

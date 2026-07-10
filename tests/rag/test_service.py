@@ -37,8 +37,8 @@ class FakeRetriever:
             raise self.boom
         return self.results[:top_k]
 
-    def retrieve_freeform(self, text, top_k=8):
-        self.calls.append({"text": text, "top_k": top_k})
+    def retrieve_freeform(self, text, top_k=8, insurer_id=None):
+        self.calls.append({"text": text, "top_k": top_k, "insurer_id": insurer_id})
         if self.boom:
             raise self.boom
         return self.results[:top_k]
@@ -86,7 +86,7 @@ class TestRetrieveFreeform:
         fake = FakeRetriever([{"id": "c1", "text": "t", "score": 0.5, "metadata": {}}])
         _wire(monkeypatch, fake)
         out = svc.retrieve_freeform("도수치료 보장", top_k=6)
-        assert fake.calls[0] == {"text": "도수치료 보장", "top_k": 6}
+        assert fake.calls[0] == {"text": "도수치료 보장", "top_k": 6, "insurer_id": None}
         assert out[0]["id"] == "c1"
 
     def test_freeform_exception_returns_empty(self, monkeypatch):

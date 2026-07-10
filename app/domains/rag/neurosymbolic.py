@@ -116,9 +116,17 @@ class NeuroSymbolicRetriever:
         insurer_id = (filters or {}).get("insurer_id")
         return self.retrieve_fused(query, insurer_id, filters, top_k)
 
-    def retrieve_freeform(self, text: str, top_k: int = 8) -> list[RetrievalResult]:
-        """자유 질의(도움 챗봇/일반 QA) — 보험사 스코프 없이 동일 융합 파이프라인."""
-        return self.retrieve_fused(text, None, None, top_k)
+    def retrieve_freeform(
+        self, text: str, top_k: int = 8, insurer_id: str | None = None
+    ) -> list[RetrievalResult]:
+        """자유 질의(도움 챗봇/일반 QA) — 동일 융합 파이프라인.
+
+        Sprint 35 — insurer_id 가 주어지면(로그인 사용자의 세션 QA) 가입 보험사 약관으로
+        스코프해 타 보험사 기준 답변('메리츠화재 약관 기준으로는…' 오귀속)을 막는다.
+        미지정(익명/도움 챗봇)은 기존대로 무필터 교차검색.
+        """
+        filters = {"insurer_id": insurer_id} if insurer_id else None
+        return self.retrieve_fused(text, insurer_id, filters, top_k)
 
     # ------------------------------------------------------------------
     def retrieve_fused(

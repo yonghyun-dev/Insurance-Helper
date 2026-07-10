@@ -265,8 +265,10 @@ def post_message(
             return _build_response(session, ask)
 
         # 1.6) 의도 분류 (PM-34) — 일반 지식 질문/도메인 이탈은 슬롯 깔때기 대신 별도 처리.
-        # 진행 중 대화(구체 상황 슬롯 존재)는 classify_intent 프리필터가 진단으로 확정.
-        intent = llm.classify_intent(text, session.slots)
+        # 수집 중에는 classify_intent 프리필터가 진단으로 확정하지만, **판정 완료 후에는
+        # 우회**해 후속 질문(설명 요청)이 재판정으로 반복되지 않게 한다 (Sprint 35 멀티턴).
+        answered = session.status == "answered"
+        intent = llm.classify_intent(text, session.slots, answered=answered)
         if intent == "general_qa":
             return _answer_general_qa(session, text, audit_ctx, on_delta=on_delta)
         if intent == "out_of_domain":
@@ -609,8 +611,24 @@ def _answer_general_qa(
     from app.shared import audit
 
     store = get_session_store()
-    # Sprint 32 T2 — 뉴로심볼릭 단일 경로 (점수컷·심볼릭 확장 포함, 광역=보험사 스코프 없음)
-    chunks = rag_service.retrieve_freeform(text, top_k=8)
+    # Sprint 35 멀티턴 — 짧은 지시형 후속 질문('그게 무슨 뜻이에요?')은 그 자체로는 검색이
+    # 안 되므로, 직전 어시스턴트 안내의 앞부분을 검색 질의에 보강한다(LLM 에는 history 전달).
+    query = text
+    if len(text.strip()) < 20:
+        last_assistant = next(
+            (m.content for m in reversed(session.history[:-1]) if m.role == "assistant"),
+            "",
+        )
+        if last_assistant:
+            query = f"{text} — 직전 안내: {last_assistant[:120]}"
+    # Sprint 32 T2 — 뉴로심볼릭 단일 경로 (점수컷·심볼릭 확장 포함).
+    # Sprint 35 — 가입 보험사가 확인된 세션은 그 보험사 약관으로 스코프해
+    # '메리츠화재 약관 기준으로는…' 식 타 보험사 오귀속 답변을 막는다. 미상이면 교차검색.
+    chunks = rag_service.retrieve_freeform(
+        query, top_k=8, insurer_id=session.slots.insurer_id
+    )
+    if not chunks and session.slots.insurer_id:
+        chunks = rag_service.retrieve_freeform(query, top_k=8)  # 스코프 0건 → 교차 폴백
     if not chunks:
         ask = AssistantAsk(
             type="ask",
@@ -626,7 +644,9 @@ def _answer_general_qa(
         audit.complete(audit_ctx, assistant_response_type="ask", assistant_message=ask.message)
         return _build_response(session, ask)
 
-    answer = llm.generate_explanation(text, chunks, on_delta=on_delta)
+    answer = llm.generate_explanation(
+        text, chunks, history=session.history[:-1], on_delta=on_delta
+    )
     audit_ctx.retrieved_chunk_ids = [c.chunk_id for c in answer.citations]
     _append_assistant(session, answer.message, response_type="answer")
     store.touch(session, status="answered")

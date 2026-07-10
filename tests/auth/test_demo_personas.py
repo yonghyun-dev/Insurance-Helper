@@ -37,21 +37,21 @@ class TestResolvePersona:
 
 
 class TestListPersonas:
-    def test_ten_personas(self):
+    def test_eleven_personas(self):
         items = personas.list_personas()
-        assert len(items) == 10
+        assert len(items) == 11
         assert all({"external_id", "name", "phone", "dob", "label"} <= set(p) for p in items)
 
 
 class TestSeedAndFind:
-    def test_seed_creates_ten_then_idempotent(self, session):
+    def test_seed_creates_all_then_idempotent(self, session):
         from app.domains.users.models import User
 
         created = personas.seed_demo_users(session)
-        assert created == 10
+        assert created == 11
         rows = session.query(User).all()
         ext_ids = {u.mydata_external_id for u in rows}
-        assert ext_ids == {f"p{n:02d}" for n in range(1, 11)}
+        assert ext_ids == {f"p{n:02d}" for n in range(1, 12)}
 
         # 재실행 멱등 — 신규 0
         assert personas.seed_demo_users(session) == 0
@@ -76,7 +76,7 @@ class TestDemoPersonasEndpoint:
         r = client.get("/api/v1/auth/demo-personas")
         assert r.status_code == 200
         items = r.json()
-        assert len(items) == 10
+        assert len(items) == 11
         first = items[0]
         assert set(first) == {"name", "phone", "dob", "label"}
         # external_id 같은 내부 키는 노출하지 않음

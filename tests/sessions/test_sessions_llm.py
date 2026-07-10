@@ -677,3 +677,32 @@ class TestTonePromptGuide:
         from app.domains.sessions.llm import _ASSESSMENT_SYSTEM
         has_polite = "안내드립니다" in _ASSESSMENT_SYSTEM or "드리겠습니다" in _ASSESSMENT_SYSTEM
         assert has_polite
+
+
+class TestStripInternalIds:
+    """Sprint 35 — 본문 내부 식별자 누수 결정론 제거 (실관측: '(citation: uuid, …)' 노출)."""
+
+    def test_strips_citation_paren_with_uuids(self):
+        from app.domains.sessions.llm import _strip_internal_ids
+
+        leaked = (
+            "예를 들어 입원 급여 치료비의 20%를 본인이 부담한 후, 나머지 80%를 보상해 드립니다. "
+            "(citation: e8af124a-95c4-4b64-a003-3b85ae4de206, 5d7053cd-3ac6-4e7f-b33d-dbae9969bc3c, "
+            "c911e33c-1f70-47fc-b787-0021f7186f6f, ce9a2d25-bb33-4d11-8950-98c1bf5fbda7)"
+        )
+        out = _strip_internal_ids(leaked)
+        assert "citation" not in out
+        assert "e8af124a" not in out
+        assert out.endswith("보상해 드립니다.")
+
+    def test_strips_bare_uuid(self):
+        from app.domains.sessions.llm import _strip_internal_ids
+
+        out = _strip_internal_ids("근거는 1a2b3c4d-1111-2222-3333-444455556666 조항입니다.")
+        assert "1a2b3c4d" not in out
+
+    def test_keeps_normal_text_and_parens(self):
+        from app.domains.sessions.llm import _strip_internal_ids
+
+        text = "통원 치료 시 공제금액(1~2만원)과 보장대상 의료비의 20% 중 큰 금액을 차감합니다."
+        assert _strip_internal_ids(text) == text

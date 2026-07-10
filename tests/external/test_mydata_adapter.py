@@ -73,7 +73,7 @@ class TestDummyAdapter:
 class TestRealAdapter:
     def test_raises_not_configured_error(self):
         adapter = RealAdapter()
-        with pytest.raises(MydataNotConfiguredError, match="사업자 인증 대기"):
+        with pytest.raises(MydataNotConfiguredError, match="사업자 승인 후"):
             adapter.fetch_insurances("1")
 
 

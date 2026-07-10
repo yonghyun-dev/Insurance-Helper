@@ -133,3 +133,18 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* Sprint 35 — 응답 대기 중 순환 힌트 (정지 화면 방지) */
+.holdHint {
+  margin: 4px 0 0 32px;
+  font-size: 13px;
+  color: var(--text-helper);
+  animation: hintFade 3.2s ease both;
+}
+
+@keyframes hintFade {
+  0% { opacity: 0; transform: translateY(4px); }
+  12% { opacity: 1; transform: translateY(0); }
+  88% { opacity: 1; }
+  100% { opacity: 0.4; }
+}

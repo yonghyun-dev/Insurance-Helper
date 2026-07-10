@@ -22,6 +22,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable
 from datetime import date
 from typing import Any
@@ -449,7 +450,14 @@ _ASSESSMENT_SYSTEM = (
     "   단 summary/satisfied/unsatisfied/next_steps 등 **본문 텍스트에는 chunk_id·내부 식별자·'청크' 표현 금지**\n"
     "3. citations.minItems=1 — 인용 없는 응답 금지\n"
     "4. disclaimer 는 정해진 면책 문구 사용\n"
-    "5. summary 는 1~2 문장의 한국어 요약\n"
+    "5. **summary 는 3~4문장, 다음 구조를 지킨다 (Sprint 35 — '그래서 저 약관이 뭔데?'에 답할 것)**:\n"
+    "   ① 결론 — 청구 가능성 등급과 이유 요지 한 문장.\n"
+    "   ② **인용 조항 해설** — 화면에 함께 표시되는 근거 약관 원문이 '무엇을 정하고 있는지' 쉬운 말로 "
+    "한 문장. 조항 번호·제목을 자연스럽게 언급한다. "
+    "(예: \"근거로 표시된 제3조(보장종목별 보상내용)는 상해로 입원·통원 치료를 받으면 "
+    "본인이 부담한 의료비를 보상한다고 정하고 있어요.\")\n"
+    "   ③ 적용 — 사용자의 상황이 그 조항의 어떤 요건에 해당하는지(또는 왜 미충족인지) 연결.\n"
+    "   ④ (partial 일 때만) 맨 끝 후속 한 줄.\n"
     "6. **confidence 판정**: 입력 slots 의 필수 슬롯이 모두 채워졌으면 'full', "
     "  unknown_slots 가 있거나 일부 슬롯이 None 이면 'partial'.\n"
     "7. **입력 slots 에 insurer/insurer_id 가 없으면 = 가입 보험 미상(익명/미공유)**: 이때는 "
@@ -465,8 +473,12 @@ _ASSESSMENT_SYSTEM = (
     "- **어떤 경우에도 summary 첫 문장은 '결론(가능성)'으로 시작한다.** 정보가 부족해도 "
     "  헤지·사과·유보(예: '정보가 부족하지만…')를 앞세우지 말 것. 예: "
     "  \"발목 골절로 입원하신 경우 실손 청구 가능성은 높은 편입니다.\" 처럼 먼저 답한다.\n"
-    "- 부족한 정보가 있으면 summary/응답의 **맨 끝에 딱 한 줄**로만 부드럽게 덧붙인다: "
-    "  \"참고로 {부족 항목}을(를) 알려주시면 더 정확히 확인해 드릴 수 있어요.\" (여러 개를 나열하지 말고 가장 중요한 1개).\n"
+    "- 부족한 정보가 있으면 summary/응답의 **맨 끝에 딱 한 줄**, 반드시 **행동형**으로 덧붙인다 — "
+    "  사용자가 채팅창에 무엇을 어떻게 입력하면 되는지 예시까지: "
+    "  \"참고로 '계단에서 넘어진 사고예요'처럼 사고 경위를 알려주시면 바로 다시 확인해 드려요.\" "
+    "  (여러 개를 나열하지 말고 가장 중요한 1개.)\n"
+    "- **금지**: \"추가 정보가 있어야 정확한 판단이 가능합니다\" 처럼 무엇을 말하면 되는지 "
+    "  알려주지 않고 끝나는 수동형 마무리.\n"
     "- confidence='full' 이면 후속 요청 문장 자체를 생략한다.\n"
     "\n"
     "**결정론 판정(coverage_decision) 준수 (강제, PM-35)**: 입력에 coverage_decision 이 있으면 이는 "
@@ -681,11 +693,19 @@ def generate_assessment(
             raise LLMError(f"generate_assessment 호출 실패: {exc}") from exc
 
         try:
-            return _build_assessment(raw, valid_chunk_ids=valid_chunk_ids, chunks=chunks)
+            assessment = _build_assessment(raw, valid_chunk_ids=valid_chunk_ids, chunks=chunks)
         except SchemaViolationError as exc:
             last_error = exc
             logger.warning("generate_assessment 결과 검증 실패 (attempt %d): %s", attempt, exc)
             continue
+        # 표준약관 모드 결정론 보정 — LLM 이 '표준약관 기준' 지칭을 생략하면(실관측)
+        # 인용 라벨(특정 보험사)만 보여 혼동 소지 → summary 에 기준 명시를 코드로 보장.
+        if standard_mode and "표준약관" not in assessment.summary:
+            assessment.summary = (
+                assessment.summary.rstrip()
+                + " 이 안내는 특정 가입 보험이 아닌 일반 실손 표준약관 기준이에요."
+            )
+        return assessment
 
     # 두 번 모두 실패
     raise last_error or SchemaViolationError("generate_assessment: 알 수 없는 schema 위반")
@@ -757,6 +777,32 @@ def _localize_slot_names(text: str) -> str:
     return text
 
 
+# Sprint 35 — 본문에 새는 내부 식별자 결정론 제거 (프롬프트 금지만으론 누수 실관측:
+# "(citation: e8af124a-…, 5d7053cd-…)" 가 사용자 화면에 그대로 노출).
+_UUID_RE = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
+_CITE_PAREN_RE = re.compile(
+    r"[\(\[]\s*(?:citations?|chunk_id|근거|출처)\s*[:：][^\)\]]*[\)\]]", re.IGNORECASE
+)
+
+
+def _strip_internal_ids(text: str) -> str:
+    """본문에서 chunk UUID·'(citation: …)' 류 내부 식별자 표기를 제거한다.
+
+    근거 제시는 citations 필드(칩/좌측 패널)가 담당 — 본문은 자연어만.
+    """
+    text = _CITE_PAREN_RE.sub("", text)
+    text = _UUID_RE.sub("", text)
+    # 제거 후 잔여물 정리: 빈 괄호, 쉼표만 남은 괄호, 중복 공백
+    text = re.sub(r"[\(\[]\s*[,;·\s]*[\)\]]", "", text)
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    return text.strip()
+
+
+def _clean_text(text: str) -> str:
+    """본문 텍스트 공통 방어 — 내부 식별자 제거 + 슬롯명 한글화."""
+    return _localize_slot_names(_strip_internal_ids(text))
+
+
 def _build_assessment(
     raw: dict[str, Any],
     *,
@@ -796,11 +842,11 @@ def _build_assessment(
             citations = _hydrate_citation_urls(citations, chunks)
         assessment = AssistantAssessment(
             likelihood=raw["likelihood"],
-            summary=_localize_slot_names(raw["summary"]),
-            satisfied=[_localize_slot_names(s) for s in raw.get("satisfied", [])],
-            unsatisfied=[_localize_slot_names(s) for s in raw.get("unsatisfied", [])],
+            summary=_clean_text(raw["summary"]),
+            satisfied=[_clean_text(s) for s in raw.get("satisfied", [])],
+            unsatisfied=[_clean_text(s) for s in raw.get("unsatisfied", [])],
             citations=citations,
-            next_steps=[_localize_slot_names(s) for s in raw.get("next_steps", [])],
+            next_steps=[_clean_text(s) for s in raw.get("next_steps", [])],
             confidence=raw.get("confidence", "full"),  # Sprint 6 — backward-compat default
             disclaimer=raw["disclaimer"],
         )
@@ -915,7 +961,14 @@ _INTENT_SYSTEM = (
     "(예: '실손이 뭐야?', '비급여 자기부담률 얼마야?', '도수치료 보장돼?', '실손에서 안 되는 게 뭐야?'). "
     "본인 상황 서술이 아니라 정보를 묻는 것.\n"
     "- out_of_domain: 실손·보험과 무관 (예: '파이썬 코드 짜줘', '오늘 날씨').\n"
-    "애매하면 claim_diagnosis 로 분류한다(보수적 폴백)."
+    "애매하면 claim_diagnosis 로 분류한다(보수적 폴백).\n\n"
+    "**판정 완료 후의 후속 입력 (판정 완료 여부: 예)**:\n"
+    "- 직전 안내에 대한 설명·부연 요청은 general_qa "
+    "(예: '자기부담금이 뭐예요?', '그 약관이 무슨 뜻이에요?', '왜 중간이에요?', '서류는 뭐가 필요해요?').\n"
+    "- 상황 사실의 추가·정정은 claim_diagnosis — 재판정 "
+    "(예: '사실 통원도 2번 했어요', '입원은 5일이었어요', '다른 보험으로도 봐줘').\n"
+    "- 판정 후에는 설명 요청을 claim_diagnosis 로 잘못 보내면 같은 판정만 반복되므로, "
+    "새 사실이 없으면 general_qa 를 우선한다."
 )
 
 
@@ -937,17 +990,24 @@ def _classify_intent_tool() -> dict[str, Any]:
     }
 
 
-def classify_intent(text: str, slots: SlotState) -> str:
+def classify_intent(text: str, slots: SlotState, answered: bool = False) -> str:
     """사용자 입력 의도 3분류. 실패/애매 시 'claim_diagnosis'(기존 진단 흐름) 폴백.
 
     규칙 프리필터: 구체 상황 슬롯(진단명·입원·외래)이 이미 채워졌으면 LLM 호출 없이
-    진단 흐름 확정 — 진행 중 대화를 QA 로 이탈시키지 않는다.
+    진단 흐름 확정 — 진행 중(수집 단계) 대화를 QA 로 이탈시키지 않는다.
+
+    Sprint 35 멀티턴: **판정 완료(answered) 후에는 프리필터를 우회**한다. 슬롯이 차 있다는
+    이유로 모든 후속 질문('자기부담금이 뭐예요?')이 재판정으로 빨려 들어가 같은 판정 카드만
+    반복되던 문제 — 판정 후엔 LLM 분류로 설명 요청(general_qa)과 사실 정정(재판정)을 가른다.
     """
-    if slots.diagnosis or slots.hospitalization_days or slots.outpatient_visits:
+    if not answered and (
+        slots.diagnosis or slots.hospitalization_days or slots.outpatient_visits
+    ):
         return "claim_diagnosis"
 
     client = _get_client()
     user_msg = (
+        f"판정 완료 여부: {'예 — 직전에 청구 가능성 판정을 안내했음' if answered else '아니오'}\n"
         f"현재 슬롯: {slots.model_dump_json(exclude_none=True)}\n사용자 입력: {text}"
     )
     messages = _messages_for_llm(
@@ -984,6 +1044,9 @@ _EXPLANATION_SYSTEM = (
     "   실손은 중복가입해도 실제 부담한 의료비 한도 내에서 여러 보험사가 '비례분담'해 지급하므로 "
     "   **이중(중복) 수령은 되지 않는다**고 정확히 안내한다(여러 개 유지 시 보험료만 이중일 수 있음). "
     "   '어느 회사가 더 이득'이라는 비교는 실손에선 성립하지 않음. (진단비 등 정액 특약은 별도로 각각 지급.)\n"
+    "9. **대화 문맥(멀티턴)**: 이전 대화가 함께 주어지면, 질문이 직전 안내를 가리키는 경우 "
+    "   ('그게 무슨 뜻이에요?', '왜 중간이에요?', '그 자기부담금은요?') 그 문맥에 이어서 답한다. "
+    "   직전에 청구 가능성 판정을 안내했다면 그 판정 내용과 모순되지 않게 설명한다.\n"
 )
 
 # citations 항목 스키마는 assessment 와 동일 (약관 인용 포맷 공유).
@@ -1011,12 +1074,16 @@ _EXPLANATION_RESPONSE_SCHEMA = {
 def generate_explanation(
     question: str,
     chunks: list[dict[str, Any]],
+    history: list[Message] | None = None,
     on_delta: Callable[[str], None] | None = None,
 ) -> AssistantAnswer:
     """실손 일반 질문 + RAG 청크로 약관 근거 설명(AssistantAnswer) 생성.
 
     generate_assessment 와 동일한 인용 검증/hydrate 방어를 적용하되, 가능성 등급 없이
     설명 텍스트 + 인용 + 후속 질문을 반환한다.
+
+    Sprint 35 멀티턴: history(최근 대화)를 함께 전달해 "그게 무슨 뜻이에요?" 같은
+    직전 안내를 가리키는 후속 질문에 문맥 있는 답을 만든다.
 
     Raises:
         LLMError: chunks 비어있음 / 호출 실패
@@ -1028,6 +1095,7 @@ def generate_explanation(
     client = _get_client()
     chunks_for_llm = _prepare_chunks(chunks)
     valid_chunk_ids = {c["chunk_id"] for c in chunks_for_llm if c["chunk_id"]}
+    recent = (history or [])[-8:]  # 직전 문맥만 — 프롬프트 비대 방지
     user_payload = json.dumps(
         {"question": question, "chunks": chunks_for_llm}, ensure_ascii=False
     )
@@ -1041,7 +1109,7 @@ def generate_explanation(
                 "입력된 청크에 존재하는 값만 사용하고 최소 1건을 포함하세요."
             )
         messages = _messages_for_llm(
-            history=[], system_prompt=system, new_user_msg=user_payload
+            history=recent, system_prompt=system, new_user_msg=user_payload
         )
         try:
             if on_delta is not None and attempt == 1:
@@ -1099,7 +1167,7 @@ def _build_answer(
         if chunks:
             citations = _hydrate_citation_urls(citations, chunks)
         answer = AssistantAnswer(
-            message=_localize_slot_names(raw["message"]),
+            message=_clean_text(raw["message"]),
             citations=citations,
             related_questions=raw.get("related_questions", [])[:4],
             needs_policy=bool(raw.get("needs_policy", False)),
@@ -1272,7 +1340,7 @@ def generate_help_answer(
             logger.warning("generate_help_answer citation hydrate 실패: %s", exc)
             citations = []
     return AssistantAnswer(
-        message=_localize_slot_names(raw.get("message", "").strip()),
+        message=_clean_text(raw.get("message", "").strip()),
         citations=citations,
         related_questions=(raw.get("related_questions") or [])[:4],
         needs_policy=bool(raw.get("needs_policy", False)),
@@ -1291,7 +1359,7 @@ def _help_plain_answer(client: OpenAI, question: str) -> AssistantAnswer:
     except Exception as exc:  # noqa: BLE001
         raise LLMError(f"generate_help_answer 폴백 호출 실패: {exc}") from exc
     return AssistantAnswer(
-        message=(response.choices[0].message.content or "").strip(),
+        message=_strip_internal_ids((response.choices[0].message.content or "").strip()),
         citations=[], related_questions=[], needs_policy=False,
     )
 

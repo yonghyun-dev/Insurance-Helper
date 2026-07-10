@@ -80,15 +80,19 @@ def retrieve(
     return out[:top_k]
 
 
-def retrieve_freeform(text: str, top_k: int = 8) -> list[dict[str, Any]]:
-    """자유 질의(도움 챗봇·일반 QA) — 보험사 스코프 없이 동일 융합·점수컷 파이프라인.
+def retrieve_freeform(
+    text: str, top_k: int = 8, insurer_id: str | None = None
+) -> list[dict[str, Any]]:
+    """자유 질의(도움 챗봇·일반 QA) — 동일 융합·점수컷 파이프라인.
 
     기존에는 vectorstore.query 직행이라 점수컷·심볼릭이 우회됐다 (Sprint 32 T2 일원화).
+    Sprint 35 — insurer_id 지정 시 가입 보험사 약관으로 스코프(세션 QA 의 타 보험사
+    기준 답변 오귀속 방지). 미지정(익명/도움 챗봇)은 기존대로 무필터 교차검색.
     """
     retriever = _retriever_singleton()
     breaker = _rag_circuit_breaker()
     try:
-        results = breaker.call(retriever.retrieve_freeform, text, top_k)
+        results = breaker.call(retriever.retrieve_freeform, text, top_k, insurer_id)
     except (CircuitBreakerError, Exception) as exc:  # noqa: BLE001
         logger.error("RAG retrieve_freeform 실패: %s", exc)
         return []

@@ -50,12 +50,14 @@ export default function AppFlow() {
     void session.sendMessage(prefix + situation.trim(), seed);
   }, [stage, situation, session, selected]);
 
-  // Loading → Chat: 실제 첫 응답(ask/assessment/answer)이 도착하면 전환.
-  // PM-34 자유질의(answer) 누락 시 첫 메시지가 일반질문이면 로딩에서 멈추던 버그 수정.
+  // Loading → Chat: 첫 응답이 도착하면 전환. Sprint 35 — 완성 응답만 기다리지 않고
+  // SSE 첫 델타('streaming')가 오는 즉시 전환해 답변이 실시간 타이핑되는 것을 보여준다
+  // (로딩 화면에서 수십 초 정지해 보이던 체감 지연 해소).
   const firstResponseReady = session.messages.some(
     (m) =>
       m.role === 'assistant' &&
-      (m.type === 'ask' || m.type === 'assessment' || m.type === 'answer' || m.type === 'comparison'),
+      (m.type === 'ask' || m.type === 'assessment' || m.type === 'answer' ||
+        m.type === 'comparison' || (m.type === 'streaming' && m.text.length > 0)),
   );
 
   function reset() {
@@ -69,10 +71,19 @@ export default function AppFlow() {
   let page: ReactNode;
   switch (stage) {
     case 'welcome':
+      // Sprint 35 — 새 흐름 시작 시 이전 세션(복원분)을 반드시 폐기.
+      // 특히 익명 진입이 직전 로그인 세션을 이어받으면 이전 개인 컨텍스트(가입 보험·대화)가
+      // 그대로 노출되는 개인정보 문제가 된다.
       page = (
         <WelcomePage
-          onStart={() => setStage('identity')}
-          onAnonymous={() => setStage('anon-situation')}
+          onStart={() => {
+            void session.startNewSession();
+            setStage('identity');
+          }}
+          onAnonymous={() => {
+            void session.startNewSession();
+            setStage('anon-situation');
+          }}
         />
       );
       break;
@@ -101,6 +112,7 @@ export default function AppFlow() {
     case 'situation':
       page = (
         <SituationPage
+          noPolicy={selected.length === 0}
           onSubmit={(text) => {
             setSituation(text);
             setStage('loading');

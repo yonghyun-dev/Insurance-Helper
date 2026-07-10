@@ -118,7 +118,7 @@ class TestPostMessageIntentRouting:
         )
         monkeypatch.setattr(
             "app.domains.sessions.service.rag_service.retrieve_freeform",
-            lambda text, top_k=8: [],
+            lambda text, top_k=8, insurer_id=None: [],
         )
         gen_called = []
         monkeypatch.setattr(
