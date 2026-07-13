@@ -1345,3 +1345,51 @@ class TestSessionNotes:
         post_message(session.session_id, "발목 골절로 입원했어요")
         assert session.notes == []
         assert captured["notes"] == []
+
+
+class TestInsurerChangeSync:
+    """Sprint 36 — 대화로 보험사 변경 시 insurer_id 재동기화 (실관측: 라벨·이미지 분열)."""
+
+    def _wire(self, monkeypatch, extracted_insurer):
+        from app.domains.sessions.schemas import AssistantAsk
+
+        monkeypatch.setattr(
+            "app.domains.sessions.service.llm.classify_intent",
+            lambda *a, **kw: "claim_diagnosis",
+        )
+        monkeypatch.setattr(
+            "app.domains.sessions.service.llm.extract_slots",
+            lambda *a, **kw: {"insurer": extracted_insurer},
+        )
+        monkeypatch.setattr(
+            "app.domains.sessions.service.llm.next_question",
+            lambda *a, **kw: AssistantAsk(type="ask", message="진단명을 알려주세요.",
+                                          expected_slots=["diagnosis"], options=[]),
+        )
+
+    def test_insurer_change_resyncs_id(self, isolated_store, monkeypatch):
+        self._wire(monkeypatch, "한화 손해보험")  # 띄어쓰기 발화 그대로
+        session = isolated_store.create()
+        session.slots = session.slots.model_copy(
+            update={"area": "accident_disease", "insurer": "메리츠화재", "insurer_id": "meritz"}
+        )
+        post_message(session.session_id, "나는 한화 손해보험이야")
+        assert session.slots.insurer_id == "hanwha"
+
+    def test_unknown_insurer_clears_id(self, isolated_store, monkeypatch):
+        self._wire(monkeypatch, "DB손해보험")  # 인덱스 밖 보험사
+        session = isolated_store.create()
+        session.slots = session.slots.model_copy(
+            update={"area": "accident_disease", "insurer": "메리츠화재", "insurer_id": "meritz"}
+        )
+        post_message(session.session_id, "DB손해보험으로 바꿨어")
+        assert session.slots.insurer_id is None  # 표준약관 모드로
+
+    def test_same_insurer_keeps_id(self, isolated_store, monkeypatch):
+        self._wire(monkeypatch, "메리츠화재")
+        session = isolated_store.create()
+        session.slots = session.slots.model_copy(
+            update={"area": "accident_disease", "insurer": "메리츠화재", "insurer_id": "meritz"}
+        )
+        post_message(session.session_id, "메리츠화재 맞아요")
+        assert session.slots.insurer_id == "meritz"

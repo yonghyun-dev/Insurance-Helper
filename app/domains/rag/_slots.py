@@ -18,24 +18,30 @@ from app.domains.sessions.schemas import SlotState
 # 실손 전용 5개 손보사 (Sprint 27). 신규 보험사 적재 시 여기 추가.
 _INSURER_NAME_TO_CODE: dict[str, str] = {
     "삼성화재": "samsung",
+    "삼성": "samsung",
     "현대해상": "hyundai",
+    "현대": "hyundai",
     "메리츠화재": "meritz",
     "메리츠": "meritz",
     "한화손해보험": "hanwha",
     "한화손보": "hanwha",
+    "한화": "hanwha",
     "롯데손해보험": "lotte",
     "롯데손보": "lotte",
+    "롯데": "lotte",
 }
 
 
 def insurer_to_code(insurer: str | None) -> str | None:
     """한글 보험사명 → insurer_id 코드. 매핑 실패 시 None (필터 미적용).
 
-    정확 매칭 우선, 실패 시 부분 매칭("삼성화재해상보험" → samsung).
+    공백 제거 후 정확 매칭 우선, 실패 시 부분 매칭. Sprint 36 — "한화 손해보험"처럼
+    띄어 쓰거나 "한화" 약칭으로 말해도 매핑되도록 정규화·약칭 보강(실관측:
+    보험사 변경 발화가 매핑 실패 → 필터 미적용/구 코드 잔존).
     """
     if not insurer:
         return None
-    name = insurer.strip()
+    name = insurer.strip().replace(" ", "")
     if name in _INSURER_NAME_TO_CODE:
         return _INSURER_NAME_TO_CODE[name]
     for key, code in _INSURER_NAME_TO_CODE.items():

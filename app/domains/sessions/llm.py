@@ -911,8 +911,8 @@ def _hydrate_citation_urls(
     from app.infrastructure.core.database import session_scope
     from app.infrastructure.pdfimage import service as pdf_service
 
-    # chunk_id → (document_id, page_start, page_end) 매핑
-    chunk_meta: dict[str, tuple[int, int, int]] = {}
+    # chunk_id → (document_id, page_start, page_end, 원 메타) 매핑
+    chunk_meta: dict[str, tuple[int, int, int, dict[str, Any]]] = {}
     doc_ids: set[int] = set()
     for c in chunks:
         cid = c.get("id")
@@ -921,7 +921,9 @@ def _hydrate_citation_urls(
         page = meta.get("page_start")
         page_end = meta.get("page_end")
         if cid and isinstance(doc_id, int) and isinstance(page, int):
-            chunk_meta[cid] = (doc_id, page, page_end if isinstance(page_end, int) else page)
+            chunk_meta[cid] = (
+                doc_id, page, page_end if isinstance(page_end, int) else page, meta
+            )
             doc_ids.add(doc_id)
 
     if not doc_ids:
@@ -945,7 +947,7 @@ def _hydrate_citation_urls(
         if not meta:
             hydrated.append(cite)
             continue
-        doc_id, page_start, page_end = meta
+        doc_id, page_start, page_end, cmeta = meta
         file_path = file_paths.get(doc_id)
         if not file_path:
             hydrated.append(cite)
@@ -980,9 +982,18 @@ def _hydrate_citation_urls(
 
         pdf_link = pdf_service.pdf_url(file_path)
 
+        # Sprint 36 — 인용 라벨 결정론 보정: insurer 문자열은 LLM 이 쓰는 값이라
+        # 슬롯과 청크가 어긋난 상태(보험사 변경 직후 등)에서 청크 실체와 다른 보험사명이
+        # 붙을 수 있다(실관측: 메리츠 청크에 '한화손해보험' 라벨). 청크 메타가 진실.
+        from app.domains.rag._slots import insurer_display_name
+
+        true_insurer = insurer_display_name(
+            cmeta.get("insurer_id"), cmeta.get("insurer_name")
+        ) or cite.insurer
         hydrated.append(
             cite.model_copy(
                 update={
+                    "insurer": true_insurer,
                     "page": best_page,
                     "page_image_url": page_url,
                     "pdf_url": pdf_link,

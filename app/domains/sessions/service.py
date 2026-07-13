@@ -292,6 +292,16 @@ def post_message(
         new_notes = updates.pop("_notes", None) if isinstance(updates, dict) else None
         if new_notes:
             session.notes = list(dict.fromkeys([*session.notes, *new_notes]))[-10:]
+        # Sprint 36 — 보험사 변경 시 insurer_id 재동기화 (실관측 버그): 대화로 보험사를
+        # 바꾸면 이름(insurer)만 갱신되고 옛 insurer_id 가 남아, 필터가 id 우선이라
+        # 검색·인용·페이지 이미지가 이전 보험사로 고정된 채 라벨만 새 보험사로 갈라짐.
+        if updates.get("insurer"):
+            from app.domains.rag._slots import insurer_to_code
+
+            new_code = insurer_to_code(updates["insurer"])
+            if new_code != session.slots.insurer_id:
+                # 인덱스 내 보험사면 코드 교체, 미지 보험사면 무효화(표준약관 모드로)
+                updates["insurer_id"] = new_code
         if updates:
             session.slots = _merge_slots(session.slots, updates)
 
