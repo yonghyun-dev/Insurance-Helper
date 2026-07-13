@@ -1,0 +1,232 @@
+{
+ "repeat": 3,
+ "items": 25,
+ "consistency": "15/25 (60%)",
+ "per_item": [
+  {
+   "id": "traffic_inpatient_clear",
+   "grades": [
+    "높음",
+    "중간",
+    "중간"
+   ],
+   "consistent": false
+  },
+  {
+   "id": "traffic_not_workplace",
+   "grades": [
+    "중간",
+    "중간",
+    "중간"
+   ],
+   "consistent": true
+  },
+  {
+   "id": "disease_flu_outpatient",
+   "grades": [
+    "높음",
+    "높음",
+    "높음"
+   ],
+   "consistent": true
+  },
+  {
+   "id": "disease_elderly_minimal",
+   "grades": [
+    "높음",
+    "높음",
+    "높음"
+   ],
+   "consistent": true
+  },
+  {
+   "id": "disease_chronic_hospital",
+   "grades": [
+    "높음",
+    "중간",
+    "높음"
+   ],
+   "consistent": false
+  },
+  {
+   "id": "dosu_within_limit",
+   "grades": [
+    "중간",
+    "중간",
+    "중간"
+   ],
+   "consistent": true
+  },
+  {
+   "id": "anon_standard_short",
+   "grades": [
+    "높음",
+    "중간",
+    "높음"
+   ],
+   "consistent": false
+  },
+  {
+   "id": "cancer_surgery_inpatient",
+   "grades": [
+    "높음",
+    "높음",
+    "높음"
+   ],
+   "consistent": true
+  },
+  {
+   "id": "boundary_cosmetic_excluded",
+   "grades": [
+    "낮음",
+    null,
+    null
+   ],
+   "consistent": false
+  },
+  {
+   "id": "boundary_checkup_excluded",
+   "grades": [
+    null,
+    null,
+    null
+   ],
+   "consistent": true
+  },
+  {
+   "id": "qa_fact_addition_rejudge",
+   "grades": [
+    "높음",
+    "높음",
+    "높음"
+   ],
+   "consistent": true
+  },
+  {
+   "id": "excl_pregnancy",
+   "grades": [
+    null,
+    null,
+    null
+   ],
+   "consistent": true
+  },
+  {
+   "id": "excl_dental_disease",
+   "grades": [
+    "중간",
+    "중간",
+    "중간"
+   ],
+   "consistent": true
+  },
+  {
+   "id": "excl_hanbang",
+   "grades": [
+    null,
+    "중간",
+    null
+   ],
+   "consistent": false
+  },
+  {
+   "id": "excl_overseas",
+   "grades": [
+    "중간",
+    "중간",
+    "중간"
+   ],
+   "consistent": true
+  },
+  {
+   "id": "excl_drunk_injury",
+   "grades": [
+    "중간",
+    null,
+    "중간"
+   ],
+   "consistent": false
+  },
+  {
+   "id": "style_typo_slang",
+   "grades": [
+    "높음",
+    "높음",
+    "높음"
+   ],
+   "consistent": true
+  },
+  {
+   "id": "style_long_rambling",
+   "grades": [
+    null,
+    null,
+    "높음"
+   ],
+   "consistent": false
+  },
+  {
+   "id": "style_banmal_short",
+   "grades": [
+    "중간",
+    "높음",
+    "중간"
+   ],
+   "consistent": false
+  },
+  {
+   "id": "style_elderly_speech",
+   "grades": [
+    "높음",
+    "중간",
+    "높음"
+   ],
+   "consistent": false
+  },
+  {
+   "id": "style_korean_numerals",
+   "grades": [
+    "높음",
+    "높음",
+    "높음"
+   ],
+   "consistent": true
+  },
+  {
+   "id": "long_correction_days",
+   "grades": [
+    null,
+    null,
+    null
+   ],
+   "consistent": true
+  },
+  {
+   "id": "long_qa_interleave",
+   "grades": [
+    "높음",
+    "높음",
+    "높음"
+   ],
+   "consistent": true
+  },
+  {
+   "id": "long_accident_context_build",
+   "grades": [
+    null,
+    null,
+    "ERROR:extract_slots 호출 실패: Request timed out."
+   ],
+   "consistent": false
+  },
+  {
+   "id": "long_change_mind",
+   "grades": [
+    "높음",
+    "높음",
+    "높음"
+   ],
+   "consistent": true
+  }
+ ]
+}

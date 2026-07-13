@@ -79,6 +79,11 @@ def run_item(item: dict[str, Any]) -> dict[str, Any]:
     # 필수 언급
     if item.get("must_mention_any"):
         checks["mention_ok"] = any(k in final_text for k in item["must_mention_any"])
+    # 결정론 인용 적합 (Sprint 36 고도화) — 인용 조항/본문에 기대 키워드 중 하나라도 존재.
+    # judge 의존 없는 1차 인용 지표 (judge 는 의미 적합성, 본 채점은 키워드 존재).
+    if item.get("expected_citation_keywords") and citations:
+        joined = " ".join(f"{c.get('clause') or ''} {c.get('text') or ''}" for c in citations)
+        checks["citation_kw_ok"] = any(k in joined for k in item["expected_citation_keywords"])
     # 금지 패턴
     violations = [p for p in item.get("forbidden_patterns", []) if re.search(p, final_text)]
     checks["no_forbidden"] = not violations
@@ -101,7 +106,8 @@ def aggregate(records: list[dict[str, Any]], judged: bool) -> dict[str, Any]:
         return sum(1 for v in vals if v), len(vals)
 
     agg: dict[str, Any] = {"items": len(records)}
-    for key in ("type_ok", "likelihood_ok", "has_citation", "mention_ok", "no_forbidden"):
+    for key in ("type_ok", "likelihood_ok", "has_citation", "citation_kw_ok",
+                "mention_ok", "no_forbidden"):
         ok, n = rate(key, "deterministic")
         if n:
             agg[f"det_{key}"] = f"{ok}/{n} ({round(ok / n * 100)}%)"
@@ -113,16 +119,58 @@ def aggregate(records: list[dict[str, Any]], judged: bool) -> dict[str, Any]:
     return agg
 
 
+def consistency_run(items: list[dict[str, Any]], repeat: int) -> dict[str, Any]:
+    """등급 명시 문항을 repeat 회 반복 실행 — run-to-run 등급 일관성 측정.
+
+    judge 미호출(결정론만). 문항별로 매 실행의 likelihood 가 전부 동일하면 consistent.
+    """
+    targets = [i for i in items if "expected_likelihood_in" in i]
+    per_item: list[dict[str, Any]] = []
+    for item in targets:
+        grades: list[str | None] = []
+        for _ in range(repeat):
+            try:
+                rec = run_item(item)
+                grades.append(rec["actual_likelihood"])
+            except Exception as exc:  # noqa: BLE001
+                grades.append(f"ERROR:{str(exc)[:40]}")
+        per_item.append({
+            "id": item["id"],
+            "grades": grades,
+            "consistent": len(set(grades)) == 1,
+        })
+        print(f"  {item['id']}: {grades} {'✓' if len(set(grades)) == 1 else '✗ 변동'}")
+    n = len(per_item)
+    ok = sum(1 for r in per_item if r["consistent"])
+    return {
+        "repeat": repeat,
+        "items": n,
+        "consistency": f"{ok}/{n} ({round(ok / n * 100) if n else 0}%)",
+        "per_item": per_item,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--no-judge", action="store_true", help="결정론 채점만 (Bedrock 미호출)")
     parser.add_argument("--only", help="특정 문항 id 만 실행")
+    parser.add_argument("--repeat", type=int, default=0,
+                        help="등급 명시 문항을 N회 반복해 등급 일관성만 측정 (judge 미호출)")
     args = parser.parse_args()
 
     eval_set = json.loads(_EVAL_SET.read_text(encoding="utf-8"))
     items = eval_set["items"]
     if args.only:
         items = [i for i in items if i["id"] == args.only]
+
+    if args.repeat:
+        print(f"=== 등급 일관성 측정 (repeat={args.repeat}) ===")
+        cons = consistency_run(items, args.repeat)
+        print(f"\n일관성: {cons['consistency']}")
+        out = _RESULTS.parent / "consistency.json"
+        out.write_text(json.dumps(cons, ensure_ascii=False, indent=1), encoding="utf-8")
+        print(f"저장: {out}")
+        return
 
     judge = None
     if not args.no_judge:

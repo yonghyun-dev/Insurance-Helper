@@ -267,5 +267,133 @@
       }
     ]
   },
-  "p11": []
+  "p11": {
+    "user_external_id": "p11",
+    "fetched_at": "2026-07-13T09:00:00Z",
+    "treatments": []
+  },
+  "p12": {
+    "user_external_id": "p12",
+    "fetched_at": "2026-07-13T09:00:00Z",
+    "treatments": []
+  },
+  "p13": {
+    "user_external_id": "p13",
+    "fetched_at": "2026-07-13T09:00:00Z",
+    "treatments": [
+      {
+        "treatment_id": "T-2026-1301",
+        "treatment_date": "2025-10-12",
+        "treatment_period": "2025-10-12 ~ 2025-10-12",
+        "hospital_name": "부산우리병원",
+        "hospital_code": "26440012",
+        "department": "내과",
+        "diagnosis_codes": [
+          "J20.9"
+        ],
+        "diagnosis_names": [
+          "급성 기관지염"
+        ],
+        "is_hospitalization": false,
+        "hospitalization_days": 0,
+        "outpatient_visits": 1,
+        "total_cost": 68000,
+        "patient_paid": 32000
+      }
+    ]
+  },
+  "p14": {
+    "user_external_id": "p14",
+    "fetched_at": "2026-07-13T09:00:00Z",
+    "treatments": [
+      {
+        "treatment_id": "T-2024-1401",
+        "treatment_date": "2024-11-20",
+        "treatment_period": "2024-11-20 ~ 2024-11-22",
+        "hospital_name": "서울중앙병원",
+        "hospital_code": "11110099",
+        "department": "외과",
+        "diagnosis_codes": [
+          "K35.8"
+        ],
+        "diagnosis_names": [
+          "급성 충수염"
+        ],
+        "is_hospitalization": true,
+        "hospitalization_days": 3,
+        "outpatient_visits": 1,
+        "total_cost": 1900000,
+        "patient_paid": 640000
+      }
+    ]
+  },
+  "p15": {
+    "user_external_id": "p15",
+    "fetched_at": "2026-07-13T09:00:00Z",
+    "treatments": [
+      {
+        "treatment_id": "T-2026-1501",
+        "treatment_date": "2026-05-02",
+        "treatment_period": "2026-05-02 ~ 2026-05-02",
+        "hospital_name": "연세미래의원",
+        "hospital_code": "11110150",
+        "department": "이비인후과",
+        "diagnosis_codes": [
+          "J03.9"
+        ],
+        "diagnosis_names": [
+          "급성 편도염"
+        ],
+        "is_hospitalization": false,
+        "hospitalization_days": 0,
+        "outpatient_visits": 2,
+        "total_cost": 54000,
+        "patient_paid": 21000
+      },
+      {
+        "treatment_id": "T-2026-1502",
+        "treatment_date": "2026-06-18",
+        "treatment_period": "2026-06-18 ~ 2026-06-18",
+        "hospital_name": "연세미래의원",
+        "hospital_code": "11110150",
+        "department": "정형외과",
+        "diagnosis_codes": [
+          "S93.4"
+        ],
+        "diagnosis_names": [
+          "발목 염좌"
+        ],
+        "is_hospitalization": false,
+        "hospitalization_days": 0,
+        "outpatient_visits": 1,
+        "total_cost": 43000,
+        "patient_paid": 18000
+      }
+    ]
+  },
+  "p16": {
+    "user_external_id": "p16",
+    "fetched_at": "2026-07-13T09:00:00Z",
+    "treatments": [
+      {
+        "treatment_id": "T-2026-1601",
+        "treatment_date": "2026-04-08",
+        "treatment_period": "2026-04-08 ~ 2026-04-08",
+        "hospital_name": "메디플러스의원",
+        "hospital_code": "41130077",
+        "department": "피부과",
+        "diagnosis_codes": [
+          "L23.9"
+        ],
+        "diagnosis_names": [
+          "접촉피부염"
+        ],
+        "is_hospitalization": false,
+        "hospitalization_days": 0,
+        "outpatient_visits": 1,
+        "total_cost": 38000,
+        "patient_paid": 15000
+      }
+    ]
+  }
 }

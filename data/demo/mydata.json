@@ -151,5 +151,58 @@
       "generation": 4
     }
   ],
-  "p11": []
+  "p11": [],
+  "p12": [
+    {
+      "insurer_id": "hanwha",
+      "insurer_name": "한화손해보험",
+      "product_id": "hanwha_silson",
+      "product_name": "실손의료보험",
+      "policy_no": "SILSON-2023-1200",
+      "area": "accident_disease",
+      "valid_from": "2023-04-01",
+      "valid_to": null,
+      "generation": 4
+    }
+  ],
+  "p13": [
+    {
+      "insurer_id": "lotte",
+      "insurer_name": "롯데손해보험",
+      "product_id": "lotte_silson",
+      "product_name": "실손의료보험",
+      "policy_no": "SILSON-2018-1300",
+      "area": "accident_disease",
+      "valid_from": "2018-08-01",
+      "valid_to": "2025-08-01",
+      "generation": 3
+    }
+  ],
+  "p14": [
+    {
+      "insurer_id": "samsung",
+      "insurer_name": "삼성화재",
+      "product_id": "samsung_silson",
+      "product_name": "실손의료보험",
+      "policy_no": "SILSON-2025-1400",
+      "area": "accident_disease",
+      "valid_from": "2025-05-01",
+      "valid_to": null,
+      "generation": 4
+    }
+  ],
+  "p15": [],
+  "p16": [
+    {
+      "insurer_id": "meritz",
+      "insurer_name": "메리츠화재",
+      "product_id": "meritz_silson",
+      "product_name": "실손의료보험",
+      "policy_no": "SILSON-2022-1600",
+      "area": "accident_disease",
+      "valid_from": "2022-02-01",
+      "valid_to": null,
+      "generation": 4
+    }
+  ]
 }
