@@ -397,6 +397,23 @@ class AssistantAnswer(BaseModel):
     )
 
 
+class HelpAnswer(BaseModel):
+    """도움 챗봇('무엇이든 물어보세요') 전용 응답 (PM-43 T1.2).
+
+    AssistantAnswer(메인 QA, 인용 최소 1건 강제=환각 차단)와 **의도적으로 분리**한다.
+    도움 챗봇은 설계상 사용법 질문에 인용 없이 답하므로 citations 를 강제하지 않는다
+    (약관 세부 날조는 프롬프트 규칙 3이 차단). 메인 경로의 인용 강제는 그대로 유지.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["help"] = "help"
+    message: str = Field(..., min_length=1)
+    citations: list[Citation] = Field(default_factory=list)  # 사용법 질문이면 빈 배열 허용
+    related_questions: list[str] = Field(default_factory=list, max_length=4)
+    needs_policy: bool = False
+
+
 # ---------------------------------------------------------------------------
 # 다중 실손 비교 (Sprint 33 L3)
 # ---------------------------------------------------------------------------

@@ -36,6 +36,7 @@ from app.domains.sessions.schemas import (
     AssistantAsk,
     AssistantAssessment,
     Citation,
+    HelpAnswer,
     Message,
     ReclaimItem,
     ReclaimPlan,
@@ -189,10 +190,14 @@ _EXTRACT_SLOTS_TOOL = {
                     # 이 값으로 면책(미용/검진/임신)을 결정론 판정한다. 뉴럴이 분류하는 사실.
                     "purpose": {
                         "type": "string",
-                        "enum": ["treatment", "cosmetic", "preventive", "pregnancy"],
+                        "enum": [
+                            "treatment", "cosmetic", "preventive",
+                            "pregnancy", "self_harm", "crime_war",
+                        ],
                         "description": (
-                            "청구 목적: treatment(치료·기본) / cosmetic(미용·성형·외모개선) / "
-                            "preventive(건강검진·예방접종) / pregnancy(임신·출산·산후)"
+                            "청구 목적/성격: treatment(치료·기본) / cosmetic(미용·성형·외모개선) / "
+                            "preventive(건강검진·예방접종) / pregnancy(임신·출산·산후) / "
+                            "self_harm(고의 자해·자살시도) / crime_war(범죄행위·전쟁·내란)"
                         ),
                     },
                     # 자유 메타 — 청구 판단 무관, 사용자 확인 카드 노출 전용
@@ -245,10 +250,12 @@ def _extract_slots_system(today: date) -> str:
         "   - '지난주', '며칠 전' 같은 모호 표현은 추출 생략\n"
         "4. `diagnosis`(진단명, 예: 급성 충수염), `hospitalization_days`(입원 일수), "
         "`outpatient_visits`(외래 횟수) 를 명시 시 추출.\n"
-        "4-a. **`purpose`(청구 목적) 분류** — 치료 외 목적 단서가 있으면 반드시 추출:\n"
+        "4-a. **`purpose`(청구 목적) 분류** — 치료 외 목적/성격 단서가 있으면 반드시 추출:\n"
         "   - cosmetic: 미용·성형·외모개선 (쌍꺼풀·코 성형·지방흡입·보톡스·점 제거 등)\n"
         "   - preventive: 건강검진·예방접종·영양주사 등 예방 목적\n"
         "   - pregnancy: 임신·출산·제왕절개·산후 관련\n"
+        "   - self_harm: 고의 자해·자살시도 정황\n"
+        "   - crime_war: 피보험자의 범죄행위·전쟁·내란 등\n"
         "   - treatment: 질병·상해 치료(기본). 단서 없으면 생략(치료로 간주).\n"
         "6-a. **\"모름\"/\"몰라\"/\"모르겠어\"/\"잘 모르겠어\" 등 명시적 무지 표현** → 해당 슬롯을 `unknown_slots` 배열에 추가 "
         "(slot_updates 에는 넣지 않는다). 예: '보험사 잘 모르겠어' → unknown_slots=['insurer'].\n"
@@ -1301,7 +1308,7 @@ _HELP_RESPONSE_SCHEMA = {
 
 def generate_help_answer(
     question: str, chunks: list[dict[str, Any]] | None = None
-) -> AssistantAnswer:
+) -> HelpAnswer:
     """도움 챗봇('무엇이든 물어보세요') 전용 — RAG 근거 일반 QA + 사용법 안내.
 
     메인 상담(generate_assessment)과 달리 **청구 가능성 판정을 하지 않는다.** 대신:
@@ -1342,7 +1349,7 @@ def generate_help_answer(
         except Exception as exc:  # noqa: BLE001 — 인용 하이드레이트 실패는 무시(본문은 유효)
             logger.warning("generate_help_answer citation hydrate 실패: %s", exc)
             citations = []
-    return AssistantAnswer(
+    return HelpAnswer(
         message=_clean_text(raw.get("message", "").strip()),
         citations=citations,
         related_questions=(raw.get("related_questions") or [])[:4],
@@ -1350,7 +1357,7 @@ def generate_help_answer(
     )
 
 
-def _help_plain_answer(client: OpenAI, question: str) -> AssistantAnswer:
+def _help_plain_answer(client: OpenAI, question: str) -> HelpAnswer:
     """구조화 호출 실패 시 plain 텍스트 폴백 (인용 없이 본문만)."""
     messages = _messages_for_llm(
         history=[], system_prompt=_HELP_SYSTEM, new_user_msg=question.strip()
@@ -1361,7 +1368,7 @@ def _help_plain_answer(client: OpenAI, question: str) -> AssistantAnswer:
         )
     except Exception as exc:  # noqa: BLE001
         raise LLMError(f"generate_help_answer 폴백 호출 실패: {exc}") from exc
-    return AssistantAnswer(
+    return HelpAnswer(
         message=_strip_internal_ids((response.choices[0].message.content or "").strip()),
         citations=[], related_questions=[], needs_policy=False,
     )

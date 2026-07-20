@@ -1393,3 +1393,36 @@ class TestInsurerChangeSync:
         )
         post_message(session.session_id, "메리츠화재 맞아요")
         assert session.slots.insurer_id == "meritz"
+
+
+class TestHelpUncitedAnswer:
+    """PM-43 T1.2 — 도움 챗봇 사용법 질문은 인용 0건으로 답해도 크래시 안 함.
+
+    이전: generate_help_answer 가 메인 타입 AssistantAnswer(citations min 1)를 재사용해
+    사용법 질문(인용 0)에서 ValidationError 크래시. HelpAnswer 로 분리해 복구.
+    """
+
+    def test_usage_question_returns_help_answer_without_citations(self, monkeypatch):
+        from app.domains.sessions import llm
+        from app.domains.sessions.schemas import HelpAnswer
+
+        monkeypatch.setattr(llm, "_get_client", lambda: object())
+        monkeypatch.setattr(
+            llm, "_call_structured",
+            lambda *a, **kw: {"message": "오른쪽 위 버튼으로 시작하세요.",
+                              "citations": [], "related_questions": [], "needs_policy": False},
+        )
+        ans = llm.generate_help_answer("이거 어떻게 써요?", chunks=[])
+        assert isinstance(ans, HelpAnswer)
+        assert ans.citations == []
+        assert ans.message
+
+    def test_main_answer_still_enforces_citation(self):
+        """메인 QA 타입(AssistantAnswer)의 인용 최소 1건 강제는 유지(환각 차단)."""
+        import pytest
+        from pydantic import ValidationError
+
+        from app.domains.sessions.schemas import AssistantAnswer
+
+        with pytest.raises(ValidationError):
+            AssistantAnswer(message="약관상 보상됩니다.", citations=[])

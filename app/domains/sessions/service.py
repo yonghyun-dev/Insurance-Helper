@@ -40,6 +40,7 @@ from app.domains.sessions.schemas import (
     AssistantAssessment,
     AssistantComparison,
     DeductibleView,
+    HelpAnswer,
     Message,
     PolicyAssessment,
     PolicyRef,
@@ -692,7 +693,7 @@ def _answer_general_qa(
     return _build_response(session, answer)
 
 
-def answer_help(text: str) -> AssistantAnswer:
+def answer_help(text: str) -> HelpAnswer:
     """도움 챗봇('무엇이든 물어보세요') 전용 — RAG 근거 일반 QA + 사용법 안내.
 
     메인 상담(post_message)과 역할을 분리한다:
