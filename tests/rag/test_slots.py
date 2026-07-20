@@ -5,12 +5,11 @@ app/rag/_slots.py 단위 테스트.
 테스트 대상:
     - slots_to_query: area 별 쿼리 생성 (accident_disease / 빈 슬롯)
     - slots_to_filters: area 유무에 따른 필터 반환
-    - slots_to_question: 자연어 질문 생성 (area 별 + 옵션 필드 포함/미포함)
 """
 
 from __future__ import annotations
 
-from app.domains.rag._slots import slots_to_filters, slots_to_query, slots_to_question
+from app.domains.rag._slots import slots_to_filters, slots_to_query
 from app.domains.sessions.schemas import SlotState
 
 from tests.rag.conftest import (
@@ -89,39 +88,3 @@ class TestSlotsToFilters:
         slots = SlotState(area="accident_disease", insurer="알수없는보험")
         filters = slots_to_filters(slots)
         assert filters == {"area": "accident_disease"}
-
-
-# ===========================================================================
-# slots_to_question
-# ===========================================================================
-
-
-class TestSlotsToQuestion:
-    """slots_to_question — GraphCypherQAChain 용 자연어 질문 생성."""
-
-    def test_empty_slot_returns_generic_question(self):
-        slots = make_empty_slot()
-        question = slots_to_question(slots)
-        assert "보험금 지급 사유" in question
-        assert "약관" in question
-
-    def test_accident_disease_area_mentions_insurance_type(self):
-        slots = make_accident_disease_slot()
-        question = slots_to_question(slots)
-        assert "실손의료보험" in question
-
-    def test_accident_disease_with_diagnosis_included(self):
-        slots = make_accident_disease_slot(diagnosis="골절")
-        question = slots_to_question(slots)
-        assert "골절" in question
-
-    def test_product_name_included_when_set(self):
-        slots = SlotState(area="accident_disease", product="실손의료비보험")
-        question = slots_to_question(slots)
-        assert "실손의료비보험" in question
-
-    def test_question_ends_with_payment_clause(self):
-        slots = make_accident_disease_slot()
-        question = slots_to_question(slots)
-        assert "보험금 지급 사유" in question
-        assert "면책 조항" in question

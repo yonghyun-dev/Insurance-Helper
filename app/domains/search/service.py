@@ -158,7 +158,7 @@ def similarity_search(
     Args:
         query_text: 검색 자연어.
         top_k: 반환 개수.
-        filters: where 필터 (예: {"area": "auto"} 또는 {"area":.., "insurer_id":..}).
+        filters: where 필터 (예: {"area": "accident_disease", "insurer_id": ..}).
             다중 키는 내부에서 Chroma `$and` 로 변환된다.
 
     Returns:

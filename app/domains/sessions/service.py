@@ -122,33 +122,30 @@ def _compute_missing(slots: SlotState) -> list[str]:
 
 
 # Sprint 6/34 — partial assessment 진입 조건. Sprint 34: 되묻기 1회로 완화(답변-우선).
-# 노인/간단 사용자 표현을 키워드에 보강(대충 물어도 바로 답).
-_PARTIAL_KEYWORDS: tuple[str, ...] = (
-    "그냥", "됐어", "알려줘", "그만", "다 모름", "몰라", "모르", "잘 몰라", "없어", "그런 거",
-)
 _PARTIAL_ASK_THRESHOLD: int = 1
 _PARTIAL_UNKNOWN_THRESHOLD: int = 2
 
 
 def _should_partial(
-    slots: SlotState, missing: list[str], ask_count: int, user_text: str
+    slots: SlotState, missing: list[str], ask_count: int, *, wants_answer_now: bool
 ) -> bool:
     """partial assessment 진입 조건 — 하나라도 충족하면 되묻기 없이 바로 판정.
 
     조건:
-        1. unknown_slots 수 ≥ 2 — 사용자가 명시적으로 "모름" 표시한 슬롯 다수
+        1. unknown_slots 수 ≥ 2 — 사용자가 명시적으로 "모름" 표시한 슬롯 다수(LLM 추출)
         2. ask 횟수 ≥ 1 — 되묻기는 최대 1회 (답변-우선)
-        3. 사용자 입력에 "그냥"/"됐어"/"알려줘"/"그만" 키워드 — 명시 의사
+        3. wants_answer_now — '더 묻지 말고 지금 답해달라'는 사용자 의사.
+           PM-43: 이 의도 판단은 코드 키워드가 아니라 extract_slots(LLM) 가 문맥으로
+           분류한 `wants_immediate_answer` 플래그로만 결정한다.
 
     면책 등 '심볼릭 엔진이 이미 종결 판정한' 케이스의 되묻기 생략은 여기가 아니라
-    post_message 가 coverage_result 로 직접 판단한다(치료량 등 추가 슬롯이 판정을
-    바꾸지 못하므로 되물을 이유가 없음).
+    post_message 가 coverage_result 로 직접 판단한다.
     """
     if len(slots.unknown_slots) >= _PARTIAL_UNKNOWN_THRESHOLD:
         return True
     if ask_count >= _PARTIAL_ASK_THRESHOLD:
         return True
-    return any(kw in user_text for kw in _PARTIAL_KEYWORDS)
+    return wants_answer_now
 
 
 def _count_ask_turns(session: Session) -> int:
@@ -297,6 +294,10 @@ def post_message(
         new_notes = updates.pop("_notes", None) if isinstance(updates, dict) else None
         if new_notes:
             session.notes = list(dict.fromkeys([*session.notes, *new_notes]))[-10:]
+        # PM-43 — '지금 답해달라' 의사(LLM 분류). 슬롯 아님 → pop 후 게이팅에만 사용.
+        wants_answer_now = bool(
+            updates.pop("_wants_immediate_answer", False) if isinstance(updates, dict) else False
+        )
         # Sprint 36 — 보험사 변경 시 insurer_id 재동기화 (실관측 버그): 대화로 보험사를
         # 바꾸면 이름(insurer)만 갱신되고 옛 insurer_id 가 남아, 필터가 id 우선이라
         # 검색·인용·페이지 이미지가 이전 보험사로 고정된 채 라벨만 새 보험사로 갈라짐.
@@ -336,7 +337,10 @@ def post_message(
 
         # Sprint 6/37 — partial 진입: 명시 의사·모름 다수(기존) 또는 심볼릭 종결 판정.
         partial_mode = bool(missing) and (
-            coverage_terminal or _should_partial(session.slots, missing, ask_count, text)
+            coverage_terminal
+            or _should_partial(
+                session.slots, missing, ask_count, wants_answer_now=wants_answer_now
+            )
         )
 
         # 4) 분기

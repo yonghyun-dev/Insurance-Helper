@@ -41,7 +41,6 @@ logger = get_logger(__name__)
 
 _DOC_TYPE_KEYWORDS = {
     "terms": "terms",
-    "gain": "terms",          # 한화 자동차 약관 명명 패턴
     "약관": "terms",
     "policy": "terms",
     "summary": "summary",

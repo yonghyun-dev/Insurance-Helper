@@ -719,92 +719,64 @@ class TestShouldPartial:
 
     def _base_slots(self) -> SlotState:
         """unknown_slots 없는 기본 SlotState."""
-        return SlotState(area="accident_disease", insurer="한화", product="자동차보험")
+        return SlotState(area="accident_disease", insurer="한화", product="실손의료보험")
 
     def test_trigger_unknown_threshold_true(self):
         # unknown_slots 수 ≥ 2 → True
         slots = SlotState(unknown_slots=["insurer", "product"])
-        result = _should_partial(slots, missing=["insurer", "product"], ask_count=0, user_text="")
+        result = _should_partial(slots, missing=["insurer", "product"], ask_count=0,
+                                 wants_answer_now=False)
         assert result is True
 
     def test_trigger_unknown_exactly_two_true(self):
-        # unknown_slots = 2 (경계값) → True
         slots = SlotState(unknown_slots=["area", "product"])
-        result = _should_partial(slots, missing=["area", "product"], ask_count=0, user_text="")
+        result = _should_partial(slots, missing=["area", "product"], ask_count=0,
+                                 wants_answer_now=False)
         assert result is True
 
     def test_trigger_unknown_one_false(self):
-        # unknown_slots = 1 < 2 → unknown 트리거 미충족 (다른 트리거도 없으면 False)
         slots = SlotState(unknown_slots=["insurer"])
-        result = _should_partial(slots, missing=["insurer"], ask_count=0, user_text="")
+        result = _should_partial(slots, missing=["insurer"], ask_count=0,
+                                 wants_answer_now=False)
         assert result is False
 
     def test_trigger_ask_count_threshold_true(self):
-        # ask 횟수 ≥ 3 → True
         slots = self._base_slots()
-        result = _should_partial(slots, missing=["incident_date"], ask_count=3, user_text="")
-        assert result is True
-
-    def test_trigger_ask_count_exactly_three_true(self):
-        # ask_count = 3 (경계값) → True
-        slots = self._base_slots()
-        result = _should_partial(slots, missing=["incident_date"], ask_count=3, user_text="")
+        result = _should_partial(slots, missing=["incident_date"], ask_count=3,
+                                 wants_answer_now=False)
         assert result is True
 
     def test_trigger_ask_count_zero_false(self):
-        # Sprint 34 — 임계 1. ask_count = 0 → 아직 미충족(다른 트리거 없으면 False)
+        # 임계 1. ask_count=0 + 다른 트리거 없음 → False
         slots = self._base_slots()
-        result = _should_partial(slots, missing=["incident_date"], ask_count=0, user_text="")
+        result = _should_partial(slots, missing=["incident_date"], ask_count=0,
+                                 wants_answer_now=False)
         assert result is False
 
     def test_trigger_ask_count_one_true(self):
-        # Sprint 34 — 되묻기 1회 후 바로 판정(답변-우선)
+        # 되묻기 1회 후 바로 판정(답변-우선)
         slots = self._base_slots()
-        result = _should_partial(slots, missing=["incident_date"], ask_count=1, user_text="")
+        result = _should_partial(slots, missing=["incident_date"], ask_count=1,
+                                 wants_answer_now=False)
         assert result is True
 
-    def test_trigger_keyword_geunyang_true(self):
-        # "그냥" 키워드 → True
+    def test_wants_answer_now_flag_true(self):
+        # PM-43 — '지금 답해달라' 의도는 코드 키워드가 아니라 LLM 분류 플래그로만 결정
         slots = self._base_slots()
-        result = _should_partial(slots, missing=["incident_date"], ask_count=0, user_text="그냥 알려줘")
+        result = _should_partial(slots, missing=["incident_date"], ask_count=0,
+                                 wants_answer_now=True)
         assert result is True
 
-    def test_trigger_keyword_daesseo_true(self):
-        # "됐어" 키워드 → True
+    def test_no_flag_no_other_trigger_false(self):
+        # 플래그 false + unknown<2 + ask=0 → 되묻는다(False)
         slots = self._base_slots()
-        result = _should_partial(slots, missing=["incident_date"], ask_count=0, user_text="됐어 됐어")
-        assert result is True
-
-    def test_trigger_keyword_allyeojwo_true(self):
-        # "알려줘" 키워드 → True
-        slots = self._base_slots()
-        result = _should_partial(slots, missing=["incident_date"], ask_count=0, user_text="그냥 알려줘")
-        assert result is True
-
-    def test_trigger_keyword_geuman_true(self):
-        # "그만" 키워드 → True
-        slots = self._base_slots()
-        result = _should_partial(slots, missing=["incident_date"], ask_count=0, user_text="그만 해")
-        assert result is True
-
-    def test_all_triggers_false_returns_false(self):
-        # unknown < 2, ask < 1(=0), 키워드 없음 → False
-        slots = self._base_slots()
-        result = _should_partial(
-            slots, missing=["incident_date"], ask_count=0, user_text="사고 났어요"
-        )
+        result = _should_partial(slots, missing=["incident_date"], ask_count=0,
+                                 wants_answer_now=False)
         assert result is False
 
-    def test_no_missing_slots_still_partial_if_keyword(self):
-        # missing 없어도 partial 조건 충족이면 True 반환 (호출자가 missing 체크 후 호출)
+    def test_no_missing_still_partial_if_flag(self):
         slots = self._base_slots()
-        result = _should_partial(slots, missing=[], ask_count=0, user_text="그냥 알려줘")
-        assert result is True
-
-    def test_keyword_da_morum_true(self):
-        # "다 모름" 키워드 → True
-        slots = self._base_slots()
-        result = _should_partial(slots, missing=["incident_date"], ask_count=0, user_text="다 모름")
+        result = _should_partial(slots, missing=[], ask_count=0, wants_answer_now=True)
         assert result is True
 
 
@@ -894,8 +866,11 @@ class TestCountAskTurns:
 class TestPostMessagePartialMode:
     """Sprint 6 — partial 모드 진입 시 next_question 호출 없이 assessment 경로 검증."""
 
-    def test_partial_mode_via_keyword_skips_next_question(self, isolated_store, monkeypatch):
-        # "그냥 알려줘" 키워드 + missing 있음 → partial 모드 → next_question 안 부름
+    def test_partial_mode_via_wants_answer_flag_skips_next_question(
+        self, isolated_store, monkeypatch
+    ):
+        # PM-43 — extract_slots(LLM) 가 _wants_immediate_answer=True 반환 + missing 있음
+        # → partial 모드 → next_question 안 부름 (코드 키워드 아님)
         assessment = _make_assessment()
         assessment_partial = AssistantAssessment(
             likelihood=assessment.likelihood,
@@ -905,7 +880,10 @@ class TestPostMessagePartialMode:
         )
         next_question_called = []
 
-        monkeypatch.setattr("app.domains.sessions.service.llm.extract_slots", lambda *a, **kw: {})
+        monkeypatch.setattr(
+            "app.domains.sessions.service.llm.extract_slots",
+            lambda *a, **kw: {"_wants_immediate_answer": True},
+        )
         monkeypatch.setattr(
             "app.domains.sessions.service.llm.next_question",
             lambda *a, **kw: next_question_called.append(True) or _make_ask(),
@@ -1010,8 +988,11 @@ class TestPostMessagePartialMode:
     def test_partial_mode_with_rag_empty_falls_back_to_no_match_ask(
         self, isolated_store, monkeypatch
     ):
-        # partial 모드 → RAG 0건 → ask 재질문 유도 (기존 동작 유지)
-        monkeypatch.setattr("app.domains.sessions.service.llm.extract_slots", lambda *a, **kw: {})
+        # partial 모드(_wants_immediate_answer) → RAG 0건 → ask 재질문 유도 (기존 동작 유지)
+        monkeypatch.setattr(
+            "app.domains.sessions.service.llm.extract_slots",
+            lambda *a, **kw: {"_wants_immediate_answer": True},
+        )
         monkeypatch.setattr(
             "app.domains.sessions.service.rag_service.retrieve",
             lambda *a, **kw: [],

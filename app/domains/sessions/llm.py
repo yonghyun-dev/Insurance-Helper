@@ -248,6 +248,16 @@ _EXTRACT_SLOTS_TOOL = {
                     "사실만. 없으면 빈 배열."
                 ),
             },
+            # PM-43 — '지금 정보로 답해달라(더 되묻지 말라)'는 사용자 의사. 의도 판단은
+            # 키워드가 아니라 LLM 이 문맥으로 분류한다(코드에서 키워드 매칭 금지).
+            "wants_immediate_answer": {
+                "type": "boolean",
+                "description": (
+                    "사용자가 추가 질문 없이 지금까지의 정보로 바로 답을 원하면 true. "
+                    "예: '그냥 알려줘', '됐어 그만 물어봐', '자세한 건 몰라 일단 알려줘'. "
+                    "단순히 정보를 제공하는 발화면 false."
+                ),
+            },
         },
         "required": ["slot_updates"],
     },
@@ -283,6 +293,8 @@ def _extract_slots_system(today: date) -> str:
         "   - other_insurance_settled: 자동차보험(대인배상)·산재보험으로 처리된 치료비\n"
         "6-a. **\"모름\"/\"몰라\"/\"모르겠어\"/\"잘 모르겠어\" 등 명시적 무지 표현** → 해당 슬롯을 `unknown_slots` 배열에 추가 "
         "(slot_updates 에는 넣지 않는다). 예: '보험사 잘 모르겠어' → unknown_slots=['insurer'].\n"
+        "6-c. **`wants_immediate_answer`**: 사용자가 추가 질문 없이 지금 정보로 바로 답을 원하면 true "
+        "('그냥 알려줘', '됐어 그만 물어봐', '자세한 건 몰라 일단 알려줘'). 단순 정보 제공이면 false.\n"
         "6-b. **부정 표현 → 정수 슬롯 0 으로 채움**. 예: '입원 안 했어' → hospitalization_days=0, "
         "'통원 없어' → outpatient_visits=0.\n"
         "7. 추론·추측·기본값 입력 금지. 모호하면 그 필드는 생략 (단 6-a, 6-b 는 명시이므로 적용).\n"
@@ -341,6 +353,10 @@ def extract_slots(history: list[Message], user_msg: str, current_slots: SlotStat
         notes = [str(n).strip()[:60] for n in raw_notes if str(n).strip()]
         if notes:
             filtered["_notes"] = notes
+
+    # PM-43 — '지금 답해달라' 의사(LLM 분류). 슬롯 아님 → 예약 키로 반환(호출자가 pop).
+    if args.get("wants_immediate_answer") is True:
+        filtered["_wants_immediate_answer"] = True
 
     logger.info(
         "extract_slots: %d 필드 갱신 (LLM 응답 %d → 필터 %d) / unknown 추가 %d",

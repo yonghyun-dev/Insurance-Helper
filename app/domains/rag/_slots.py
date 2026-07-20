@@ -97,25 +97,3 @@ def slots_to_filters(slots: SlotState) -> dict[str, Any] | None:
     if code:
         f["insurer_id"] = code
     return f or None
-
-
-def slots_to_question(slots: SlotState) -> str:
-    """슬롯을 그래프 채널용 자연어 질문으로 변환. (구 GraphCypherQAChain 잔재 — 현재 미사용 가능)
-
-    vector 의 query 와 달리 graph 는 LLM 이 Cypher 를 만들어야 하므로 더 명시적인 한국어 문장.
-    Sprint 4 graph 모드 진입 시 사용.
-    """
-    if not slots.area:
-        return "약관 상 보험금 지급 사유와 관련된 조항을 찾아 주세요."
-
-    area_korean = {
-        "accident_disease": "실손의료보험",
-    }.get(slots.area, slots.area)
-
-    parts: list[str] = [f"{area_korean} 약관에서"]
-    if slots.product:
-        parts.append(f"상품명 '{slots.product}' 와 관련해")
-    if slots.diagnosis:
-        parts.append(f"진단명 '{slots.diagnosis}' 관련")
-    parts.append("보험금 지급 사유와 면책 조항을 찾아 주세요.")
-    return " ".join(parts)

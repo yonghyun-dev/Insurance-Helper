@@ -88,12 +88,8 @@ class TestInferDocType:
     def test_terms_keyword_returns_terms(self):
         assert _infer_doc_type("hanwha_terms_2026.pdf") == "terms"
 
-    def test_gain_keyword_returns_terms(self):
-        # 한화 자동차 약관 패턴
-        assert _infer_doc_type("gain_auto_standard.pdf") == "terms"
-
     def test_korean_terms_keyword(self):
-        assert _infer_doc_type("자동차보험약관.pdf") == "terms"
+        assert _infer_doc_type("실손의료보험약관.pdf") == "terms"
 
     def test_policy_keyword_returns_terms(self):
         assert _infer_doc_type("policy_document.pdf") == "terms"
