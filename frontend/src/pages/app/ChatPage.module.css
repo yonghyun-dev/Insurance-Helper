@@ -466,3 +466,76 @@
 .cmpMeta dt { color: var(--text-secondary); margin: 0; }
 .cmpMeta dd { margin: 0; font-weight: 600; color: var(--text-primary); }
 .cmpTabs { margin-top: 4px; }
+
+/* Sprint 37 — 구조화된 재청구 논리 (F-14) */
+.reclaim {
+  border: 1px solid var(--border-subtle-01);
+  border-left: 3px solid var(--support-info, #0f62fe);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 10px 0 4px;
+  background: var(--layer-01);
+  max-width: 520px;
+}
+
+.reclaimTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.reclaimList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.reclaimItem {
+  border-bottom: 1px dashed var(--border-subtle-01);
+  padding-bottom: 8px;
+}
+
+.reclaimItem:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.reclaimGap {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.reclaimAction {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  font-size: 13px;
+  color: var(--text-primary);
+  margin-top: 3px;
+}
+
+.reclaimAction svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--support-info, #0f62fe);
+}
+
+.reclaimBasis {
+  font-size: 12px;
+  color: var(--text-helper, var(--text-secondary));
+  margin-top: 2px;
+}
+
+.reclaimNote {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}

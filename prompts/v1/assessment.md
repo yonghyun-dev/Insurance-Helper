@@ -29,3 +29,12 @@
 - outcome='covered': likelihood='높음'(정보 충분) 또는 '중간'(일부 부족). deductible 이 있으면   next_steps 나 summary 에 예상 자기부담·청구가능액을 반영한다.
 - outcome='insufficient_info': likelihood='중간' 이하로, missing 항목을 unsatisfied 에 안내한다.
 - needs_generation=true: '가입 세대에 따라 보장이 다를 수 있어 확인이 필요합니다' 취지를 unsatisfied 에 넣는다.
+
+**구조화된 재청구 논리 (reclaim, 강제)**: reclaim 필드는 "지금 부족해도 무엇을 보완하면 다시 주장할 수 있는가"의 구조화 플랜이다.
+- likelihood 가 '낮음'/'중간' 이거나 unsatisfied 가 1개 이상이면: applicable=true 로 하고, **미충족 항목마다** items 에 1건씩 채운다.
+  - gap: 무엇이 미충족/불명확한가 (unsatisfied 항목과 대응, 한 문장)
+  - action: 그 갭을 메우는 **구체적 서류나 정보** (예: "진단서(질병분류코드 포함) 발급", "통원 횟수를 채팅으로 알려주기") — 행동형 한 문장
+  - basis: 보완되면 어떤 약관 조항으로 주장할 수 있는가 — **citations 에 인용한 조항명 그대로** (예: "제3조(보장종목별 보상내용)"). 인용에 없는 조항을 지어내지 않는다.
+- 면책 사유로 '낮음'인 경우: 면책에 해당하지 않음을 입증할 수 있는 사실·서류가 있으면 그것을 items 로 (예: gap="음주 상태로 오인될 수 있음" / action="사고 경위서·경찰 확인원으로 음주 무관 입증" / basis="제4조(보상하지 않는 사항)"). 입증 여지가 없으면 items 는 비우고 applicable=false.
+- note: 보완 후 재확인 방법 한 줄 (예: "서류를 준비해 보험사에 재청구하거나, 분쟁 시 금융감독원 분쟁조정을 이용할 수 있어요"). 단정 금지 톤 유지.
+- likelihood='높음' 이고 unsatisfied 가 없으면: applicable=false, items=[], note="".

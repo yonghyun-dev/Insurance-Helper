@@ -124,6 +124,19 @@ export type ReadinessScore = {
   caption: string;
 };
 
+// 구조화된 재청구 논리 (Sprint 37, F-14) — 미충족 → 보완 행동 → 근거 조항
+export type ReclaimItem = {
+  gap: string;
+  action: string;
+  basis: string;
+};
+
+export type ReclaimPlan = {
+  applicable: boolean;
+  items: ReclaimItem[];
+  note: string;
+};
+
 export type AssistantAssessment = {
   type: 'assessment';
   likelihood: LikelihoodLevel;
@@ -134,6 +147,7 @@ export type AssistantAssessment = {
   next_steps: string[];
   disclaimer: string;
   readiness?: ReadinessScore | null;
+  reclaim?: ReclaimPlan | null;
 };
 
 // 자유 질의응답(PM-34) — 실손 일반 질문에 약관 근거로 답. 가능성 등급 없음.

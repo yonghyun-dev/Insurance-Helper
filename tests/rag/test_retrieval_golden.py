@@ -30,6 +30,26 @@ def test_golden_set_schema():
         assert item["expected"]["clause_no"], item["id"]
 
 
+def _corpus_indexed() -> bool:
+    """인덱스된 app.db(documents 테이블) 존재 여부 — CI 러너에는 없다(gitignore)."""
+    import sqlite3
+    from pathlib import Path
+
+    db = Path(__file__).resolve().parents[2] / "app.db"
+    if not db.exists():
+        return False
+    try:
+        with sqlite3.connect(db) as conn:
+            return bool(
+                conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='documents'"
+                ).fetchone()
+            )
+    except sqlite3.Error:
+        return False
+
+
+@pytest.mark.skipif(not _corpus_indexed(), reason="인덱스된 app.db 필요 (로컬 전용, CI 제외)")
 def test_golden_set_corpus_alignment():
     """모든 문항의 정답 청크가 코퍼스에 실존 (인덱스 갱신 시 표류 감지)."""
     fails = validate_against_corpus()

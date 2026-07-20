@@ -37,6 +37,8 @@ from app.domains.sessions.schemas import (
     AssistantAssessment,
     Citation,
     Message,
+    ReclaimItem,
+    ReclaimPlan,
     SlotState,
 )
 from app.infrastructure.core.exceptions import LLMError, SchemaViolationError
@@ -396,7 +398,7 @@ _ASSESSMENT_RESPONSE_SCHEMA = {
         "additionalProperties": False,
         "required": [
             "likelihood", "summary", "satisfied", "unsatisfied",
-            "citations", "next_steps", "disclaimer", "confidence",
+            "citations", "next_steps", "disclaimer", "confidence", "reclaim",
         ],
         "properties": {
             "likelihood": {"type": "string", "enum": ["높음", "중간", "낮음"]},
@@ -435,6 +437,29 @@ _ASSESSMENT_RESPONSE_SCHEMA = {
                 },
             },
             "next_steps": {"type": "array", "items": {"type": "string"}},
+            # Sprint 37 — 구조화된 재청구 논리 (F-14): 미충족 → 보완 행동 → 근거 조항
+            "reclaim": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["applicable", "items", "note"],
+                "properties": {
+                    "applicable": {"type": "boolean"},
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": ["gap", "action", "basis"],
+                            "properties": {
+                                "gap": {"type": "string", "minLength": 2},
+                                "action": {"type": "string", "minLength": 2},
+                                "basis": {"type": "string", "minLength": 2},
+                            },
+                        },
+                    },
+                    "note": {"type": "string"},
+                },
+            },
             "disclaimer": {"type": "string"},
         },
     },
@@ -762,6 +787,28 @@ def _clean_text(text: str) -> str:
     return _localize_slot_names(_strip_internal_ids(text))
 
 
+def _build_reclaim(raw: dict[str, Any] | None) -> ReclaimPlan | None:
+    """구조화된 재청구 논리 (F-14) — LLM 출력 방어 조립.
+
+    applicable=False 이거나 items 가 비면 None (프론트 미노출). 각 텍스트는
+    본문과 동일한 식별자 제거·한글화 방어를 거친다.
+    """
+    if not raw or not raw.get("applicable"):
+        return None
+    items = [
+        ReclaimItem(
+            gap=_clean_text(i["gap"]),
+            action=_clean_text(i["action"]),
+            basis=_clean_text(i["basis"]),
+        )
+        for i in raw.get("items", [])
+        if i.get("gap") and i.get("action") and i.get("basis")
+    ]
+    if not items:
+        return None
+    return ReclaimPlan(applicable=True, items=items, note=_clean_text(raw.get("note", "")))
+
+
 def _build_assessment(
     raw: dict[str, Any],
     *,
@@ -808,6 +855,7 @@ def _build_assessment(
             next_steps=[_clean_text(s) for s in raw.get("next_steps", [])],
             confidence=raw.get("confidence", "full"),  # Sprint 6 — backward-compat default
             disclaimer=raw["disclaimer"],
+            reclaim=_build_reclaim(raw.get("reclaim")),
         )
     except Exception as exc:
         raise SchemaViolationError(

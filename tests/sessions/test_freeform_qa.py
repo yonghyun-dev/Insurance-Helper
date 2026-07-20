@@ -77,9 +77,11 @@ class TestPostMessageIntentRouting:
         monkeypatch.setattr(
             "app.domains.sessions.service.llm.classify_intent", lambda *a, **kw: "general_qa"
         )
+        # CI 격리 — 실제 검색 경로는 rag_service.retrieve_freeform (로컬 인덱스에
+        # 우연히 의존하던 vectorstore 패치를 서비스 경계 패치로 교체)
         monkeypatch.setattr(
-            "app.domains.rag.vectorstore.get_vector_store",
-            lambda: type("V", (), {"query": lambda self, q, top_k=8: _chunks()})(),
+            "app.domains.sessions.service.rag_service.retrieve_freeform",
+            lambda query, top_k=8, insurer_id=None: _chunks(),
         )
         answer = AssistantAnswer(
             message="실손의료보험은 실제 의료비를 보상하는 보험으로 안내드립니다.",

@@ -329,6 +329,30 @@ class ReadinessScore(BaseModel):
     caption: str
 
 
+class ReclaimItem(BaseModel):
+    """구조화된 재청구 논리 한 항목 (제안서 F-14) — 미충족 → 보완 → 근거."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    gap: str = Field(..., description="무엇이 미충족/불명확한가")
+    action: str = Field(..., description="어떤 서류·정보로 보완하나 (행동형)")
+    basis: str = Field(..., description="보완 시 어떤 약관 조항으로 재주장하나 (인용 조항명)")
+
+
+class ReclaimPlan(BaseModel):
+    """재청구 준비 플랜 — 판정 낮음/중간 또는 미충족 존재 시 채워짐.
+
+    next_steps 자유텍스트의 구조화 격상: 항목마다 근거 조항이 붙어
+    '무엇을 보완하면 어떤 조항으로 다시 주장할 수 있는가'가 추적 가능.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    applicable: bool
+    items: list[ReclaimItem] = Field(default_factory=list)
+    note: str = ""  # 이의신청·분쟁조정 등 절차 안내 한 줄
+
+
 class AssistantAssessment(BaseModel):
     """assessment 모드 — 가능성 등급 + 인용 + 면책."""
 
@@ -345,6 +369,8 @@ class AssistantAssessment(BaseModel):
     confidence: Literal["partial", "full"] = "full"
     # Sprint 37 — 청구 준비도 0~100 (결정론, LLM 미관여 — readiness.compute_readiness)
     readiness: ReadinessScore | None = None
+    # Sprint 37 — 구조화된 재청구 논리 (F-14). 낮음/중간·미충족 존재 시 채워짐
+    reclaim: ReclaimPlan | None = None
     disclaimer: str = Field(
         default="본 결과는 참고용이며 최종 청구 가능 여부 판단을 대체하지 않습니다."
     )

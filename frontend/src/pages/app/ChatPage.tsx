@@ -133,6 +133,29 @@ function AssessmentBody({ a }: { a: AssistantAssessment }): ReactNode {
 
       <CitationList citations={a.citations} compact />
 
+      {/* Sprint 37 — 구조화된 재청구 논리 (F-14): 미충족 → 보완 행동 → 근거 조항 */}
+      {a.reclaim && a.reclaim.items.length > 0 ? (
+        <div className={s.reclaim}>
+          <div className={s.reclaimTitle}>
+            <Icon name="document" size={16} />
+            이렇게 보완하면 다시 확인할 수 있어요
+          </div>
+          <ol className={s.reclaimList}>
+            {a.reclaim.items.map((it, i) => (
+              <li key={i} className={s.reclaimItem}>
+                <div className={s.reclaimGap}>{it.gap}</div>
+                <div className={s.reclaimAction}>
+                  <Icon name="arrow-right" size={14} />
+                  <span>{it.action}</span>
+                </div>
+                <div className={s.reclaimBasis}>근거 조항: {it.basis}</div>
+              </li>
+            ))}
+          </ol>
+          {a.reclaim.note ? <p className={s.reclaimNote}>{a.reclaim.note}</p> : null}
+        </div>
+      ) : null}
+
       {/* 상세(충족·미충족·다음단계)는 하단에 접어서 — 필요할 때만 펼침 */}
       {hasDetail ? (
         <div className={s.detailWrap}>
