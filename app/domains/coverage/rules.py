@@ -162,7 +162,59 @@ _COVERED_BASIS: list[CoverageRule] = [
     ),
 ]
 
-RULES: list[CoverageRule] = [*_PERIOD, *_EXCLUSIONS, *_COVERED_BASIS]
+# ---------------------------------------------------------------------------
+# 조건부/부분보상(PARTIAL) — 전면 면책은 아니나 특정 부분이 제외·공제되는 사항.
+# 각 룰의 clause_ref/rationale 는 인덱싱된 5사 실손 약관에서 확인한 실제 조항 근거(PM-43).
+# ---------------------------------------------------------------------------
+
+_PARTIAL: list[CoverageRule] = [
+    CoverageRule(
+        id="partial_oriental_medicine",
+        kind=RuleKind.PARTIAL,
+        title="한방치료(한의사 비급여)",
+        when=lambda f: f.is_oriental_medicine,
+        clause_ref="제3·4조(비급여의료비) — 한방치료(한의사 의료행위)",
+        rationale=(
+            "한방치료 중 한의사의 의료행위로 발생한 비급여 의료비는 보상하지 않습니다. "
+            "다만 「의료법」상 의사(양방)의 의료행위로 발생한 부분은 보상될 수 있습니다."
+        ),
+    ),
+    CoverageRule(
+        id="partial_overseas",
+        kind=RuleKind.PARTIAL,
+        title="해외(국외) 치료",
+        when=lambda f: f.treatment_overseas,
+        clause_ref="제3조(보상하는 사항) — 국민건강보험 요양급여 기준(국내 요양기관)",
+        rationale=(
+            "실손의료보험은 국민건강보험 요양급여 체계(국내 의료기관) 치료를 전제로 하므로, "
+            "해외 의료기관 치료는 기본 보장 대상이 아니며 해외의료비 특약 가입 시 별도 보상됩니다."
+        ),
+    ),
+    CoverageRule(
+        id="partial_dental_disease",
+        kind=RuleKind.PARTIAL,
+        title="치과 질병(K00~K08)",
+        when=lambda f: f.dental_disease,
+        clause_ref="제3·4조(비급여의료비) — 치과치료(K00~K08 관련)",
+        rationale=(
+            "치아·치주 질환(K00~K08) 관련 치과치료의 비급여 의료비는 보상하지 않습니다. "
+            "다만 K00~K08과 무관한 질병이나 상해로 인한 치료비는 보상될 수 있습니다."
+        ),
+    ),
+    CoverageRule(
+        id="partial_other_insurance",
+        kind=RuleKind.PARTIAL,
+        title="자동차보험·산재 처리분 공제",
+        when=lambda f: f.other_insurance_settled,
+        clause_ref="제4조(보상하지 않는 사항) — 자동차보험·산재보험 발생 본인부담",
+        rationale=(
+            "자동차보험(대인배상) 또는 산재보험에서 이미 보상받은 부분은 실손에서 중복 보상하지 "
+            "않으며, 그 외 본인이 실제 부담한 의료비만 보상 대상입니다."
+        ),
+    ),
+]
+
+RULES: list[CoverageRule] = [*_PERIOD, *_EXCLUSIONS, *_PARTIAL, *_COVERED_BASIS]
 
 
 def rules_for(facts: ClaimFacts) -> list[CoverageRule]:

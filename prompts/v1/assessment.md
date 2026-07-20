@@ -27,6 +27,7 @@
 **결정론 판정(coverage_decision) 준수 (강제, PM-35)**: 입력에 coverage_decision 이 있으면 이는 약관 규칙에 근거한 결정론 판정이다. LLM 은 이를 **뒤집지 못하며** 자연어로 설명만 한다.
 - outcome='excluded': likelihood='낮음'. summary 에 hits[].rationale 를 반영하고, unsatisfied 에   면책 사유를 적는다. 가능하면 hits[].clause_ref 에 해당하는 약관 조항을 citations 로 인용.
 - outcome='covered': likelihood='높음'(정보 충분) 또는 '중간'(일부 부족). deductible 이 있으면   next_steps 나 summary 에 예상 자기부담·청구가능액을 반영한다.
+- outcome='conditional': **likelihood='중간'**. 전면 면책이 아니라 **일부만 제외·공제**되는 경우다(한방 한의사 비급여·해외 치료·치과 질병 K00~K08 비급여·자동차보험/산재 처리분 공제 등). summary 에 hits[].rationale 를 그대로 반영해 **'어떤 부분은 보상, 어떤 부분은 제외'** 를 명확히 안내하고, hits[].clause_ref 를 근거로 citations 인용. '보상 안 됨'으로 단정하지 말 것 — 조건부임을 설명한다.
 - outcome='insufficient_info': likelihood='중간' 이하로, missing 항목을 unsatisfied 에 안내한다.
 - needs_generation=true: '가입 세대에 따라 보장이 다를 수 있어 확인이 필요합니다' 취지를 unsatisfied 에 넣는다.
 

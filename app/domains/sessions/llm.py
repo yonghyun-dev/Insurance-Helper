@@ -79,6 +79,8 @@ _SLOT_FIELD_ENUM = [
     "policy_no", "claim_amount", "incident_location",
     # PM-35/Sprint 37 — 청구 목적(면책 판정 핵심, 심볼릭 coverage 룰 입력)
     "purpose",
+    # PM-43 coverage 모델링 — 부분보상/공제 정황(심볼릭 PARTIAL 룰 입력)
+    "treatment_overseas", "is_oriental_medicine", "dental_disease", "other_insurance_settled",
     # Sprint 17 — 자유 메타 (LLM 이 추출한 SlotState 매핑 외 정보)
     "document_metadata",
 ]
@@ -200,6 +202,23 @@ _EXTRACT_SLOTS_TOOL = {
                             "self_harm(고의 자해·자살시도) / crime_war(범죄행위·전쟁·내란)"
                         ),
                     },
+                    # PM-43 coverage 모델링 — 부분보상/공제 정황(단서 있을 때만 true)
+                    "treatment_overseas": {
+                        "type": "boolean",
+                        "description": "해외(국외) 의료기관에서 받은 치료면 true (예: 미국·일본 병원)",
+                    },
+                    "is_oriental_medicine": {
+                        "type": "boolean",
+                        "description": "한의원·한방병원·한의사의 한방치료(침·한약·추나 등)면 true",
+                    },
+                    "dental_disease": {
+                        "type": "boolean",
+                        "description": "충치·치주염 등 치아 질병 치료면 true (사고로 인한 치아 파절은 false)",
+                    },
+                    "other_insurance_settled": {
+                        "type": "boolean",
+                        "description": "자동차보험(대인배상)·산재보험으로 이미 처리된 치료비가 있으면 true",
+                    },
                     # 자유 메타 — 청구 판단 무관, 사용자 확인 카드 노출 전용
                     "document_metadata": {
                         "type": "object",
@@ -257,6 +276,11 @@ def _extract_slots_system(today: date) -> str:
         "   - self_harm: 고의 자해·자살시도 정황\n"
         "   - crime_war: 피보험자의 범죄행위·전쟁·내란 등\n"
         "   - treatment: 질병·상해 치료(기본). 단서 없으면 생략(치료로 간주).\n"
+        "4-b. **부분보상/공제 정황(bool)** — 단서가 명확할 때만 true 로 추출:\n"
+        "   - treatment_overseas: 해외(국외) 병원 치료 (예: 미국·일본에서 치료)\n"
+        "   - is_oriental_medicine: 한의원·한방·한의사(침·한약·추나)\n"
+        "   - dental_disease: 충치·치주염 등 치아 '질병'(사고로 인한 치아 파절은 제외)\n"
+        "   - other_insurance_settled: 자동차보험(대인배상)·산재보험으로 처리된 치료비\n"
         "6-a. **\"모름\"/\"몰라\"/\"모르겠어\"/\"잘 모르겠어\" 등 명시적 무지 표현** → 해당 슬롯을 `unknown_slots` 배열에 추가 "
         "(slot_updates 에는 넣지 않는다). 예: '보험사 잘 모르겠어' → unknown_slots=['insurer'].\n"
         "6-b. **부정 표현 → 정수 슬롯 0 으로 채움**. 예: '입원 안 했어' → hospitalization_days=0, "

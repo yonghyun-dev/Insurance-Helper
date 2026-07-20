@@ -57,4 +57,9 @@ def build_facts_from_slots(
         incident_date=slots.incident_date,
         hospitalization_days=slots.hospitalization_days,
         outpatient_visits=slots.outpatient_visits,
+        # PM-43 coverage 모델링 — 부분보상/공제 정황(뉴럴 추출 bool)
+        treatment_overseas=slots.treatment_overseas,
+        is_oriental_medicine=slots.is_oriental_medicine,
+        dental_disease=slots.dental_disease,
+        other_insurance_settled=slots.other_insurance_settled,
     )

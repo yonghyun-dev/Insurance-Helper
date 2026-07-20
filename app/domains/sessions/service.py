@@ -322,7 +322,11 @@ def post_message(
         from app.domains.coverage.schemas import CoverageOutcome
 
         coverage_result = evaluate_coverage(build_facts_from_slots(session.slots))
-        coverage_terminal = coverage_result.outcome == CoverageOutcome.EXCLUDED
+        # 면책(EXCLUDED)·조건부(CONDITIONAL: 한방/해외/치과질병/산재 공제) 는 치료량 등
+        # 추가 슬롯이 결론을 바꾸지 못하므로 되묻지 않고 바로 판정한다(답변-우선).
+        coverage_terminal = coverage_result.outcome in (
+            CoverageOutcome.EXCLUDED, CoverageOutcome.CONDITIONAL
+        )
 
         logger.info(
             "post_message: missing=%s area=%s unknown=%s ask_count=%d coverage=%s",

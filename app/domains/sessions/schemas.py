@@ -132,6 +132,13 @@ class SlotState(BaseModel):
             "면책 판정 핵심. 미상이면 None(치료 목적으로 간주)."
         ),
     )
+    # PM-43 coverage 모델링 — 부분보상/공제 정황(뉴럴 추출). 단서 있을 때만 True.
+    treatment_overseas: bool = Field(default=False, description="해외(국외) 의료기관 치료")
+    is_oriental_medicine: bool = Field(default=False, description="한방(한의원·한의사) 치료")
+    dental_disease: bool = Field(default=False, description="치과 질병(충치·치주 등, 상해 아님)")
+    other_insurance_settled: bool = Field(
+        default=False, description="자동차보험(대인배상)·산재보험 처리분 존재"
+    )
 
     # Sprint 17 — 자유 메타데이터. 청구 가능성 판단 미사용 — UI 확인 카드 노출 전용.
     # OCR 추출 시 SlotState 매핑 외 정보 (서류 발급일/연락처/병원 주소 등) 보관.

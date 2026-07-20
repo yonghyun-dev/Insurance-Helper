@@ -62,7 +62,8 @@ class RuleKind(StrEnum):
     """규칙 종류 — 엔진의 평가 순서를 결정한다."""
 
     COVERAGE_PERIOD = "coverage_period"  # 보장기간(사고일 ∈ 계약기간)
-    EXCLUSION = "exclusion"  # 면책(보상하지 않는 사항)
+    EXCLUSION = "exclusion"  # 면책(보상하지 않는 사항) — 전면 미보상
+    PARTIAL = "partial"  # 조건부/부분보상 — 특정 부분만 제외·공제 (한방 비급여·산재 공제 등)
     COVERED_BASIS = "covered_basis"  # 기본 보장 성립 근거
     DEDUCTIBLE = "deductible"  # 자기부담(공제)
     LIMIT = "limit"  # 보장 한도
@@ -98,6 +99,15 @@ class ClaimFacts(BaseModel):
     # 진료량
     hospitalization_days: int | None = Field(default=None, ge=0)
     outpatient_visits: int | None = Field(default=None, ge=0)
+    # PM-43 coverage 모델링 — 부분보상/공제 판정용 정황 사실 (뉴럴 추출, 약관 근거).
+    # 근거: 한방=한의사 비급여 제외 / 해외=국내 요양기관 전제 / 치과질병=K00~K08 비급여 제외 /
+    #       산재·자보=자동차보험·산재보험 발생 본인부담 제외.
+    treatment_overseas: bool = Field(default=False, description="해외(국외) 의료기관 치료")
+    is_oriental_medicine: bool = Field(default=False, description="한방(한의원·한의사) 치료")
+    dental_disease: bool = Field(default=False, description="치과 질병(충치·치주 등, 상해 아님)")
+    other_insurance_settled: bool = Field(
+        default=False, description="자동차보험(대인배상)·산재보험으로 처리된 부분 존재"
+    )
 
     @property
     def effective_generation(self) -> int:

@@ -65,13 +65,24 @@ def evaluate(facts: ClaimFacts) -> CoverageAssessment:
             needs_generation=needs_generation,
         )
 
-    # 2) 면책
+    # 2) 면책(전면)
     exclusion_hits = _fire(applicable, RuleKind.EXCLUSION, facts)
     if exclusion_hits:
         return CoverageAssessment(
             outcome=CoverageOutcome.EXCLUDED,
             hits=exclusion_hits,
             reasons=[h.rationale for h in exclusion_hits],
+            needs_generation=needs_generation,
+        )
+
+    # 2-b) 조건부/부분보상(PARTIAL) — 한방 비급여·해외·치과질병·산재 공제 등.
+    # 전면 면책이 아니라 특정 부분만 제외되므로 CONDITIONAL(중간, 조건 설명)로 판정한다.
+    partial_hits = _fire(applicable, RuleKind.PARTIAL, facts)
+    if partial_hits:
+        return CoverageAssessment(
+            outcome=CoverageOutcome.CONDITIONAL,
+            hits=partial_hits,
+            reasons=[h.rationale for h in partial_hits],
             needs_generation=needs_generation,
         )
 

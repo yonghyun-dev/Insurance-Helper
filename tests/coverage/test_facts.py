@@ -53,3 +53,69 @@ class TestPurposeMapping:
                 SlotState(area="accident_disease", insurer_id="samsung", purpose=purpose)
             )
             assert evaluate_coverage(facts).outcome == CoverageOutcome.EXCLUDED, purpose
+
+
+class TestPartialCoverageRules:
+    """PM-43 coverage 모델링 — 한방/해외/치과질병/산재 부분보상(CONDITIONAL). 약관 근거 기반."""
+
+    def _facts(self, **over):
+        from app.domains.coverage import build_facts_from_slots
+        from app.domains.sessions.schemas import SlotState
+
+        base = dict(area="accident_disease", insurer_id="samsung",
+                    diagnosis="치료", hospitalization_days=2)
+        return build_facts_from_slots(SlotState(**{**base, **over}))
+
+    def test_oriental_medicine_conditional(self):
+        from app.domains.coverage import evaluate as ev
+        from app.domains.coverage.schemas import CoverageOutcome
+
+        r = ev(self._facts(is_oriental_medicine=True))
+        assert r.outcome == CoverageOutcome.CONDITIONAL
+        assert r.hits[0].rule_id == "partial_oriental_medicine"
+        assert "한방" in r.hits[0].clause_ref or "한의사" in r.hits[0].clause_ref
+
+    def test_overseas_conditional(self):
+        from app.domains.coverage import evaluate as ev
+        from app.domains.coverage.schemas import CoverageOutcome
+
+        r = ev(self._facts(treatment_overseas=True))
+        assert r.outcome == CoverageOutcome.CONDITIONAL
+        assert r.hits[0].rule_id == "partial_overseas"
+
+    def test_dental_disease_conditional(self):
+        from app.domains.coverage import evaluate as ev
+        from app.domains.coverage.schemas import CoverageOutcome
+
+        r = ev(self._facts(dental_disease=True))
+        assert r.outcome == CoverageOutcome.CONDITIONAL
+        assert "K00" in r.hits[0].clause_ref
+
+    def test_other_insurance_conditional(self):
+        from app.domains.coverage import evaluate as ev
+        from app.domains.coverage.schemas import CoverageOutcome
+
+        r = ev(self._facts(other_insurance_settled=True))
+        assert r.outcome == CoverageOutcome.CONDITIONAL
+        assert r.hits[0].rule_id == "partial_other_insurance"
+
+    def test_plain_treatment_still_covered(self):
+        """대조군 — 정황 없으면 기본 보장(covered), 부분보상 룰 오발화 없음."""
+        from app.domains.coverage import evaluate as ev
+        from app.domains.coverage.schemas import CoverageOutcome
+
+        assert ev(self._facts()).outcome == CoverageOutcome.COVERED
+
+    def test_exclusion_precedes_partial(self):
+        """전면 면책(고의 자해)이 부분보상보다 우선 — 엔진 순서 검증."""
+        from app.domains.coverage import evaluate as ev
+        from app.domains.coverage.schemas import CoverageOutcome
+
+        r = ev(self._facts(purpose="self_harm", is_oriental_medicine=True))
+        assert r.outcome == CoverageOutcome.EXCLUDED
+
+    def test_slot_wiring_reaches_facts(self):
+        """SlotState → build_facts → ClaimFacts 배선 무결성(뉴럴이 채운 값 전달)."""
+        f = self._facts(is_oriental_medicine=True, treatment_overseas=True)
+        assert f.is_oriental_medicine is True
+        assert f.treatment_overseas is True
