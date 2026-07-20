@@ -1,0 +1,61 @@
+# GitHub Actions — 품질 게이트 (하네스 4)
+#
+# main 푸시·PR 마다 ruff + pytest(백엔드) / tsc + build(프론트) 를 강제한다.
+# deploy.yml(배포)과 분리 — 배포는 이 게이트와 무관하게 main 푸시로만 트리거되므로,
+# PR 로 들어오는 변경은 여기서 먼저 걸러진다.
+#
+# 테스트는 외부 의존 없이 자급자족 (in-memory SQLite + API mock).
+# 예외 2종은 마커로 제외: eval(인덱스된 app.db + 실 API 키 필요),
+# pgvector_integration(testcontainers Docker — 러너에서도 돌지만 이미지 풀 시간 절약).
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: 의존성 설치
+        run: pip install -e ".[dev]"
+
+      - name: ruff (린트)
+        run: ruff check app tests eval
+
+      - name: pytest (단위·통합)
+        run: pytest -m "not eval and not pgvector_integration" -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: 타입체크 + 빌드
+        run: npm run build

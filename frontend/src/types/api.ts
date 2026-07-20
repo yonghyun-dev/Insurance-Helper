@@ -110,6 +110,20 @@ export type Citation = {
   highlights?: { x: number; y: number; w: number; h: number }[];
 };
 
+// 청구 준비도 (Sprint 37) — 백엔드 결정론 산출. score 는 지급 확률이 아님(caption 필수 표시).
+export type ReadinessFactor = {
+  label: string;
+  points: number;
+  max_points: number;
+};
+
+export type ReadinessScore = {
+  score: number;                       // 0~100
+  level: 'high' | 'medium' | 'low';    // 신호등
+  factors: ReadinessFactor[];
+  caption: string;
+};
+
 export type AssistantAssessment = {
   type: 'assessment';
   likelihood: LikelihoodLevel;
@@ -119,6 +133,7 @@ export type AssistantAssessment = {
   citations: Citation[];      // minItems=1 보장
   next_steps: string[];
   disclaimer: string;
+  readiness?: ReadinessScore | null;
 };
 
 // 자유 질의응답(PM-34) — 실손 일반 질문에 약관 근거로 답. 가능성 등급 없음.

@@ -1,0 +1,110 @@
+/* 준비도 게이지 — 신호등 상태색은 data-level 로만 결정 (텍스트는 텍스트 토큰 유지) */
+
+.tile {
+  --gauge-color: var(--support-success);
+  border: 1px solid var(--border-subtle-01);
+  border-radius: 12px;
+  padding: 14px 16px 12px;
+  margin: 10px 0 4px;
+  background: var(--layer-01);
+  max-width: 420px;
+}
+
+.tile[data-level='medium'] {
+  --gauge-color: #b28600; /* yellow-30 은 배경용 — 도트·바에는 명도 낮춘 앰버 */
+}
+
+.tile[data-level='low'] {
+  --gauge-color: var(--support-error);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.levelChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--gauge-color);
+}
+
+.scoreRow {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin: 6px 0 8px;
+}
+
+.score {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.scoreMax {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.track {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--layer-accent-01, var(--border-subtle-01));
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--gauge-color);
+  transition: width 0.5s ease;
+}
+
+.factors {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.factors li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+
+.factorPts {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.caption {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--text-helper, var(--text-secondary));
+}

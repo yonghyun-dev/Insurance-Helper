@@ -9,6 +9,7 @@ import ChatHead from '../../design-system/patterns/chat/ChatHead';
 import ChatStream from '../../design-system/patterns/chat/ChatStream';
 import MessageBubble from '../../design-system/patterns/chat/MessageBubble';
 import StatusBubble from '../../components/StatusBubble';
+import ReadinessGauge from '../../components/ReadinessGauge';
 import Composer from '../../design-system/patterns/chat/Composer';
 import StateCard, { type StateKind } from '../../design-system/patterns/chat/StateCard';
 import ActionCard, { ActionCards } from '../../design-system/patterns/chat/ActionCard';
@@ -125,6 +126,7 @@ function AssessmentBody({ a }: { a: AssistantAssessment }): ReactNode {
         <span className={s.likeDot} />
         청구 가능성 <strong>{a.likelihood}</strong>
       </div>
+      {a.readiness ? <ReadinessGauge r={a.readiness} /> : null}
       <div className={s.summaryProse}>
         <Markdown>{a.summary}</Markdown>
       </div>

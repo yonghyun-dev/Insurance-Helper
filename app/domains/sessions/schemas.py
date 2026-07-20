@@ -305,6 +305,30 @@ class Citation(BaseModel):
     highlights: list[HighlightBox] = Field(default_factory=list)
 
 
+class ReadinessFactor(BaseModel):
+    """준비도 스코어 배점 항목 — 어디서 점수가 나왔는지 설명(XAI)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    label: str
+    points: int = Field(..., ge=0)
+    max_points: int = Field(..., gt=0)
+
+
+class ReadinessScore(BaseModel):
+    """청구 준비도 0~100 (결정론 산출, readiness.compute_readiness).
+
+    '지급 확률'이 아님 — caption 을 스키마에 고정해 프론트가 반드시 함께 표시.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    score: int = Field(..., ge=0, le=100)
+    level: Literal["high", "medium", "low"]
+    factors: list[ReadinessFactor] = Field(..., min_length=1)
+    caption: str
+
+
 class AssistantAssessment(BaseModel):
     """assessment 모드 — 가능성 등급 + 인용 + 면책."""
 
@@ -319,6 +343,8 @@ class AssistantAssessment(BaseModel):
     next_steps: list[str] = Field(default_factory=list)
     # Sprint 6 — full(슬롯 완전 충족) vs partial(일부 부족 → 추정 기반)
     confidence: Literal["partial", "full"] = "full"
+    # Sprint 37 — 청구 준비도 0~100 (결정론, LLM 미관여 — readiness.compute_readiness)
+    readiness: ReadinessScore | None = None
     disclaimer: str = Field(
         default="본 결과는 참고용이며 최종 청구 가능 여부 판단을 대체하지 않습니다."
     )
