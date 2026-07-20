@@ -181,14 +181,29 @@ class TestDetectRepeatingHeaderFooter:
         assert repeated in headers
 
     def test_unique_lines_not_detected_as_header(self):
-        # 반복되지 않는 라인은 헤더 아님
+        # 서로 완전히 다른(숫자 차이도 아닌) 첫 줄은 헤더 아님
         texts = [
-            "고유한 첫 줄 1\n본문입니다.",
-            "고유한 첫 줄 2\n본문입니다.",
-            "고유한 첫 줄 3\n본문입니다.",
+            "서론 개요\n본문입니다.",
+            "가입 안내\n본문입니다.",
+            "청구 절차\n본문입니다.",
         ]
         headers, _ = _detect_repeating_header_footer(texts)
         assert len(headers) == 0
+
+    def test_numbered_footer_detected_via_signature(self):
+        """PM-43 Tier 2 — 페이지번호가 붙어 페이지마다 다른 꼬리말도 시그니처로 잡는다.
+
+        이전엔 '- 5 -', '- 6 -' 이 전부 유니크로 카운트돼 반복으로 감지 못 했다(효과 0%).
+        """
+        texts = [
+            f"삼성화재 실손의료보험 약관\n제{i}조 (보상하는 사항) 회사는 피보험자가 상해로...\n- {i} -"
+            for i in range(1, 8)
+        ]
+        headers, footers = _detect_repeating_header_footer(texts)
+        assert "삼성화재 실손의료보험 약관" in headers  # 숫자 없는 반복 머리말
+        assert any("N" in f for f in footers)  # 페이지번호 정규화된 꼬리말 시그니처
+        # 본문(제N조 …)은 헤더/푸터로 오탐되지 않는다
+        assert all("보상하는 사항" not in s for s in headers | footers)
 
 
 # ===========================================================================
@@ -200,14 +215,24 @@ class TestStripHeaderFooter:
     """헤더/푸터 제거 로직 검증."""
 
     def test_header_lines_removed(self):
-        # 헤더 라인이 제거됨
+        # strip 은 시그니처(숫자 정규화) 집합으로 매칭한다 — detect 반환과 동일 공간.
+        from app.domains.chunks.parser import _line_signature
+
         raw = "한국화재보험\n제1조 본문입니다.\n연락처: 1588-0000"
-        headers = {"한국화재보험"}
-        footers = {"연락처: 1588-0000"}
+        headers = {_line_signature("한국화재보험")}
+        footers = {_line_signature("연락처: 1588-0000")}
         result = _strip_header_footer(raw, headers, footers)
         assert "한국화재보험" not in result
         assert "연락처: 1588-0000" not in result
         assert "제1조 본문입니다." in result
+
+    def test_numbered_footer_stripped_across_pages(self):
+        """페이지마다 번호가 다른 꼬리말도 같은 시그니처면 모두 제거된다."""
+        from app.domains.chunks.parser import _line_signature
+
+        footers = {_line_signature("- 5 -")}  # '- <N> -'
+        assert _strip_header_footer("제3조 본문\n- 5 -", set(), footers) == "제3조 본문"
+        assert _strip_header_footer("제9조 본문\n- 12 -", set(), footers) == "제9조 본문"
 
     def test_empty_headers_footers_returns_original(self):
         # 헤더/푸터 없으면 원문 그대로

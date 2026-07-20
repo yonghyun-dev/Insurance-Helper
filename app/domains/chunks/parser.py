@@ -151,13 +151,33 @@ def _extract_pages(path: Path) -> list[RawPage]:
     return pages
 
 
+_PAGE_NUM_TOKEN = "\x00N\x00"  # 시그니처용 페이지번호 플레이스홀더(본문에 안 나오는 토큰)
+
+
+def _line_signature(line: str) -> str:
+    """헤더/푸터 반복 판정용 시그니처.
+
+    페이지마다 바뀌는 숫자(페이지번호·'- 5 -'·날짜 꼬리 등)를 플레이스홀더로 치환해
+    '삼성화재 실손 - 5', '삼성화재 실손 - 6' 이 **같은 반복 라인**으로 잡히게 한다.
+    (이전엔 정확 일치라 페이지번호가 붙은 머리말/꼬리말이 전부 유니크로 카운트돼
+     반복으로 잡히지 못했다 — 헤더/푸터 제거 효과 0% 의 근본 원인, PM-43 Tier 2.)
+    """
+    sig = re.sub(r"\d+", _PAGE_NUM_TOKEN, line.strip())
+    return re.sub(r"\s+", " ", sig).strip()
+
+
+def _looks_like_recurring(line: str) -> bool:
+    """헤더/푸터 후보가 될 만큼 짧은 라인인지(본문 문단은 제외)."""
+    return len(line.strip()) <= 80
+
+
 def _detect_repeating_header_footer(
     raw_texts: list[str],
 ) -> tuple[set[str], set[str]]:
-    """페이지 상/하단에서 반복적으로 등장하는 라인을 헤더/푸터로 식별한다.
+    """페이지 상/하단에서 반복 등장하는 라인의 **시그니처**를 헤더/푸터로 식별한다.
 
-    기준: 전체 페이지의 60% 이상에서 같은 짧은 라인이 등장하면 반복으로 본다.
-    매우 짧은 페이지가 섞여 있어도 false positive 영향이 작도록 라인을 normalize.
+    기준: 전체 페이지의 60% 이상에서 같은 시그니처가 등장하면 반복으로 본다.
+    시그니처는 숫자를 정규화하므로 페이지번호가 붙은 머리말/꼬리말도 잡힌다.
     """
     if len(raw_texts) < 3:
         return set(), set()
@@ -172,41 +192,31 @@ def _detect_repeating_header_footer(
             continue
         head_window = max(1, int(len(lines) * HEADER_RATIO))
         foot_window = max(1, len(lines) - int(len(lines) * FOOTER_RATIO))
+        # 같은 페이지 안에서 동일 시그니처 중복 카운트 방지(페이지당 1표).
+        seen_head: set[str] = set()
+        seen_foot: set[str] = set()
         for line in lines[:head_window]:
             if _looks_like_recurring(line):
-                head_counter[line] += 1
+                seen_head.add(_line_signature(line))
         for line in lines[-foot_window:]:
             if _looks_like_recurring(line):
-                foot_counter[line] += 1
+                seen_foot.add(_line_signature(line))
+        head_counter.update(seen_head)
+        foot_counter.update(seen_foot)
 
-    headers = {line for line, count in head_counter.items() if count >= threshold}
-    footers = {line for line, count in foot_counter.items() if count >= threshold}
+    headers = {sig for sig, count in head_counter.items() if sig and count >= threshold}
+    footers = {sig for sig, count in foot_counter.items() if sig and count >= threshold}
     return headers, footers
 
 
-def _looks_like_recurring(line: str) -> bool:
-    """헤더/푸터 후보가 될 만큼 짧고 일반적인 라인인지 판단.
-
-    TODO (Sprint 5+ 백로그):
-        현재 80자 초과만 거르고 그 외는 모두 True 라 사실상 필터링 효과가 없다.
-        실제 보험약관에서 헤더/푸터 제거 효과 0% 의 원인 중 하나. 페이지 번호를
-        `<PAGE_NUM>` 으로 정규화해 카운터에 잡히게 하는 등 추가 휴리스틱 필요.
-    """
-    if len(line) > 80:
-        return False  # 본문일 가능성이 큼
-    if re.fullmatch(r"\d+", line):
-        return True  # 페이지 번호
-    return True
-
-
 def _strip_header_footer(raw: str, headers: set[str], footers: set[str]) -> str:
-    """반복 헤더/푸터 라인을 제거한 본문을 반환."""
+    """반복 헤더/푸터(시그니처 일치) 라인을 제거한 본문을 반환."""
     if not headers and not footers:
         return raw
     kept: list[str] = []
     for line in raw.splitlines():
-        stripped = line.strip()
-        if stripped and (stripped in headers or stripped in footers):
+        sig = _line_signature(line)
+        if line.strip() and (sig in headers or sig in footers):
             continue
         kept.append(line)
     return "\n".join(kept)
