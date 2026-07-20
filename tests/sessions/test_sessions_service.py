@@ -1420,9 +1420,8 @@ class TestHelpUncitedAnswer:
     def test_main_answer_still_enforces_citation(self):
         """메인 QA 타입(AssistantAnswer)의 인용 최소 1건 강제는 유지(환각 차단)."""
         import pytest
-        from pydantic import ValidationError
-
         from app.domains.sessions.schemas import AssistantAnswer
+        from pydantic import ValidationError
 
         with pytest.raises(ValidationError):
             AssistantAnswer(message="약관상 보상됩니다.", citations=[])
