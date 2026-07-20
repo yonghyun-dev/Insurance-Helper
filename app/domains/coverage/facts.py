@@ -23,7 +23,11 @@ def _infer_treatment_type(slots: SlotState) -> TreatmentType | None:
 
 
 def _map_purpose(raw: str | None) -> ClaimPurpose:
-    """SlotState.purpose(문자열) → ClaimPurpose. 미상/미인식은 치료 목적."""
+    """SlotState.purpose(문자열) → ClaimPurpose. 미상/미인식은 치료 목적.
+
+    purpose 는 extract_slots(뉴럴)가 enum(treatment/cosmetic/preventive/pregnancy)으로
+    분류해 채운다 → 여기서는 매핑만. 심볼릭 coverage 룰이 이 값으로 면책을 판정한다.
+    """
     if not raw:
         return ClaimPurpose.TREATMENT
     try:

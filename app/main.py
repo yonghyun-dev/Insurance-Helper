@@ -70,8 +70,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.info("attachment cleanup scheduler skip (TTL=0)")
 
     # 데모 페르소나 계정 자동 시드(멱등) — 이름+전화 매핑 데모용.
-    # 스냅샷 _settings 대신 fresh get_settings() — 테스트의 DEMO_SEED_ON_STARTUP=false 반영.
-    if get_settings().demo_seed_on_startup:
+    # PM-43 Tier 0 — production 이면 flag 와 무관하게 시드 안 함(공용 비번 백도어 차단).
+    if get_settings().should_seed_demo:
         try:
             from app.domains.auth.personas import seed_demo_users
             from app.infrastructure.core.database import session_scope

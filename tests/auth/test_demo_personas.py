@@ -81,3 +81,45 @@ class TestDemoPersonasEndpoint:
         assert set(first) == {"name", "phone", "dob", "label"}
         # external_id 같은 내부 키는 노출하지 않음
         assert "external_id" not in first
+
+
+class TestProductionDemoGating:
+    """PM-43 Tier 0 — production 에서 데모 진입점 차단(공용 비번 백도어 방지)."""
+
+    def test_demo_personas_blocked_in_production(self, client: TestClient, monkeypatch):
+        from app.infrastructure.core.config import get_settings
+
+        monkeypatch.setenv("APP_ENV", "production")
+        get_settings.cache_clear()
+        try:
+            assert get_settings().demo_enabled is False
+            assert get_settings().should_seed_demo is False
+            r = client.get("/api/v1/auth/demo-personas")
+            assert r.status_code == 404
+            r2 = client.post(
+                "/api/v1/auth/demo-login",
+                json={"name": "김민서", "phone": "010-1234-5678"},
+            )
+            assert r2.status_code == 404
+        finally:
+            get_settings.cache_clear()
+
+    def test_demo_enabled_in_dev(self, monkeypatch):
+        from app.infrastructure.core.config import get_settings
+
+        monkeypatch.setenv("APP_ENV", "dev")
+        get_settings.cache_clear()
+        try:
+            assert get_settings().demo_enabled is True
+        finally:
+            get_settings.cache_clear()
+
+    def test_cookie_secure_follows_env(self, monkeypatch):
+        from app.infrastructure.core.config import get_settings
+
+        monkeypatch.setenv("APP_ENV", "production")
+        get_settings.cache_clear()
+        try:
+            assert get_settings().is_production is True
+        finally:
+            get_settings.cache_clear()

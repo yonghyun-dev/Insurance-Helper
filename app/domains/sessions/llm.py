@@ -76,6 +76,8 @@ _SLOT_FIELD_ENUM = [
     # Sprint 17 — 청구서 표준 필드 (필수 X, OCR/마이데이터 prefill 친화)
     "hospital", "diagnosis_code", "treatment_period",
     "policy_no", "claim_amount", "incident_location",
+    # PM-35/Sprint 37 — 청구 목적(면책 판정 핵심, 심볼릭 coverage 룰 입력)
+    "purpose",
     # Sprint 17 — 자유 메타 (LLM 이 추출한 SlotState 매핑 외 정보)
     "document_metadata",
 ]
@@ -183,6 +185,16 @@ _EXTRACT_SLOTS_TOOL = {
                     "policy_no": {"type": "string", "description": "보험 증권번호"},
                     "claim_amount": {"type": "integer", "minimum": 0, "description": "청구금액 (원)"},
                     "incident_location": {"type": "string", "description": "사고 발생 장소"},
+                    # PM-35/Sprint 37 — 청구 목적(면책 판정 핵심). 심볼릭 coverage 룰이
+                    # 이 값으로 면책(미용/검진/임신)을 결정론 판정한다. 뉴럴이 분류하는 사실.
+                    "purpose": {
+                        "type": "string",
+                        "enum": ["treatment", "cosmetic", "preventive", "pregnancy"],
+                        "description": (
+                            "청구 목적: treatment(치료·기본) / cosmetic(미용·성형·외모개선) / "
+                            "preventive(건강검진·예방접종) / pregnancy(임신·출산·산후)"
+                        ),
+                    },
                     # 자유 메타 — 청구 판단 무관, 사용자 확인 카드 노출 전용
                     "document_metadata": {
                         "type": "object",
@@ -233,6 +245,11 @@ def _extract_slots_system(today: date) -> str:
         "   - '지난주', '며칠 전' 같은 모호 표현은 추출 생략\n"
         "4. `diagnosis`(진단명, 예: 급성 충수염), `hospitalization_days`(입원 일수), "
         "`outpatient_visits`(외래 횟수) 를 명시 시 추출.\n"
+        "4-a. **`purpose`(청구 목적) 분류** — 치료 외 목적 단서가 있으면 반드시 추출:\n"
+        "   - cosmetic: 미용·성형·외모개선 (쌍꺼풀·코 성형·지방흡입·보톡스·점 제거 등)\n"
+        "   - preventive: 건강검진·예방접종·영양주사 등 예방 목적\n"
+        "   - pregnancy: 임신·출산·제왕절개·산후 관련\n"
+        "   - treatment: 질병·상해 치료(기본). 단서 없으면 생략(치료로 간주).\n"
         "6-a. **\"모름\"/\"몰라\"/\"모르겠어\"/\"잘 모르겠어\" 등 명시적 무지 표현** → 해당 슬롯을 `unknown_slots` 배열에 추가 "
         "(slot_updates 에는 넣지 않는다). 예: '보험사 잘 모르겠어' → unknown_slots=['insurer'].\n"
         "6-b. **부정 표현 → 정수 슬롯 0 으로 채움**. 예: '입원 안 했어' → hospitalization_days=0, "
@@ -474,7 +491,8 @@ _DEFAULT_DISCLAIMER = (
     "법적 효력이나 보험사의 최종 청구 가능 판단을 대체하지 않습니다. "
     "정확한 청구·지급 여부는 가입하신 보험사의 약관과 심사에 따릅니다."
 )
-# [확인 필요] Sprint 8 — 법무 검토 후 확정. PM 잠정안 (대국민 서비스 진입 기준).
+# 책임 한정(단정 금지·심사 우선)을 명시한 보수적 안전 문구 — 자산이 아니라 면책 고지.
+# 정식 법무 사인오프는 별도 추적(PM-43 Tier 0 백로그): 문안 확정 시 이 상수만 교체.
 
 
 @retry(
@@ -1029,6 +1047,8 @@ def classify_intent(
     ):
         return "claim_diagnosis"
 
+    # Sprint 37 — 판정 완료 후의 '재판정·정리 요청' vs '설명 요청' 구분은 LLM 분류기에
+    # 맡긴다(intent.md 규칙). 정규식 프리필터는 임시방편(무한 확장·오탐)이라 제거 — PM-43.
     client = _get_client()
     # Sprint 35 — 직전 어시스턴트 발화를 함께 줘 문맥상 답변("나 보험 없어")이
     # out_of_domain 으로 오분류돼 상용구가 대화를 끊는 문제를 막는다(실관측).

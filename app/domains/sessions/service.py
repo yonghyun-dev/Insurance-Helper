@@ -132,12 +132,16 @@ _PARTIAL_UNKNOWN_THRESHOLD: int = 2
 def _should_partial(
     slots: SlotState, missing: list[str], ask_count: int, user_text: str
 ) -> bool:
-    """partial assessment 진입 조건 3가지 중 하나라도 충족하면 True.
+    """partial assessment 진입 조건 — 하나라도 충족하면 되묻기 없이 바로 판정.
 
     조건:
         1. unknown_slots 수 ≥ 2 — 사용자가 명시적으로 "모름" 표시한 슬롯 다수
-        2. ask 횟수 ≥ 3 — 무한 질문 루프 방지
+        2. ask 횟수 ≥ 1 — 되묻기는 최대 1회 (답변-우선)
         3. 사용자 입력에 "그냥"/"됐어"/"알려줘"/"그만" 키워드 — 명시 의사
+
+    면책 등 '심볼릭 엔진이 이미 종결 판정한' 케이스의 되묻기 생략은 여기가 아니라
+    post_message 가 coverage_result 로 직접 판단한다(치료량 등 추가 슬롯이 판정을
+    바꾸지 못하므로 되물을 이유가 없음).
     """
     if len(slots.unknown_slots) >= _PARTIAL_UNKNOWN_THRESHOLD:
         return True
@@ -308,13 +312,27 @@ def post_message(
         # 3) missing 계산 (서비스 책임)
         missing = _compute_missing(session.slots)
         ask_count = _count_ask_turns(session)
+
+        # Sprint 37 — 심볼릭 보장 판정을 게이팅 '전에' 산정(결정론, LLM 무관).
+        # 면책(EXCLUDED) 등 종결 판정이면 치료량 같은 추가 슬롯이 결과를 바꾸지 못하므로
+        # 되묻기가 무의미 → 바로 판정으로 보낸다(뉴럴이 채운 purpose 를 심볼릭이 판정).
+        from app.domains.coverage import build_facts_from_slots
+        from app.domains.coverage import evaluate as evaluate_coverage
+        from app.domains.coverage.schemas import CoverageOutcome
+
+        coverage_result = evaluate_coverage(build_facts_from_slots(session.slots))
+        coverage_terminal = coverage_result.outcome == CoverageOutcome.EXCLUDED
+
         logger.info(
-            "post_message: missing=%s area=%s unknown=%s ask_count=%d",
+            "post_message: missing=%s area=%s unknown=%s ask_count=%d coverage=%s",
             missing, session.slots.area, session.slots.unknown_slots, ask_count,
+            coverage_result.outcome,
         )
 
-        # Sprint 6 — partial 진입 조건 체크 (missing 있더라도 일정 조건 충족 시 assessment 강제)
-        partial_mode = bool(missing) and _should_partial(session.slots, missing, ask_count, text)
+        # Sprint 6/37 — partial 진입: 명시 의사·모름 다수(기존) 또는 심볼릭 종결 판정.
+        partial_mode = bool(missing) and (
+            coverage_terminal or _should_partial(session.slots, missing, ask_count, text)
+        )
 
         # 4) 분기
         if missing and not partial_mode:
@@ -385,12 +403,8 @@ def post_message(
             )
             return _build_response(session, ask)
 
-        # PM-35 — 심볼릭 보장 판정(결정론)을 먼저 산정해 LLM 에 grounding 으로 주입.
-        # LLM 은 이 판정을 뒤집지 못하고 자연어로 설명만 한다(뉴로심볼릭: 심볼릭이 판단, 뉴럴이 설명).
-        from app.domains.coverage import build_facts_from_slots
-        from app.domains.coverage import evaluate as evaluate_coverage
-
-        coverage_result = evaluate_coverage(build_facts_from_slots(session.slots))
+        # PM-35 — 심볼릭 보장 판정(결정론)을 LLM 에 grounding 으로 주입. 게이팅 단계에서
+        # 이미 산정한 coverage_result 를 재사용(뉴로심볼릭: 심볼릭이 판단, 뉴럴이 설명).
         assessment = llm.generate_assessment(
             session.slots, chunks,
             coverage=coverage_result.model_dump(mode="json"),

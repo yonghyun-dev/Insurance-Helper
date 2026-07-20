@@ -35,7 +35,10 @@ def _final_text_and_citations(assistant: Any) -> tuple[str, list[dict[str, str]]
     """최종 응답에서 (본문, 인용 리스트, likelihood) 추출 — 타입별 분기."""
     if isinstance(assistant, AssistantAssessment):
         cites = [{"clause": c.clause, "text": c.text} for c in assistant.citations]
-        return assistant.summary, cites, assistant.likelihood
+        # 사용자 가시 텍스트 전체 — 서류·기한 안내는 next_steps 로 나가므로
+        # summary 만 보면 복합 질문 응답이 저평가된다(측정 충실도)
+        text = "\n".join([assistant.summary, *assistant.next_steps])
+        return text, cites, assistant.likelihood
     if isinstance(assistant, AssistantComparison):
         cites = []
         for p in assistant.policies:

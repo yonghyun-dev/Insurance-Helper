@@ -38,15 +38,24 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 def _set_token_cookie(response: Response, token: str, exp_minutes: int) -> None:
-    """HttpOnly cookie 세팅."""
+    """HttpOnly cookie 세팅. PM-43 Tier 0 — production 이면 secure(HTTPS 전용) 강제."""
     response.set_cookie(
         key=COOKIE_NAME,
         value=token,
         max_age=exp_minutes * 60,
         httponly=True,
-        secure=False,  # 운영에서는 True (HTTPS), dev SQLite/localhost 환경 False
+        secure=get_settings().is_production,  # prod=True(HTTPS 전용), dev=False(localhost)
         samesite="lax",
     )
+
+
+def _require_demo_enabled() -> None:
+    """PM-43 Tier 0 — production 에서 데모 진입점 차단(공용 비번 백도어 방지)."""
+    if not get_settings().demo_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "NOT_FOUND", "message": "Not found"},
+        )
 
 
 @router.post("/signup", response_model=UserRead, status_code=status.HTTP_201_CREATED)
@@ -85,7 +94,8 @@ def login(payload: LoginRequest, response: Response) -> TokenResponse:
 
 @router.get("/demo-personas", response_model=list[DemoPersona])
 def demo_personas() -> list[DemoPersona]:
-    """데모 페르소나 목록(이름·전화·생년·라벨) — 프론트 picker 용. 시크릿 없음."""
+    """데모 페르소나 목록(이름·전화·생년·라벨) — 프론트 picker 용. production 에선 404."""
+    _require_demo_enabled()
     return [
         DemoPersona(name=p["name"], phone=p["phone"], dob=p["dob"], label=p["label"])
         for p in personas_registry.list_personas()
@@ -96,8 +106,9 @@ def demo_personas() -> list[DemoPersona]:
 def demo_login(payload: DemoLoginRequest, response: Response) -> TokenResponse:
     """이름+전화로 데모 페르소나 매핑 → 해당 시드 계정 로그인(JWT 쿠키).
 
-    실 마이데이터/건강보험 미발급 기간의 PoC 진입점. 미매칭 시 404.
+    실 마이데이터/건강보험 미발급 기간의 PoC 진입점. 미매칭 시 404. production 에선 404.
     """
+    _require_demo_enabled()
     settings = get_settings()
     with session_scope() as session:
         user = personas_registry.find_demo_user(session, payload.name, payload.phone)

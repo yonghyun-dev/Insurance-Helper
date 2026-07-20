@@ -35,6 +35,17 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # PM-43 Tier 0 — 환경 구분. prod 에서 데모 백도어·평문 쿠키를 결정론 차단하는 기반.
+    # dev/test 기본, 운영 배포는 APP_ENV=production 을 명시 주입해야 한다.
+    app_env: Literal["dev", "test", "production"] = Field(
+        default="dev",
+        description="실행 환경 — production 이면 데모 진입점·자동시드 차단, 쿠키 secure 강제",
+    )
+
+    @property
+    def is_production(self) -> bool:
+        return self.app_env == "production"
+
     # [하드 제약] 제품 전 영역 국내 AI(Upstage) 전용 — OpenAI 미사용·미지원.
     # 추론=Solar / 임베딩=solar-embedding / OCR·약관파싱=Document Parse.
     llm_provider: Literal["upstage"] = Field(
@@ -205,10 +216,21 @@ class Settings(BaseSettings):
         description="약관 PDF 파싱 백엔드 — upstage(Document Parse) 기본, pymupdf 는 폴백",
     )
     # 데모 페르소나(이름+전화 매핑) 계정을 앱 시작 시 자동 시드. 테스트는 false.
+    # PM-43 Tier 0 — prod 에서는 이 값과 무관하게 시드·데모 로그인이 차단된다(아래 데모 게이팅).
     demo_seed_on_startup: bool = Field(
         default=True,
-        description="앱 시작 시 data/demo/personas.json 의 데모 계정 자동 시드(멱등)",
+        description="앱 시작 시 data/demo/personas.json 의 데모 계정 자동 시드(멱등). production 에선 무시됨",
     )
+
+    @property
+    def demo_enabled(self) -> bool:
+        """데모 로그인·페르소나 진입점 허용 여부 — production 이면 항상 False (백도어 차단)."""
+        return not self.is_production
+
+    @property
+    def should_seed_demo(self) -> bool:
+        """앱 시작 시 데모 계정 시드 여부 — production 이면 flag 와 무관하게 False."""
+        return self.demo_enabled and self.demo_seed_on_startup
     attachment_storage_path: Path = Field(
         default=Path("./data/uploads"),
         description="첨부 파일 저장 디렉토리 (24h TTL 자동 정리)",
