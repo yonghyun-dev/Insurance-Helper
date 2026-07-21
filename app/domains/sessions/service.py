@@ -673,7 +673,13 @@ def _answer_general_qa(
         query, top_k=8, insurer_id=session.slots.insurer_id
     )
     if not chunks and session.slots.insurer_id:
-        chunks = rag_service.retrieve_freeform(query, top_k=8)  # 스코프 0건 → 교차 폴백
+        # PM-43 — 스코프 0건 → 교차 폴백. 무음이면 타 보험사 오귀속을 스스로 무력화하므로
+        # 로그를 남긴다(디버깅·감사). 답변엔 표준약관 프레이밍이 붙어 오지칭은 별도 차단.
+        logger.info(
+            "answer_general_qa: insurer_id=%s 스코프 검색 0건 → 표준약관 교차 폴백",
+            session.slots.insurer_id,
+        )
+        chunks = rag_service.retrieve_freeform(query, top_k=8)
     if not chunks:
         ask = AssistantAsk(
             type="ask",

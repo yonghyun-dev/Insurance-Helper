@@ -322,3 +322,21 @@ class TestSplitByTokens:
         # HARD_TOKEN_LIMIT 이하 입력 시 조각 1개만 나와야 함
         pieces = _split_by_tokens(chunk, _ENCODER)
         assert len(pieces) == 1
+
+
+class TestTokenLimitInvariant:
+    """PM-43 — 강제 분할 임계가 임베딩 한도보다 작음을 구조적으로 보장(silent break 방지)."""
+
+    def test_hard_limit_below_embedding_max(self):
+        from app.domains.chunks.chunker import HARD_TOKEN_LIMIT
+        from app.infrastructure.embeddings.service import MAX_INPUT_TOKENS
+
+        # 청크 꼬리가 임베딩에서 잘려 검색 사각지대가 되는 일(7000/8191 사고)을 차단
+        assert HARD_TOKEN_LIMIT < MAX_INPUT_TOKENS
+
+    def test_hard_limit_derived_not_hardcoded(self):
+        # 임베딩 한도를 바꾸면 임계도 따라가야 한다(손 결합 제거 확인)
+        from app.domains.chunks import chunker
+        from app.infrastructure.embeddings.service import MAX_INPUT_TOKENS
+
+        assert chunker.HARD_TOKEN_LIMIT == MAX_INPUT_TOKENS - chunker._EMBED_SAFETY_MARGIN

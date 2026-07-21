@@ -33,15 +33,17 @@ from app.domains.chunks.schemas import (
     StructureNode,
 )
 from app.infrastructure.core.logging import get_logger
+from app.infrastructure.embeddings.service import MAX_INPUT_TOKENS as _EMBEDDING_MAX_INPUT_TOKENS
 
 logger = get_logger(__name__)
 
 DEFAULT_MAX_TOKENS = 1000
 MIN_CHUNK_TOKENS = 30  # 너무 짧은 단편(예: 빈 article 헤더)은 검색 노이즈가 되어 제외
-# 강제 분할 임계 — 임베딩 입력 절단(embeddings.MAX_INPUT_TOKENS=3800, 동일 cl100k 프록시)
-# 아래로 유지해 "청크 꼬리가 임베딩에서 잘려 검색 불가"가 되는 일을 구조적으로 차단한다.
-# (기존 7000 은 OpenAI 8191 기준이라 3800 절단과 어긋나 청크 꼬리가 검색 사각지대였다)
-HARD_TOKEN_LIMIT = 3500
+# 강제 분할 임계 — 임베딩 입력 절단 한도(MAX_INPUT_TOKENS)보다 반드시 작아야 "청크 꼬리가
+# 임베딩에서 잘려 검색 불가"가 안 생긴다. PM-43: 과거 손으로 맞춘 상수(3500 vs 3800)라
+# 임베딩 한도만 바꾸면 조용히 어긋났다(7000/8191 사고). 이제 한도에서 마진을 빼 파생한다.
+_EMBED_SAFETY_MARGIN = 300
+HARD_TOKEN_LIMIT = _EMBEDDING_MAX_INPUT_TOKENS - _EMBED_SAFETY_MARGIN  # = 3500 (한도 3800 기준)
 SPLIT_OVERLAP_TOKENS = 80  # 강제 분할 시 문맥 유지를 위한 오버랩
 _ENCODING_NAME = "cl100k_base"
 
