@@ -34,8 +34,6 @@ _PATTERNS: tuple[re.Pattern[str], ...] = tuple(
         r"^hello[!?.~]*$",
         r"^ㅎㅇ[!?.~]*$",
         r"^좋은\s?(아침|점심|저녁|밤|하루)(\s?(입니다|이에요))?[!?.~]*$",
-        r"^테스트[!?.~]*$",
-        r"^test[!?.~]*$",
     )
 )
 
@@ -61,11 +59,13 @@ _GREETING_MESSAGE = (
 
 def make_smalltalk_ask() -> AssistantAsk:
     """인사/잡담 입력에 대한 환영 ask 응답."""
+    from app.shared import insurers
+
     return AssistantAsk(
         type="ask",
         message=_GREETING_MESSAGE,
         expected_slots=["insurer"],
-        options=["삼성화재", "현대해상", "메리츠화재", "한화손해보험", "롯데손해보험"],
+        options=insurers.all_names(),  # 단일 소스(PM-43)
     )
 
 

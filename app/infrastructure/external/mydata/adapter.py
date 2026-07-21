@@ -19,6 +19,7 @@ from typing import Any, Protocol, TypedDict
 from app.infrastructure.core.config import get_settings
 from app.infrastructure.core.exceptions import ConfigurationError
 from app.infrastructure.core.logging import get_logger
+from app.shared import insurers as _shared_insurers
 
 logger = get_logger(__name__)
 
@@ -106,12 +107,12 @@ _ORG_CODE_TO_INSURER: dict[str, str] = {
 }
 
 # 상품명 폴백 매칭 — 표준 응답의 prod_name 에 보험사명이 포함되는 관행 활용.
+# (pattern, code, name) 을 단일 소스(app.shared.insurers)에서 파생 — 중복 하드코딩 제거(PM-43).
+# 패턴은 가장 짧은 약칭(가장 넓은 substring)을 쓴다 — 예: '한화손해보험' 은 '한화손보'가
+# 아니라 '한화'를 포함하므로 min(aliases, key=len) 가 정확.
 _INSURER_NAME_PATTERNS: list[tuple[str, str, str]] = [
-    ("삼성", "samsung", "삼성화재"),
-    ("현대", "hyundai", "현대해상"),
-    ("메리츠", "meritz", "메리츠화재"),
-    ("롯데", "lotte", "롯데손해보험"),
-    ("한화", "hanwha", "한화손해보험"),
+    (min((*_ins.aliases, _ins.name), key=len), _ins.code, _ins.name)
+    for _ins in _shared_insurers.INSURERS
 ]
 
 
