@@ -20,11 +20,17 @@ from eval.retrieval_metrics import (
 
 
 def test_golden_set_schema():
-    """골든셋 스키마 불변식 — 30문항, 필수 필드, 5개사 커버."""
+    """골든셋 스키마 불변식 — 69문항(v2 확장), 필수 필드, 5개사 균형 커버."""
     items = load_golden()
-    assert len(items) == 30
+    assert len(items) == 45  # v1 30 + v2 15 (계약절차 3주제×5사)
     insurers = {i["insurer_id"] for i in items}
     assert insurers == {"samsung", "hanwha", "hyundai", "meritz", "lotte"}
+    # id 유일성 + 보험사별 최소 커버(v1 6 + v2 3 = 9)
+    from collections import Counter
+
+    assert len({i["id"] for i in items}) == len(items)
+    per = Counter(i["insurer_id"] for i in items)
+    assert all(per[c] >= 9 for c in insurers), dict(per)
     for item in items:
         assert item["id"] and item["query"]
         assert item["expected"]["clause_no"], item["id"]

@@ -33,7 +33,9 @@ GOLDEN_PATH = Path(__file__).parent / "golden" / "retrieval_v1.json"
 
 # 회귀 게이트 임계 — 베이스라인 실측(2026-07-09, vector 단독) 기준으로 고정.
 # 이 값 미달 = 검색 회귀. Sprint 32 T2 뉴로심볼릭(hit@8 0.867/MRR 0.666) 반영 상향.
-THRESHOLDS = {"hit@8": 0.85, "mrr@8": 0.60, "filter_integrity": 1.0}
+# 회귀 게이트 — 골든셋 v2(45문항, 절차 질의 포함)의 실측 베이스라인 바로 아래.
+# v1(30문항, 커버리지 편중) 0.867/0.666 → v2 0.844/0.575 (절차 질의가 더 어려움 = 정직한 하락).
+THRESHOLDS = {"hit@8": 0.80, "mrr@8": 0.55, "filter_integrity": 1.0}
 
 
 def load_golden(path: Path = GOLDEN_PATH) -> list[dict[str, Any]]:
@@ -156,7 +158,7 @@ def main() -> None:
         if fails:
             print(f"정합 실패 {len(fails)}건: {fails}")
             raise SystemExit(1)
-        print("골든셋-코퍼스 정합 OK (30/30)")
+        print(f"골든셋-코퍼스 정합 OK ({len(load_golden())}/{len(load_golden())})")
         return
 
     result = evaluate(default_retrieve_fn)
