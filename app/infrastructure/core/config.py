@@ -115,9 +115,11 @@ class Settings(BaseSettings):
         description="심볼릭(그래프) 채널 사용 — false 또는 그래프 다운 시 뉴럴(벡터) 단독으로 graceful",
     )
     rag_symbolic_weight: float = Field(
-        default=0.1,
-        description="가중 RRF 에서 심볼릭 순위 가중 (뉴럴=1.0 고정). 골든셋 그리드 실측"
-        "(2026-07-09: 0.05/0.1/0.15/0.3/0.5 중 0.1 이 hit@8 +0.034·MRR 동등 최적)으로 확정.",
+        default=0.02,
+        description="가중 RRF 에서 심볼릭 순위 가중 (뉴럴=1.0 고정). 골든셋 v2(45문항) 미세 스윕"
+        "(2026-07-21)으로 재확정: hit@8 은 0~0.3 평탄(0.844), mrr@8 은 [0~0.03] 평탄최적"
+        "(~0.589)이고 0.04↑ 악화. 구 0.1 은 30문항 과적합(홀드아웃서 미재현). 0.02=측정 argmax·"
+        "저가중(견고)으로 심볼릭 융합을 유지하되 순위 손실 없음. 재현: RAG_SYMBOLIC_WEIGHT=x eval.",
     )
     rag_react: bool = Field(
         default=False,

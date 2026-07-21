@@ -27,8 +27,6 @@ class TestIsSmalltalk:
             "ㅎㅇ",
             "좋은 아침",
             "좋은아침",
-            "test",
-            "테스트",
         ],
     )
     def test_detects_greetings(self, text: str):
@@ -39,9 +37,11 @@ class TestIsSmalltalk:
         [
             "안녕 자동차 사고가 났어요",
             "어제 빙판에 미끄러져 발목 골절로 입원했어요",
-            "한화손해보험 자동차보험인데요",
+            "한화손해보험 실손인데요",
             "보험사가 어디인가요",
             "",
+            "test",  # PM-43 — 데모 편의 'test/테스트' 인사 매칭 제거
+            "테스트",
         ],
     )
     def test_does_not_match_real_inquiries(self, text: str):
