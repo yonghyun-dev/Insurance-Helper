@@ -161,6 +161,11 @@ from app.infrastructure.external.health_data.router import (  # noqa: E402
 
 app.include_router(health_data_router, prefix=_API_PREFIX)
 
+# Sprint 38 준비 — 관리자 그래프 시각화 API (production 은 인증 게이팅, PM-43 P6)
+from app.domains.admin.router import router as admin_router  # noqa: E402
+
+app.include_router(admin_router, prefix=_API_PREFIX)
+
 
 _MSG_INTERNAL_ERROR = "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
 

@@ -1,0 +1,158 @@
+/* TDD 트리 캔버스 — 참고 앱 스타일 (곡선 링크·박스 노드·dim) */
+
+.shell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.toolRow {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  z-index: 5;
+  display: flex;
+  gap: 6px;
+}
+
+.toolRow button {
+  height: 28px;
+  padding: 0 12px;
+  font-size: 12px;
+  border: 1px solid #dfe4ec;
+  border-radius: 999px;
+  background: #fff;
+  color: #3a4763;
+  cursor: pointer;
+}
+
+.toolRow button:hover {
+  background: #f2f5fa;
+}
+
+.canvas {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  cursor: grab;
+  background:
+    linear-gradient(#eef1f7 1px, transparent 1px) 0 0 / 30px 30px,
+    linear-gradient(90deg, #eef1f7 1px, transparent 1px) 0 0 / 30px 30px,
+    #fbfcfe;
+  touch-action: none;
+}
+
+.canvas:active {
+  cursor: grabbing;
+}
+
+.link {
+  fill: none;
+  stroke: #c3cddd;
+  stroke-width: 1.6;
+}
+
+.linkDim {
+  fill: none;
+  stroke: #e7ebf2;
+  stroke-width: 1.2;
+}
+
+.node {
+  cursor: pointer;
+}
+
+.nodeDim {
+  cursor: pointer;
+  opacity: 0.32;
+}
+
+.box {
+  filter: drop-shadow(0 3px 6px rgba(23, 36, 63, 0.18));
+}
+
+.boxSelected {
+  filter: drop-shadow(0 3px 8px rgba(23, 36, 63, 0.25));
+  stroke: #8a3ffc;
+  stroke-width: 2.5;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 600;
+  pointer-events: none;
+  user-select: none;
+}
+
+.expander circle {
+  fill: rgba(255, 255, 255, 0.22);
+}
+
+.expander:hover circle {
+  fill: rgba(255, 255, 255, 0.4);
+}
+
+.expander text {
+  font-size: 13px;
+  font-weight: 700;
+  fill: #fff;
+  pointer-events: none;
+}
+
+.tooltip {
+  position: absolute;
+  z-index: 10;
+  width: 300px;
+  max-height: 240px;
+  overflow: hidden;
+  padding: 12px 14px;
+  background: #17233c;
+  color: #e8edf6;
+  border-radius: 12px;
+  box-shadow: 0 14px 34px rgba(10, 18, 35, 0.35);
+  pointer-events: none;
+}
+
+.tooltipType {
+  display: inline-block;
+  margin-bottom: 5px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.tooltip strong {
+  display: block;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.tooltip p {
+  margin: 7px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #b9c4d8;
+}
+
+.tooltipMeta {
+  color: #8fd3c7 !important;
+}
+
+.legendRow {
+  padding: 8px 14px;
+  border-top: 1px solid #edf0f5;
+  font-size: 11px;
+  color: #7a879e;
+}
+
+.labelSmall {
+  font-size: 10.5px;
+  font-weight: 600;
+  pointer-events: none;
+  user-select: none;
+}

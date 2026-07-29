@@ -5,6 +5,7 @@ import DisclaimerPage from './pages/legal/DisclaimerPage';
 import PrivacyPage from './pages/legal/PrivacyPage';
 import SourcesPage from './pages/legal/SourcesPage';
 import AccessibilityPage from './pages/legal/AccessibilityPage';
+import AdminGraphPage from './pages/admin/AdminGraphPage';
 import styles from './App.module.css';
 
 export default function App() {
@@ -15,6 +16,7 @@ export default function App() {
       <Route path="/legal/privacy" element={<PrivacyPage />} />
       <Route path="/legal/sources" element={<SourcesPage />} />
       <Route path="/legal/accessibility" element={<AccessibilityPage />} />
+      <Route path="/admin/graph" element={<AdminGraphPage />} />
       <Route element={<ShowcaseLayout />}>
         <Route path="/showcase" element={<ShowcasePage />} />
       </Route>
