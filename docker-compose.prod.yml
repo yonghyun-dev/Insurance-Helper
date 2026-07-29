@@ -15,6 +15,9 @@ x-backend-env: &backend-env
   DATABASE_URL: postgresql+psycopg://ica:${POSTGRES_PASSWORD}@postgres:5432/ica_db
   VECTOR_STORE: pgvector
   GRAPH_URI: bolt://memgraph:7687
+  # 관리자 그래프 탐색기 — 라이브(공개 데모)에서는 차단(404 은닉). 팀 내부 확인은 로컬로.
+  # (APP_ENV=production 게이트는 데모 로그인·HTTP 쿠키를 깨서 현 단계엔 못 쓴다)
+  ADMIN_GRAPH_ENABLED: "false"
 
 services:
   # Sprint 32 — 뉴로심볼릭 심볼릭 채널 그래프 스토어 (다운이어도 검색은 뉴럴 단독 graceful)

@@ -24,8 +24,14 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 def _require_admin(
     current_user: User | None = Depends(get_current_user_optional),  # noqa: B008
 ) -> None:
-    """production 에선 로그인 사용자만 접근 — 아니면 404(엔드포인트 존재 은닉)."""
-    if get_settings().is_production and current_user is None:
+    """접근 게이트 — 아니면 404(엔드포인트 존재 은닉).
+
+    - ADMIN_GRAPH_ENABLED=false: 인증 여부와 무관하게 차단 (운영 compose 기본).
+      라이브는 HTTP+데모 로그인 개방이라 APP_ENV=production 을 못 쓰는 대신 이 토글.
+    - production: 로그인 사용자만 접근.
+    """
+    settings = get_settings()
+    if not settings.admin_graph_enabled or (settings.is_production and current_user is None):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "NOT_FOUND", "message": "Not found"},

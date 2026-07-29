@@ -46,6 +46,14 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         return self.app_env == "production"
 
+    # 관리자 그래프 탐색기 노출 토글 — 라이브는 HTTP+데모 로그인 개방 상태라
+    # APP_ENV=production 게이트를 쓸 수 없다(켜면 데모 로그인·쿠키가 깨짐).
+    # 운영 compose 가 ADMIN_GRAPH_ENABLED=false 로 명시 차단한다(꺼지면 404 은닉).
+    admin_graph_enabled: bool = Field(
+        default=True,
+        description="관리자 그래프 API/페이지 활성화 — false 면 인증 여부와 무관하게 404",
+    )
+
     # [하드 제약] 제품 전 영역 국내 AI(Upstage) 전용 — OpenAI 미사용·미지원.
     # 추론=Solar / 임베딩=solar-embedding / OCR·약관파싱=Document Parse.
     llm_provider: Literal["upstage"] = Field(

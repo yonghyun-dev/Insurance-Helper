@@ -97,6 +97,18 @@ class TestRouterGating:
         finally:
             get_settings.cache_clear()
 
+    def test_flag_disabled_blocked_even_in_dev(self, client, monkeypatch):
+        # 운영 compose 는 ADMIN_GRAPH_ENABLED=false — 인증·환경 무관 404 은닉
+        from app.infrastructure.core.config import get_settings
+
+        monkeypatch.setenv("ADMIN_GRAPH_ENABLED", "false")
+        get_settings.cache_clear()
+        try:
+            assert client.get("/api/v1/admin/graph").status_code == 404
+            assert client.get("/api/v1/admin/graph/tree").status_code == 404
+        finally:
+            get_settings.cache_clear()
+
     def test_path_endpoint(self, client):
         r = client.get(
             "/api/v1/admin/graph/path",

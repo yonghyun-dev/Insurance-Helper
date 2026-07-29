@@ -218,10 +218,14 @@ def _document_structure() -> dict[str, Any]:
     from app.shared.insurers import code_to_name
 
     with session_scope() as s:
+        # 읽기 순서 = 인제스트 삽입 순서. SQLite 는 rowid, PostgreSQL 은 rowid 가 없어
+        # ctid(힙 물리 위치 — 청크는 append-only 라 삽입 순서와 일치)로 대체.
+        # (rowid 하드코딩이 라이브 PG 에서 500 을 냈던 실사고)
+        order_col = "rowid" if s.get_bind().dialect.name == "sqlite" else "ctid"
         rows = [dict(r) for r in s.execute(sqltext(
             "SELECT id, document_id, insurer_id, doc_type, chunk_type, clause_no, sub_no, "
-            "page_start, substr(text, 1, 200) AS head FROM clause_chunks "
-            "ORDER BY document_id, rowid"
+            "page_start, substr(clause_chunks.text, 1, 200) AS head FROM clause_chunks "
+            f"ORDER BY document_id, {order_col}"
         )).mappings()]
 
     labels: dict[str, str] = {}
