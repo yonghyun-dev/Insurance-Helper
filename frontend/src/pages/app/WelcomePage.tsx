@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { Button, Tile, Icon } from '../../design-system';
 import ShellHeader from '../../design-system/patterns/shell/ShellHeader';
 import LegalFooter from '../../components/LegalFooter';
@@ -64,6 +65,11 @@ export default function WelcomePage({ onStart, onAnonymous }: WelcomePageProps) 
               </Tile>
             ))}
           </div>
+
+          <Link to="/admin/graph" className={s.adminLink}>
+            약관 지식그래프 탐색기 (관리자)
+            <Icon name="arrow-right" size={14} />
+          </Link>
         </div>
       </main>
       <LegalFooter />

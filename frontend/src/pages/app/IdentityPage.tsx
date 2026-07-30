@@ -17,7 +17,7 @@ export interface IdentityPageProps {
   onBack?: () => void;
 }
 
-export default function IdentityPage({ initial, onSubmit }: IdentityPageProps) {
+export default function IdentityPage({ initial, onSubmit, onBack }: IdentityPageProps) {
   const [name, setName] = useState(initial?.name ?? '');
   const [dob, setDob] = useState((initial?.dob ?? '').replace(/\D/g, '').slice(0, 8));
   const [phone, setPhone] = useState(formatPhone(initial?.phone ?? ''));
@@ -49,9 +49,15 @@ export default function IdentityPage({ initial, onSubmit }: IdentityPageProps) {
 
   return (
     <div className={s.shell} data-screen-label="02 본인 확인 · 마이데이터 동의">
-      <ShellHeader />
+      <ShellHeader onLogoClick={onBack} />
       <main className={s.main}>
         <div className={s.body}>
+          {onBack && (
+            <button type="button" className={s.backLink} onClick={onBack}>
+              <Icon name="arrow-left" size={16} />
+              메인 화면으로 돌아가기
+            </button>
+          )}
           <PreStepper current="identity" />
           <h1 className={s.title}>본인 확인이 필요합니다</h1>
           <p className={s.sub}>

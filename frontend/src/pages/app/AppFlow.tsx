@@ -95,6 +95,7 @@ export default function AppFlow() {
             setUser(u);
             setStage('coverage');
           }}
+          onBack={() => setStage('welcome')}
         />
       );
       break;

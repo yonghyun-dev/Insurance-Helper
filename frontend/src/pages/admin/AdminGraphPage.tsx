@@ -8,6 +8,7 @@ import FA2Layout from 'graphology-layout-forceatlas2/worker';
 import Sigma from 'sigma';
 import { EdgeArrowProgram } from 'sigma/rendering';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import TddTreeCanvas, { type TreeNode, type TreePayload } from './TddTreeCanvas';
 import s from './AdminGraphPage.module.css';
 
@@ -393,6 +394,7 @@ export default function AdminGraphPage() {
           <p className={s.eyebrow}>ACTIVE SCOPE</p>
           <strong>{scopeLabel}</strong>
         </div>
+        <Link to="/app" className={s.homeBtn}>메인 화면으로</Link>
       </header>
 
       <div className={s.panels}>

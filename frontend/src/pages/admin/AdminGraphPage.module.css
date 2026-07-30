@@ -666,3 +666,21 @@
   font-weight: 700;
   background: #f1f4f9;
 }
+
+/* 메인 화면 복귀 버튼 — 배너 우측 */
+.home-btn {
+  margin-left: 18px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2a3550;
+  background: #fff;
+  border: 1px solid #dfe4ec;
+  border-radius: 999px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.home-btn:hover {
+  background: #f2f5fa;
+}

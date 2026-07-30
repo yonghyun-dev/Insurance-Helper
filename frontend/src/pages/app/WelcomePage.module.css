@@ -105,3 +105,20 @@
   line-height: 22px;
   color: var(--text-secondary);
 }
+
+/* 관리자 그래프 탐색기 진입 링크 — 하단 조용한 위치 */
+.admin-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 26px;
+  font-size: 13px;
+  color: var(--gray-60);
+  text-decoration: none;
+}
+
+.admin-link:hover {
+  color: var(--blue-60);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
